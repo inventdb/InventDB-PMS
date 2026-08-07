@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 import {
   Building2,
   CheckCircle2,
+  ExternalLink,
   Eye,
   EyeOff,
   Loader2,
@@ -19,6 +20,10 @@ const FEATURES = [
   "Accounting, rent payments & owner reporting",
   "Powered by InventDB SOAR — secure & real-time",
 ];
+
+// InventDB is the identity provider, so new users register their workspace
+// there rather than in this app.
+const INVENTDB_URL = "https://www.inventdb.com";
 
 export default function Login() {
   const { user, token, login, loading } = useAuth();
@@ -60,7 +65,10 @@ export default function Login() {
           </div>
         </div>
         <div className="hero-foot">
-          Need an account? Register your InventDB workspace at inventdb.com
+          Need an account? Register your InventDB workspace at{" "}
+          <a href={INVENTDB_URL} target="_blank" rel="noreferrer noopener">
+            inventdb.com
+          </a>
         </div>
       </div>
 
@@ -125,7 +133,14 @@ export default function Login() {
             </button>
           </form>
           <div className="login-meta">
-            Authentication is handled directly by InventDB.
+            Don&apos;t have an account?{" "}
+            <a href={INVENTDB_URL} target="_blank" rel="noreferrer noopener">
+              Register on InventDB
+              <ExternalLink size={12} />
+            </a>
+            <div className="login-meta-sub">
+              Authentication is handled directly by InventDB.
+            </div>
           </div>
         </div>
       </div>
