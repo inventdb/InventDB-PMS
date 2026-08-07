@@ -1,0 +1,8 @@
+# Pure-Python stack — no compiled/native dependencies, so it installs cleanly on
+# any recent CPython (including 3.13/3.14) without a C or Rust toolchain.
+Flask==3.1.0
+flask-cors==5.0.0
+requests==2.32.3
+python-dotenv==1.0.1
+gunicorn==23.0.0 ; sys_platform != "win32"
+waitress==3.0.2
