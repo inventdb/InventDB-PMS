@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import {
-  Building2,
   CheckCircle2,
   ExternalLink,
   Eye,
@@ -12,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../auth/AuthContext";
+import { BrandLockup } from "../components/BrandLockup";
 import { Alert } from "../components/ui";
 
 const FEATURES = [
@@ -48,9 +48,7 @@ export default function Login() {
     <div className="login-page">
       <div className="login-hero">
         <div>
-          <div className="hero-badge">
-            <Building2 size={24} /> InventDB PMS
-          </div>
+          <BrandLockup className="hero-badge" size="lg" />
           <h1>Property management, modernised.</h1>
           <p>
             A single, fast workspace for managers to run their entire portfolio —
@@ -101,20 +99,18 @@ export default function Login() {
                 <Lock size={16} />
                 <input
                   id="password"
-                  className="input"
+                  className="input has-toggle"
                   type={show ? "text" : "password"}
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  style={{ paddingRight: 40 }}
                 />
                 <button
                   type="button"
-                  className="btn-icon"
+                  className="btn-icon input-toggle"
                   onClick={() => setShow((s) => !s)}
-                  style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)" }}
                   aria-label={show ? "Hide password" : "Show password"}
                   tabIndex={-1}
                 >

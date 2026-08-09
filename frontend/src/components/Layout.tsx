@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { Building2, LogOut, Menu, Moon, Sun } from "lucide-react";
+import { LogOut, Menu, Moon, Sun } from "lucide-react";
 
 import { ENTITY_BY_NAME } from "../config/entities";
 import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../theme/ThemeContext";
+import { BrandLockup } from "./BrandLockup";
 import { Icon } from "./Icon";
 
 interface NavEntry {
@@ -80,12 +81,7 @@ export function Layout() {
   return (
     <div className="app-shell">
       <aside className={`sidebar ${open ? "open" : ""}`}>
-        <div className="sidebar-brand">
-          <span className="logo">
-            <Building2 size={19} />
-          </span>
-          InventDB PMS
-        </div>
+        <BrandLockup className="sidebar-brand" tile />
         <nav className="nav" onClick={() => setOpen(false)}>
           {NAV.map((group, gi) => (
             <div key={gi}>
@@ -113,10 +109,12 @@ export function Layout() {
           <button className="btn-icon menu-btn" onClick={() => setOpen((o) => !o)} aria-label="Menu">
             <Menu size={20} />
           </button>
-          <h1>{pageTitle(location.pathname)}</h1>
+          {/* Keyed on the route so the old title unmounts and the new one
+              animates in, rather than the text swapping in place. */}
+          <h1 key={location.pathname}>{pageTitle(location.pathname)}</h1>
           <div className="spacer" />
           <button className="btn-icon" onClick={toggle} aria-label="Toggle theme" title="Toggle theme">
-            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            {theme === "dark" ? <Sun key="sun" size={18} /> : <Moon key="moon" size={18} />}
           </button>
           <button className="btn-icon" onClick={logout} aria-label="Sign out" title="Sign out">
             <LogOut size={18} />
@@ -125,7 +123,13 @@ export function Layout() {
             {initials || "?"}
           </div>
         </header>
-        <main>
+        {/* The route key is what drives the page transition: a new pathname
+            remounts the subtree, so the entrance animations in global.css
+            replay. Without it React reuses the same elements across
+            /properties → /owners and nothing would animate. Page components
+            already reset their own state per route (EntityListPage keys on
+            the entity), so the remount costs no behaviour. */}
+        <main className="page" key={location.pathname}>
           <Outlet />
         </main>
       </div>

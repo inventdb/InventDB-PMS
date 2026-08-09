@@ -1,80 +1,170 @@
 /* ============================================================================
    InventDB PMS — global styles & design tokens
+   ----------------------------------------------------------------------------
+   Themed to the InventDB brand book
+   (docs/brand/InventDB_Brand Delivery Package/01 - BRAND BOOK).
+
+   Primary          Orbital Indigo      #48176a
+   Secondary        Cosmic Indigo       #6a229d
+                    Wisteria Bloom      #c696e8
+                    Lavender Mist       #edd7ff
+                    Nebula Lavender     #f3e9fa
+   Tertiary         Midnight Graphite   #201e21
+                    Graphite            #403d43
+                    Steel Mist          #9f9ba4
+                    Silver Fog          #e4e2e5
+                    Misty White         #ffffff
+   Gradient         #48176a → #6a229d   (hero / high-impact surfaces only)
+   Typeface         Poppins — Bold/SemiBold headings · Medium subheads ·
+                    Regular body · Light captions
+
+   Steps the brand ramp doesn't name (canvas tints, dark-mode surfaces, hover
+   states) are interpolated from the brand hexes and marked "derived".
+   Components reference tokens only — never a raw brand hex.
    Theme-aware (light/dark via [data-theme]) and fully responsive.
    ============================================================================ */
 
 :root {
-  --brand: #0e7490;
-  --brand-strong: #0b5566;
-  --brand-soft: #e0f2fe;
+  color-scheme: light;
 
-  --bg: #f4f6f8;
-  --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --surface-3: #eef2f6;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
+  /* ---- brand ---- */
+  --brand: #48176a; /* Orbital Indigo — links, active nav, icons */
+  --brand-strong: #6a229d; /* Cosmic Indigo — hover / gradient end */
+  --brand-solid: #48176a; /* the one filled action */
+  --brand-soft: #edd7ff; /* Lavender Mist — active nav pill, icon tiles */
+  --brand-tint: #f3e9fa; /* Nebula Lavender — row hover, soft fills */
+  --brand-line: rgba(72, 23, 106, 0.26);
+  --on-brand: #ffffff;
+  --brand-grad: linear-gradient(145deg, #48176a 0%, #6a229d 100%);
 
-  --text: #0f172a;
-  --text-muted: #64748b;
-  --text-faint: #94a3b8;
+  /* ---- surfaces ---- */
+  --bg: #f7f4fa; /* derived: Nebula Lavender lifted toward white */
+  --surface: #ffffff; /* Misty White */
+  --surface-2: #faf7fc; /* derived */
+  --surface-3: #f3e9fa; /* Nebula Lavender */
+  --border: #e4e2e5; /* Silver Fog */
+  --border-strong: #d3cfd8; /* derived */
+  --card-border: transparent; /* light cards are borderless — shadow instead */
 
-  --success: #16a34a;
-  --success-soft: #dcfce7;
-  --warn: #d97706;
-  --warn-soft: #fef3c7;
-  --danger: #dc2626;
-  --danger-soft: #fee2e2;
-  --info: #2563eb;
-  --info-soft: #dbeafe;
-  --neutral: #64748b;
-  --neutral-soft: #e2e8f0;
+  /* ---- ink ---- */
+  --text: #201e21; /* Midnight Graphite */
+  --text-muted: #403d43; /* Graphite */
+  /* derived: Steel Mist stepped down until captions clear 4.5:1 on every light
+     surface (#9f9ba4 itself measures 2.73:1 on white — unreadable at 12px).
+     Steel Mist keeps its role unchanged on dark, where it measures 6.07:1. */
+  --text-faint: #736e7b;
 
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.16);
+  /* ---- functional state colours ----
+     The brand book defines no status hues; these are the InventDB product's
+     own functional set, chosen to sit quietly beside indigo. "Info" is the
+     brand itself, so no fifth hue enters the system. */
+  --success: #1d7a4b;
+  --success-soft: #e6f3eb;
+  --warn: #8a6200;
+  --warn-soft: #f8f1dd;
+  --danger: #b23a42;
+  --danger-soft: #f9edee;
+  --info: #48176a;
+  --info-soft: #f3e9fa;
+  --neutral: #6b6672; /* derived: Graphite → Steel Mist */
+  --neutral-soft: #eceaee;
 
-  --radius: 12px;
+  /* ---- chart series (validated: OKLab CVD ΔE, lightness band, chroma,
+     contrast — see the palette note at the foot of this file) ---- */
+  --chart-1: #6d25a2; /* brand purple, snapped into the light band */
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+  --chart-6: #008300;
+  --chart-7: #2a78d6;
+  --chart-8: #e34948;
+  --chart-axis: #736e7b; /* axis ticks are text — same 4.5:1 bar as captions */
+  --chart-grid: #ece9ef;
+
+  /* ---- depth: exactly two resting levels ---- */
+  --shadow-sm: 0 1px 2px rgba(32, 30, 33, 0.05), 0 1px 3px rgba(32, 30, 33, 0.06);
+  --shadow: 0 4px 14px -6px rgba(32, 30, 33, 0.18), 0 1px 3px rgba(32, 30, 33, 0.06);
+  --shadow-lg: 0 16px 48px rgba(32, 30, 33, 0.18);
+
+  /* ---- shape · density · motion (theme-independent) ---- */
   --radius-sm: 8px;
-  --radius-lg: 18px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
 
   --sidebar-w: 256px;
   --topbar-h: 60px;
 
-  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
-    sans-serif;
+  --font: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+
+  /* ---- motion ----
+     `--ease` drives state changes (hover, focus, colour). `--ease-out` is a
+     hard decelerate for entrances — fast off the mark, long settle, which is
+     what makes a page arrival read as deliberate rather than sluggish.
+     `--ease-spring` overshoots slightly and is reserved for things the user
+     just summoned (modals, the theme icon). */
+  --ease: cubic-bezier(0.25, 0.6, 0.35, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --dur-1: 120ms; /* colour / micro-state */
+  --dur-2: 200ms; /* component in-out */
+  --dur-3: 320ms; /* page + card entrances */
+  --stagger: 45ms; /* gap between siblings in a staggered group */
 }
 
 [data-theme="dark"] {
-  --brand: #22d3ee;
-  --brand-strong: #67e8f9;
-  --brand-soft: rgba(34, 211, 238, 0.12);
+  color-scheme: dark;
 
-  --bg: #0b1120;
-  --surface: #111827;
-  --surface-2: #172033;
-  --surface-3: #1f2a3d;
-  --border: #1f2a3d;
-  --border-strong: #2d3b52;
+  --brand: #c696e8; /* Wisteria Bloom — the brand's light-on-dark purple */
+  --brand-strong: #edd7ff; /* Lavender Mist */
+  --brand-solid: #6a229d; /* Cosmic Indigo carries filled actions on dark */
+  --brand-soft: rgba(198, 150, 232, 0.16);
+  --brand-tint: rgba(198, 150, 232, 0.09);
+  --brand-line: rgba(198, 150, 232, 0.34);
+  --on-brand: #ffffff;
+  --brand-grad: linear-gradient(145deg, #48176a 0%, #6a229d 100%);
 
-  --text: #e5edf5;
-  --text-muted: #94a3b8;
-  --text-faint: #64748b;
+  --bg: #17151a; /* derived: below Midnight Graphite */
+  --surface: #201e21; /* Midnight Graphite */
+  --surface-2: #272429; /* derived */
+  --surface-3: #302c33; /* derived */
+  --border: #35313a; /* derived */
+  --border-strong: #4a4551; /* derived, toward Graphite */
+  --card-border: #302c33;
 
-  --success: #34d399;
-  --success-soft: rgba(52, 211, 153, 0.14);
-  --warn: #fbbf24;
-  --warn-soft: rgba(251, 191, 36, 0.14);
-  --danger: #f87171;
-  --danger-soft: rgba(248, 113, 113, 0.14);
-  --info: #60a5fa;
-  --info-soft: rgba(96, 165, 250, 0.14);
-  --neutral: #94a3b8;
-  --neutral-soft: rgba(148, 163, 184, 0.16);
+  --text: #f3e9fa; /* Nebula Lavender reads as warm white on graphite */
+  --text-muted: #b5b0bd; /* derived */
+  --text-faint: #9f9ba4; /* Steel Mist */
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --success: #56bd87;
+  --success-soft: rgba(86, 189, 135, 0.14);
+  --warn: #e3b75e;
+  --warn-soft: rgba(227, 183, 94, 0.14);
+  --danger: #e08589;
+  --danger-soft: rgba(224, 133, 137, 0.14);
+  --info: #c696e8;
+  --info-soft: rgba(198, 150, 232, 0.14);
+  --neutral: #9f9ba4;
+  --neutral-soft: rgba(159, 155, 164, 0.16);
+
+  --chart-1: #a67ce0; /* brand purple, stepped for the dark surface */
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #008300;
+  --chart-7: #3987e5;
+  --chart-8: #e66767;
+  --chart-axis: #9f9ba4;
+  --chart-grid: #302c33;
+
+  /* dark cards carry a low-alpha edge instead of a shadow */
+  --shadow-sm: none;
   --shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.55);
 }
 
 * {
@@ -93,34 +183,228 @@ body {
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   font-size: 14px;
-  line-height: 1.5;
+  font-weight: 400;
+  line-height: 1.55;
+  transition: background-color 0.18s var(--ease), color 0.18s var(--ease);
 }
 
 a {
   color: var(--brand);
   text-decoration: none;
 }
+a:hover {
+  color: var(--brand-strong);
+}
 
+/* Poppins: SemiBold/Bold for headings, per the brand book's type hierarchy. */
 h1,
 h2,
 h3,
 h4 {
   margin: 0;
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+::selection {
+  background: var(--brand-soft);
+  color: var(--brand);
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-pill);
 }
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    /* Staggered entrances use `both` fill, so a surviving delay would hold
+       the element on its *from* keyframe — invisible — for the delay's
+       length. Zeroing the delay lands everything on its final state at once. */
+    animation-delay: 0s !important;
+  }
+}
+
+/* ============================================================================
+   Motion system
+   ----------------------------------------------------------------------------
+   Entrances run on mount only. React Router hands `<main class="page">` a new
+   key per route, so navigating remounts the subtree and the animations replay;
+   nothing re-animates on a re-render, a refetch or a sort.
+
+   Transforms are kept OFF the page wrapper on purpose — a non-none transform
+   makes an element the containing block for `position: fixed` descendants,
+   which would strand any modal that opened mid-animation. The wrapper only
+   fades; the travel lives on its children (and modals portal to <body>).
+   ============================================================================ */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@keyframes rise-sm {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px) scale(0.96);
+  }
+}
+@keyframes icon-swap {
+  from {
+    opacity: 0;
+    transform: rotate(-100deg) scale(0.5);
+  }
+}
+
+/* ---- Route transition ---------------------------------------------------- */
+.page {
+  animation: fade-in var(--dur-2) var(--ease-out) both;
+}
+
+/* Each top-level block of a page rises in, one after the next. */
+.page .content > * {
+  animation: rise var(--dur-3) var(--ease-out) both;
+}
+.page .content > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.page .content > *:nth-child(2) {
+  animation-delay: 55ms;
+}
+.page .content > *:nth-child(3) {
+  animation-delay: 110ms;
+}
+.page .content > *:nth-child(4) {
+  animation-delay: 165ms;
+}
+/* Anything past the fourth block shares the last step — a long page should
+   not make the reader wait through a ten-deep cascade. */
+.page .content > *:nth-child(n + 5) {
+  animation-delay: 200ms;
+}
+
+/* Grids hand their motion down to the individual tiles instead of moving as
+   one slab, so the stat row and the chart bento deal themselves out. */
+.page .content > .stat-grid,
+.page .content > .grid-2 {
+  animation: none;
+}
+.page .stat-grid > *,
+.page .grid-2 > * {
+  animation: rise var(--dur-3) var(--ease-out) both;
+}
+.page .stat-grid > *:nth-child(1),
+.page .grid-2 > *:nth-child(1) {
+  animation-delay: 55ms;
+}
+.page .stat-grid > *:nth-child(2),
+.page .grid-2 > *:nth-child(2) {
+  animation-delay: calc(55ms + var(--stagger));
+}
+.page .stat-grid > *:nth-child(3),
+.page .grid-2 > *:nth-child(3) {
+  animation-delay: calc(55ms + 2 * var(--stagger));
+}
+.page .stat-grid > *:nth-child(4),
+.page .grid-2 > *:nth-child(4) {
+  animation-delay: calc(55ms + 3 * var(--stagger));
+}
+.page .stat-grid > *:nth-child(5),
+.page .grid-2 > *:nth-child(5) {
+  animation-delay: calc(55ms + 4 * var(--stagger));
+}
+.page .stat-grid > *:nth-child(6),
+.page .grid-2 > *:nth-child(6) {
+  animation-delay: calc(55ms + 5 * var(--stagger));
+}
+.page .stat-grid > *:nth-child(7),
+.page .grid-2 > *:nth-child(7) {
+  animation-delay: calc(55ms + 6 * var(--stagger));
+}
+.page .stat-grid > *:nth-child(n + 8),
+.page .grid-2 > *:nth-child(n + 8) {
+  animation-delay: calc(55ms + 7 * var(--stagger));
+}
+
+/* Table rows deal in, but only the first screenful — a 1000-row result must
+   not spend four seconds arriving. */
+.page table.data tbody tr {
+  animation: rise-sm var(--dur-2) var(--ease-out) both;
+  animation-delay: 240ms;
+}
+.page table.data tbody tr:nth-child(1) {
+  animation-delay: 150ms;
+}
+.page table.data tbody tr:nth-child(2) {
+  animation-delay: 175ms;
+}
+.page table.data tbody tr:nth-child(3) {
+  animation-delay: 200ms;
+}
+.page table.data tbody tr:nth-child(4) {
+  animation-delay: 225ms;
+}
+.page table.data tbody tr:nth-child(5) {
+  animation-delay: 250ms;
+}
+.page table.data tbody tr:nth-child(6) {
+  animation-delay: 275ms;
+}
+.page table.data tbody tr:nth-child(7) {
+  animation-delay: 300ms;
+}
+.page table.data tbody tr:nth-child(8) {
+  animation-delay: 325ms;
+}
+
+/* The topbar title swaps per route rather than hard-cutting. */
+.topbar h1 {
+  animation: slide-in var(--dur-2) var(--ease-out) both;
 }
 
 /* ---- Buttons ------------------------------------------------------------ */
@@ -133,43 +417,68 @@ h4 {
   border: 1px solid transparent;
   background: var(--surface-3);
   color: var(--text);
-  font-weight: 600;
+  font-weight: 500;
   font-size: 13.5px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease),
+    box-shadow var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
   white-space: nowrap;
   font-family: inherit;
 }
 .btn:hover {
-  filter: brightness(0.97);
+  background: var(--brand-tint);
+  color: var(--brand);
+  transform: translateY(-1px);
 }
+/* Press beats hover: the button must return under the cursor on mousedown,
+   otherwise the lift reads as the click having missed. */
 .btn:active {
   transform: translateY(1px);
+  transition-duration: 60ms;
+}
+.btn:disabled:hover {
+  transform: none;
 }
 .btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 .btn-primary {
-  background: var(--brand);
-  color: #fff;
-}
-[data-theme="dark"] .btn-primary {
-  color: #06212a;
+  background: var(--brand-solid);
+  color: var(--on-brand);
+  font-weight: 600;
 }
 .btn-primary:hover {
   background: var(--brand-strong);
+  color: var(--on-brand);
+}
+[data-theme="dark"] .btn-primary:hover {
+  background: var(--brand);
+  color: #201e21;
 }
 .btn-ghost {
   background: transparent;
-  border-color: var(--border);
+  border-color: var(--border-strong);
 }
 .btn-ghost:hover {
-  background: var(--surface-3);
+  background: var(--brand-tint);
+  border-color: var(--brand-line);
+  color: var(--brand);
 }
 .btn-danger {
   background: var(--danger);
-  color: #fff;
+  color: #ffffff;
+  font-weight: 600;
+}
+/* The dark-mode danger step is a light pink so it reads on graphite; a filled
+   button made from it needs dark ink, not white (white would land near 2:1). */
+[data-theme="dark"] .btn-danger {
+  color: #201e21;
+}
+.btn-danger:hover {
+  background: var(--danger);
+  filter: brightness(0.93);
 }
 .btn-icon {
   padding: 8px;
@@ -179,8 +488,8 @@ h4 {
   border-radius: var(--radius-sm);
 }
 .btn-icon:hover {
-  background: var(--surface-3);
-  color: var(--text);
+  background: var(--brand-tint);
+  color: var(--brand);
 }
 .btn-sm {
   padding: 6px 10px;
@@ -191,15 +500,33 @@ h4 {
   justify-content: center;
 }
 
-/* ---- Cards -------------------------------------------------------------- */
+/* ---- Cards --------------------------------------------------------------
+   Borderless with one soft shadow in light; a low-alpha edge replaces the
+   shadow in dark. */
 .card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--card-border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
+  transition: transform var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
 }
 .card-pad {
   padding: 18px 20px;
+}
+/* The lift is limited to the stat tiles. Chart cards stay put — a card that
+   shifts under the pointer while you are tracking a data point is a hazard,
+   not a flourish; same for the cards that wrap tables and forms. */
+.card.stat:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow);
+}
+.card.stat:hover .stat-ico {
+  transform: scale(1.08);
+}
+.stat .stat-ico {
+  transition: transform var(--dur-2) var(--ease-spring),
+    background-color var(--dur-2) var(--ease);
 }
 
 /* ---- Badges ------------------------------------------------------------- */
@@ -208,10 +535,10 @@ h4 {
   align-items: center;
   gap: 5px;
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 12px;
-  font-weight: 650;
-  line-height: 1.4;
+  font-weight: 500;
+  line-height: 1.45;
   white-space: nowrap;
 }
 .badge::before {
@@ -251,7 +578,7 @@ h4 {
 }
 .field label {
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-muted);
 }
 .field .req {
@@ -269,7 +596,17 @@ h4 {
   color: var(--text);
   font-size: 14px;
   font-family: inherit;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+[data-theme="dark"] .input,
+[data-theme="dark"] .select,
+[data-theme="dark"] .textarea {
+  background: var(--surface-2);
+}
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--text-faint);
+  font-weight: 300;
 }
 .input:focus,
 .select:focus,
@@ -288,7 +625,10 @@ h4 {
 .input-icon {
   position: relative;
 }
-.input-icon svg {
+/* Direct child only — a nested icon (e.g. inside the password reveal button)
+   must keep normal flow, or it gets pinned to the wrapper's left offset and
+   escapes its button. */
+.input-icon > svg {
   position: absolute;
   left: 11px;
   top: 50%;
@@ -298,6 +638,23 @@ h4 {
 }
 .input-icon .input {
   padding-left: 36px;
+}
+/* Trailing control inside a field. Square so its icon sits centred and the
+   whole hit area is clickable. */
+.input-icon .input-toggle {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}
+.input-icon .input.has-toggle {
+  padding-right: 38px;
 }
 
 /* ---- Layout ------------------------------------------------------------- */
@@ -317,31 +674,83 @@ h4 {
   bottom: 0;
   left: 0;
   z-index: 40;
-  transition: transform 0.22s ease;
+  transition: transform 0.22s var(--ease);
 }
+/* ---- Brand lockup -------------------------------------------------------
+   Keystone + wordmark + expanded product name, per
+   assets/logo-3c/lockup-horizontal-{light,dark}.svg. The asset's proportions
+   (accent "PMS", all-caps tagline at ~0.34x the wordmark, tracked 0.22em) are
+   kept; the colours come from tokens so the lockup follows the theme. */
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-lockup-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.brand-lockup-name {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--text);
+  white-space: nowrap;
+}
+.brand-lockup-pms {
+  margin-left: 0.3em;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--brand);
+}
+/* The asset tracks this line at 0.22em all-caps — a logo treatment. Nothing
+   else in the product is uppercase (see .nav-section, the app's label idiom),
+   so the tracking is pulled back and the colour taken from --text-faint to
+   match. Enough of the lockup's voice to be recognisable, not a foreign
+   element in the sidebar. */
+.brand-lockup-tag {
+  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  line-height: 1.2;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.brand-lockup--sm .brand-lockup-name {
+  font-size: 14.5px;
+}
+.brand-lockup--sm .brand-lockup-tag {
+  font-size: 7.8px;
+  margin-top: 2px;
+}
+.brand-lockup--lg .brand-lockup-name {
+  font-size: 20px;
+}
+.brand-lockup--lg .brand-lockup-tag {
+  font-size: 10px;
+  margin-top: 3px;
+}
+
 .sidebar-brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 16px 18px;
+  padding: 10px 18px;
   height: var(--topbar-h);
   border-bottom: 1px solid var(--border);
-  font-weight: 700;
-  font-size: 16px;
-  letter-spacing: -0.02em;
 }
+/* The keystone sits on the brand gradient — per the brand book's "white logo
+   on gradients" rule, so the mark inherits #fff through currentColor. */
 .sidebar-brand .logo {
   display: grid;
   place-items: center;
   width: 32px;
   height: 32px;
   border-radius: 9px;
-  background: var(--brand);
-  color: #fff;
+  background: var(--brand-grad);
+  color: #ffffff;
   flex-shrink: 0;
-}
-[data-theme="dark"] .sidebar-brand .logo {
-  color: #06212a;
 }
 .nav {
   flex: 1;
@@ -352,35 +761,67 @@ h4 {
   gap: 2px;
 }
 .nav-section {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   color: var(--text-faint);
   padding: 14px 12px 6px;
 }
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 11px;
   padding: 9px 12px;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
-  font-weight: 550;
+  font-weight: 400;
   font-size: 13.5px;
   cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease), transform var(--dur-2) var(--ease-out);
 }
 .nav-item:hover {
-  background: var(--surface-3);
+  background: var(--brand-tint);
   color: var(--text);
+  transform: translateX(3px);
 }
 .nav-item.active {
   background: var(--brand-soft);
   color: var(--brand);
-  font-weight: 650;
+  font-weight: 600;
+  transform: none;
+}
+/* An accent rail at the sidebar's edge that grows into place on selection —
+   the only piece of chrome that tells you *which* section you landed in
+   after the page itself has finished arriving. */
+.nav-item::before {
+  content: "";
+  position: absolute;
+  /* The nav scrolls (`overflow-y: auto`), which also clips horizontally, so
+     -10px — the full width of the nav's padding — is as far left as the rail
+     can reach before it is cut off. -6px keeps a 4px gutter so it reads as a
+     deliberate marker rather than something clipped by the window edge. */
+  left: -6px;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  /* Fully rounded: inset from the edge it reads as a floating marker, so a
+     square left edge would look like the bar had been cut off. */
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+  transform: translateY(-50%);
+  transition: height var(--dur-2) var(--ease-spring);
+}
+.nav-item.active::before {
+  height: 20px;
 }
 .nav-item svg {
   flex-shrink: 0;
+  transition: transform var(--dur-2) var(--ease-spring);
+}
+.nav-item.active svg {
+  transform: scale(1.1);
 }
 .nav-count {
   margin-left: auto;
@@ -388,7 +829,7 @@ h4 {
   color: var(--text-faint);
   background: var(--surface-3);
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .main {
@@ -413,6 +854,7 @@ h4 {
 }
 .topbar h1 {
   font-size: 17px;
+  font-weight: 600;
 }
 .topbar .spacer {
   flex: 1;
@@ -429,12 +871,14 @@ h4 {
   flex-wrap: wrap;
 }
 .page-head .titles h2 {
-  font-size: 20px;
+  font-size: 21px;
+  font-weight: 600;
 }
 .page-head .titles p {
   margin: 3px 0 0;
   color: var(--text-muted);
   font-size: 13px;
+  font-weight: 300;
 }
 .page-head .actions {
   margin-left: auto;
@@ -447,15 +891,13 @@ h4 {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--brand);
-  color: #fff;
+  background: var(--brand-grad);
+  color: #ffffff;
   display: grid;
   place-items: center;
-  font-weight: 700;
-  font-size: 13px;
-}
-[data-theme="dark"] .avatar {
-  color: #06212a;
+  font-weight: 600;
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
 }
 
 /* mobile menu button + backdrop */
@@ -466,8 +908,13 @@ h4 {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.5);
+  background: rgba(32, 30, 33, 0.5);
   z-index: 39;
+}
+/* The theme toggle swaps one glyph for another; keying the icon on the theme
+   remounts it so the new one turns into place instead of popping. */
+.topbar .btn-icon svg {
+  animation: icon-swap var(--dur-3) var(--ease-spring) both;
 }
 
 /* ---- Stat cards --------------------------------------------------------- */
@@ -491,7 +938,7 @@ h4 {
 .stat .stat-label {
   color: var(--text-muted);
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 500;
 }
 .stat .stat-ico {
   width: 34px;
@@ -503,12 +950,14 @@ h4 {
   color: var(--brand);
 }
 .stat .stat-value {
-  font-size: 26px;
-  font-weight: 720;
-  letter-spacing: -0.02em;
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
 }
 .stat .stat-sub {
   font-size: 12px;
+  font-weight: 300;
   color: var(--text-faint);
 }
 
@@ -523,20 +972,46 @@ h4 {
 }
 .chart-card h3 {
   font-size: 14.5px;
+  font-weight: 600;
   margin-bottom: 4px;
 }
 .chart-card .chart-sub {
   color: var(--text-muted);
   font-size: 12px;
+  font-weight: 300;
   margin-bottom: 12px;
+}
+/* recharts injects its own focus ring on the SVG wrapper */
+.recharts-wrapper:focus {
+  outline: none;
+}
+.recharts-cartesian-axis-tick text {
+  font-variant-numeric: tabular-nums;
+}
+/* recharts stamps the series colour inline on legend text; identity belongs to
+   the swatch beside it, so the words stay on an ink token. */
+.recharts-legend-item-text {
+  color: var(--text-muted) !important;
+  font-weight: 400;
+}
+/* Direct slice labels — the relief channel for the lighter palette slots. */
+.recharts-pie-label-text {
+  fill: var(--text-muted);
+  font-size: 11.5px;
+}
+/* A 2px surface ring so adjacent slices never bleed into one another. */
+.recharts-pie-sector path {
+  stroke: var(--surface);
+  stroke-width: 2px;
 }
 
 /* ---- Table -------------------------------------------------------------- */
 .table-wrap {
   overflow-x: auto;
-  border: 1px solid var(--border);
+  border: 1px solid var(--card-border);
   border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 table.data {
   width: 100%;
@@ -544,14 +1019,14 @@ table.data {
   font-size: 13.5px;
   min-width: 560px;
 }
+/* Sentence-case, muted column heads — the brand type hierarchy carries the
+   distinction, not letterspaced caps. */
 table.data th {
   text-align: left;
   padding: 11px 14px;
   color: var(--text-muted);
-  font-weight: 650;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-weight: 500;
+  font-size: 12.5px;
   border-bottom: 1px solid var(--border);
   background: var(--surface-2);
   white-space: nowrap;
@@ -561,19 +1036,23 @@ table.data th {
 table.data th.no-sort {
   cursor: default;
 }
+table.data th:hover:not(.no-sort) {
+  color: var(--brand);
+}
 table.data td {
   padding: 11px 14px;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
+  font-variant-numeric: tabular-nums;
 }
 table.data tr:last-child td {
   border-bottom: none;
 }
 table.data tbody tr {
-  transition: background 0.12s ease;
+  transition: background-color 0.12s var(--ease);
 }
 table.data tbody tr:hover {
-  background: var(--surface-2);
+  background: var(--brand-tint);
 }
 .row-actions {
   display: flex;
@@ -605,30 +1084,33 @@ table.data tbody tr:hover {
   padding: 6px 12px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 /* ---- Modal -------------------------------------------------------------- */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.55);
+  background: rgba(32, 30, 33, 0.55);
   z-index: 60;
   display: flex;
   align-items: flex-start;
   justify-content: center;
   padding: 5vh 16px;
   overflow-y: auto;
-  animation: fade 0.15s ease;
+  animation: fade-in var(--dur-2) var(--ease-out) both;
+  backdrop-filter: blur(3px);
 }
 .modal {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--card-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   width: 100%;
   max-width: 640px;
-  animation: pop 0.16s ease;
+  /* Spring easing: the dialog was summoned, so a touch of overshoot reads as
+     responsive. Entrances the user did not ask for stay on --ease-out. */
+  animation: modal-in var(--dur-3) var(--ease-spring) both;
 }
 .modal.narrow {
   max-width: 440px;
@@ -641,6 +1123,7 @@ table.data tbody tr:hover {
 }
 .modal-head h3 {
   font-size: 16.5px;
+  font-weight: 600;
 }
 .modal-head .btn-icon {
   margin-left: auto;
@@ -664,18 +1147,6 @@ table.data tbody tr:hover {
   grid-column: 1 / -1;
 }
 
-@keyframes fade {
-  from {
-    opacity: 0;
-  }
-}
-@keyframes pop {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
-  }
-}
-
 /* ---- States ------------------------------------------------------------- */
 .empty {
   text-align: center;
@@ -685,16 +1156,19 @@ table.data tbody tr:hover {
 .empty .empty-ico {
   width: 56px;
   height: 56px;
-  border-radius: 16px;
-  background: var(--surface-3);
+  border-radius: var(--radius-lg);
+  background: var(--brand-soft);
   display: grid;
   place-items: center;
   margin: 0 auto 14px;
-  color: var(--text-faint);
+  color: var(--brand);
 }
 .empty h3 {
   color: var(--text);
   margin-bottom: 6px;
+}
+.empty p {
+  font-weight: 300;
 }
 .spinner {
   width: 22px;
@@ -722,7 +1196,7 @@ table.data tbody tr:hover {
   padding: 11px 14px;
   border-radius: var(--radius-sm);
   font-size: 13px;
-  font-weight: 550;
+  font-weight: 500;
 }
 .alert.error {
   background: var(--danger-soft);
@@ -756,8 +1230,9 @@ table.data tbody tr:hover {
   padding: 12px 16px;
   min-width: 240px;
   font-size: 13.5px;
-  font-weight: 550;
-  animation: pop 0.16s ease;
+  font-weight: 500;
+  /* Slides in from the edge it lives on, so the eye is led to the corner. */
+  animation: toast-in var(--dur-3) var(--ease-spring) both;
 }
 .toast.success {
   border-left-color: var(--success);
@@ -766,36 +1241,74 @@ table.data tbody tr:hover {
   border-left-color: var(--danger);
 }
 
-/* ---- Login -------------------------------------------------------------- */
+/* ---- Login --------------------------------------------------------------
+   The gradient's one sanctioned in-app home: a high-impact hero surface,
+   white logo, light text — exactly as the brand book prescribes. */
 .login-page {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 1.1fr 1fr;
 }
 .login-hero {
-  background: linear-gradient(150deg, var(--brand-strong), var(--brand));
-  color: #fff;
+  background: var(--brand-grad);
+  color: #ffffff;
   padding: 56px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+/* a single soft lavender bloom, so the flat gradient gets some depth */
+.login-hero::after {
+  content: "";
+  position: absolute;
+  width: 460px;
+  height: 460px;
+  right: -170px;
+  bottom: -190px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(237, 215, 255, 0.22) 0%,
+    rgba(237, 215, 255, 0) 70%
+  );
+  pointer-events: none;
+}
+.login-hero > * {
+  position: relative;
+  z-index: 1;
 }
 .login-hero .hero-badge {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 700;
-  font-size: 18px;
+  gap: 12px;
+}
+/* On the brand gradient the token accents would disappear, so the lockup goes
+   monochrome-light here — the brand book's "white logo on gradients" rule.
+   --brand-grad is identical in both themes, so these are fixed values. */
+.login-hero .brand-lockup-name {
+  color: #ffffff;
+}
+.login-hero .brand-lockup-pms {
+  color: #edd7ff; /* Lavender Mist — the accent that survives on the gradient */
+}
+.login-hero .brand-lockup-tag {
+  color: rgba(255, 255, 255, 0.78);
 }
 .login-hero h1 {
   font-size: 40px;
-  line-height: 1.1;
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
   margin-top: 22px;
   max-width: 15ch;
+  color: #ffffff;
 }
 .login-hero p {
   font-size: 15px;
-  opacity: 0.92;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.88);
   max-width: 44ch;
   margin-top: 16px;
 }
@@ -809,15 +1322,20 @@ table.data tbody tr:hover {
   align-items: center;
   gap: 10px;
   font-size: 14px;
-  opacity: 0.95;
+  color: rgba(255, 255, 255, 0.92);
+}
+.login-hero .hero-feat svg {
+  color: #c696e8;
+  flex-shrink: 0;
 }
 .login-hero .hero-foot {
   font-size: 12.5px;
-  opacity: 0.8;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.72);
 }
 .login-hero .hero-foot a {
-  color: #fff;
-  font-weight: 600;
+  color: #ffffff;
+  font-weight: 500;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -830,15 +1348,46 @@ table.data tbody tr:hover {
 .login-card {
   width: 100%;
   max-width: 380px;
+  animation: rise var(--dur-3) var(--ease-out) 80ms both;
+}
+/* The hero's copy assembles behind the sign-in card rather than with it. */
+.login-hero .hero-badge {
+  animation: rise-sm var(--dur-3) var(--ease-out) both;
+}
+.login-hero h1 {
+  animation: rise var(--dur-3) var(--ease-out) 70ms both;
+}
+.login-hero > div > p {
+  animation: rise var(--dur-3) var(--ease-out) 130ms both;
+}
+.login-hero .hero-feat {
+  animation: slide-in var(--dur-3) var(--ease-out) both;
+}
+.login-hero .hero-feat:nth-child(1) {
+  animation-delay: 190ms;
+}
+.login-hero .hero-feat:nth-child(2) {
+  animation-delay: 240ms;
+}
+.login-hero .hero-feat:nth-child(3) {
+  animation-delay: 290ms;
+}
+.login-hero .hero-feat:nth-child(4) {
+  animation-delay: 340ms;
+}
+.login-hero .hero-foot {
+  animation: fade-in var(--dur-3) var(--ease-out) 400ms both;
 }
 .login-card .lc-head {
   margin-bottom: 22px;
 }
 .login-card .lc-head h2 {
   font-size: 23px;
+  font-weight: 600;
 }
 .login-card .lc-head p {
   color: var(--text-muted);
+  font-weight: 300;
   margin-top: 6px;
   font-size: 13.5px;
 }
@@ -858,18 +1407,21 @@ table.data tbody tr:hover {
   align-items: center;
   gap: 4px;
   color: var(--brand);
-  font-weight: 600;
+  font-weight: 500;
 }
 .login-meta a:hover {
   text-decoration: underline;
 }
 .login-meta .login-meta-sub {
   margin-top: 8px;
+  font-weight: 300;
+  color: var(--text-faint);
 }
 
 /* ---- Reports ------------------------------------------------------------ */
 .report-note {
   font-size: 12.5px;
+  font-weight: 300;
   color: var(--text-muted);
 }
 .kv {
@@ -880,7 +1432,7 @@ table.data tbody tr:hover {
 }
 .kv dt {
   color: var(--text-muted);
-  font-weight: 600;
+  font-weight: 500;
 }
 .kv dd {
   margin: 0;
@@ -896,11 +1448,9 @@ table.data tbody tr:hover {
   gap: 2px;
 }
 .detail-grid .di .k {
-  font-size: 11.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 12px;
   color: var(--text-faint);
-  font-weight: 650;
+  font-weight: 500;
 }
 .detail-grid .di .v {
   font-size: 14px;
@@ -915,6 +1465,22 @@ table.data tbody tr:hover {
 .wf-step {
   display: flex;
   gap: 12px;
+  /* The plan reads top-to-bottom, so it should arrive that way too. Steps
+     load asynchronously per card, hence a short fade rather than a delay
+     chain hung off the page entrance. */
+  animation: slide-in var(--dur-2) var(--ease-out) both;
+}
+.wf-step:nth-child(2) {
+  animation-delay: 50ms;
+}
+.wf-step:nth-child(3) {
+  animation-delay: 100ms;
+}
+.wf-step:nth-child(4) {
+  animation-delay: 150ms;
+}
+.wf-step:nth-child(n + 5) {
+  animation-delay: 200ms;
 }
 .wf-step-rail {
   display: flex;
@@ -943,7 +1509,7 @@ table.data tbody tr:hover {
   min-width: 0;
 }
 .wf-step-title {
-  font-weight: 600;
+  font-weight: 500;
   font-size: 13.5px;
   display: flex;
   align-items: center;
@@ -951,18 +1517,37 @@ table.data tbody tr:hover {
   flex-wrap: wrap;
 }
 .wf-kind {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 10.5px;
   color: var(--text-faint);
   background: var(--surface-3);
   padding: 1px 6px;
   border-radius: 5px;
-  font-weight: 600;
+  font-weight: 500;
 }
 .wf-step-desc {
   color: var(--text-muted);
   font-size: 12.5px;
+  font-weight: 300;
   margin-top: 2px;
+}
+.wf-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.wf-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.wf-legend .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
 }
 
 /* ---- Responsive --------------------------------------------------------- */
@@ -989,8 +1574,21 @@ table.data tbody tr:hover {
   .menu-btn {
     display: inline-flex;
   }
-  .backdrop.show {
+  /* Kept in the box and toggled with opacity/visibility rather than display,
+     so the scrim can actually cross-fade with the drawer sliding in — a
+     display swap gives the transition nothing to interpolate. Visibility is
+     stepped at the end of the fade-out so the layer stops taking clicks. */
+  .backdrop {
     display: block;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--dur-2) var(--ease),
+      visibility 0s linear var(--dur-2);
+  }
+  .backdrop.show {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity var(--dur-2) var(--ease), visibility 0s;
   }
   .content {
     padding: 16px;
@@ -1005,3 +1603,27 @@ table.data tbody tr:hover {
     grid-template-columns: 120px 1fr;
   }
 }
+
+/* ============================================================================
+   Chart palette note
+   ----------------------------------------------------------------------------
+   --chart-1..8 are a categorical (identity) palette, assigned in fixed slot
+   order and never cycled. Slot 1 is the brand purple snapped into each mode's
+   OKLCH lightness band (#6a229d sits at L 0.429, one thousandth under the
+   0.43 light floor; #c696e8 at L 0.748, over the 0.67 dark cap).
+
+   Validated with the data-viz six checks in both modes — lightness band,
+   chroma floor, CVD separation (Machado 2009, protan/deutan at severity 1.0),
+   normal-vision floor and surface contrast:
+
+     light on #ffffff  worst adjacent CVD ΔE 9.1 · normal-vision ΔE 19.6
+     dark  on #201e21  worst adjacent CVD ΔE 8.4 · normal-vision ΔE 19.3
+
+   In light mode slots 3, 4 and 5 sit below 3:1 against white (2.82 / 2.17 /
+   2.69). That is legal only with a relief channel, so every chart using them
+   ships a legend plus either direct labels or a table view of the same
+   figures — never colour alone.
+
+   Scatter/bubble charts (any two marks can touch) are capped at the first
+   three slots, which clear the harder all-pairs gate in both modes.
+   ============================================================================ */

@@ -30,7 +30,7 @@ import {
 
 import { useWorkflow, useWorkflowRuns, useWorkflows } from "../api/hooks";
 import { errorMessage } from "../api/client";
-import { useTheme } from "../theme/ThemeContext";
+import { statusColor, useChartTheme } from "../theme/charts";
 import { Alert, EmptyState, Spinner } from "../components/ui";
 import type { Workflow, WorkflowRun, WorkflowStep } from "../types";
 
@@ -54,17 +54,11 @@ const TRIGGER_ICONS: { [kind: string]: LucideIcon } = {
   manual: Play,
 };
 
-function statusColor(status: string): string {
-  const s = status.toLowerCase();
-  if (s === "succeeded" || s === "success") return "#22c55e";
-  if (s === "failed" || s === "error") return "#ef4444";
-  if (s === "running" || s === "parked") return "#f59e0b";
-  return "#64748b";
-}
-
+/** Run outcomes wear the reserved state colours, always beside an icon + label. */
 function StatusIcon({ status, size = 15 }: { status: string; size?: number }) {
+  const chart = useChartTheme();
   const s = status.toLowerCase();
-  const color = statusColor(status);
+  const color = statusColor(status, chart);
   if (s === "succeeded" || s === "success")
     return <CheckCircle2 size={size} color={color} />;
   if (s === "failed" || s === "error") return <XCircle size={size} color={color} />;
@@ -104,7 +98,6 @@ function cronHint(w: Workflow): string {
 export default function Workflows() {
   const workflows = useWorkflows();
   const runs = useWorkflowRuns();
-  const { theme } = useTheme();
 
   if (workflows.isLoading) return <Spinner />;
   if (workflows.isError)
@@ -147,7 +140,7 @@ export default function Workflows() {
         </div>
       ) : (
         <>
-          <RunTimeline runs={runList} nameById={nameById} theme={theme} />
+          <RunTimeline runs={runList} nameById={nameById} />
           <div className="grid-2" style={{ marginTop: 16 }}>
             {wfList.map((w) => (
               <WorkflowCard key={w._id} workflow={w} runs={runList.filter((r) => r.workflow_id === w._id)} />
@@ -163,14 +156,11 @@ export default function Workflows() {
 function RunTimeline({
   runs,
   nameById,
-  theme,
 }: {
   runs: WorkflowRun[];
   nameById: { [id: string]: string };
-  theme: string;
 }) {
-  const axisColor = theme === "dark" ? "#94a3b8" : "#64748b";
-  const gridColor = theme === "dark" ? "#1f2a3d" : "#e2e8f0";
+  const chart = useChartTheme();
 
   // Assign each workflow a Y row.
   const ids = Array.from(new Set(runs.map((r) => r.workflow_id)));
@@ -206,14 +196,14 @@ function RunTimeline({
       <div className="chart-sub">Each point is a workflow run, coloured by outcome</div>
       <ResponsiveContainer width="100%" height={80 + ids.length * 56}>
         <ScatterChart margin={{ top: 10, right: 24, bottom: 20, left: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+          <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
           <XAxis
             type="number"
             dataKey="x"
             domain={["dataMin - 3600000", "dataMax + 3600000"]}
             scale="time"
             tickFormatter={(t) => fmtDateTime(new Date(t).toISOString())}
-            stroke={axisColor}
+            stroke={chart.axis}
             fontSize={11}
           />
           <YAxis
@@ -226,7 +216,7 @@ function RunTimeline({
               return id ? shortName(nameById[id] ?? id) : "";
             }}
             width={140}
-            stroke={axisColor}
+            stroke={chart.axis}
             fontSize={11}
           />
           <ZAxis type="number" dataKey="z" range={[70, 320]} />
@@ -240,14 +230,14 @@ function RunTimeline({
                   style={{
                     background: "var(--surface)",
                     border: "1px solid var(--border)",
-                    borderRadius: 10,
-                    padding: "8px 12px",
+                    borderRadius: "var(--radius)",
+                    padding: "9px 13px",
                     fontSize: 12.5,
                     color: "var(--text)",
                     boxShadow: "var(--shadow)",
                   }}
                 >
-                  <div style={{ fontWeight: 700, marginBottom: 4 }}>{d.name}</div>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{d.name}</div>
                   <div style={{ textTransform: "capitalize" }}>Status: {d.status}</div>
                   <div>Started: {fmtDateTime(d.started)}</div>
                   <div>Duration: {duration(d.started, d.ended)}</div>
@@ -257,19 +247,19 @@ function RunTimeline({
           />
           <Scatter data={points}>
             {points.map((pt, i) => (
-              <Cell key={i} fill={statusColor(pt.status)} />
+              <Cell key={i} fill={statusColor(pt.status, chart)} />
             ))}
           </Scatter>
         </ScatterChart>
       </ResponsiveContainer>
-      <div style={{ display: "flex", gap: 16, marginTop: 8, flexWrap: "wrap" }}>
+      <div className="wf-legend">
         {[
-          { label: "Succeeded", c: "#22c55e" },
-          { label: "Failed", c: "#ef4444" },
-          { label: "Running", c: "#f59e0b" },
+          { label: "Succeeded", c: chart.status.success },
+          { label: "Failed", c: chart.status.danger },
+          { label: "Running", c: chart.status.warn },
         ].map((l) => (
-          <span key={l.label} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-muted)" }}>
-            <span style={{ width: 10, height: 10, borderRadius: "50%", background: l.c }} />
+          <span key={l.label}>
+            <span className="dot" style={{ background: l.c }} />
             {l.label}
           </span>
         ))}

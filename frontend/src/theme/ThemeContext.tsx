@@ -19,6 +19,11 @@ const ThemeContext = createContext<ThemeState | undefined>(undefined);
 const THEME_KEY = "pms.theme";
 
 function initialTheme(): Theme {
+  // index.html stamps data-theme on <html> before first paint. Adopting it
+  // here keeps React in step with what the user is already looking at.
+  const painted = document.documentElement.getAttribute("data-theme");
+  if (painted === "light" || painted === "dark") return painted;
+
   const stored = localStorage.getItem(THEME_KEY);
   if (stored === "light" || stored === "dark") return stored;
   const prefersDark =

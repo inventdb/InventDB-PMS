@@ -22,11 +22,10 @@ import {
   useWorkOrdersReport,
 } from "../api/hooks";
 import { errorMessage } from "../api/client";
-import { useTheme } from "../theme/ThemeContext";
+import { foldToOther, useChartTheme } from "../theme/charts";
 import { Alert, Badge, Spinner } from "../components/ui";
+import ChartTooltip from "../components/ChartTooltip";
 import { formatCurrency, formatDate } from "../utils/format";
-
-const PALETTE = ["#0ea5b7", "#f59e0b", "#6366f1", "#ef4444", "#22c55e", "#ec4899", "#14b8a6", "#a855f7"];
 
 function monthLabel(m: string): string {
   const [y, mm] = m.split("-");
@@ -36,6 +35,14 @@ function monthLabel(m: string): string {
   });
 }
 
+/** Direct slice labels — the relief channel for the lighter palette slots. */
+interface PieLabelProps {
+  name?: string;
+  percent?: number;
+}
+const pieLabel = ({ name, percent }: PieLabelProps) =>
+  `${name ?? ""} · ${Math.round((percent ?? 0) * 100)}%`;
+
 export default function Reports() {
   const pnl = usePnl();
   const cashflow = useReportCashflow();
@@ -43,17 +50,7 @@ export default function Reports() {
   const renewals = useRenewals(90);
   const occupancy = useOccupancyReport();
   const workOrders = useWorkOrdersReport();
-  const { theme } = useTheme();
-
-  const axisColor = theme === "dark" ? "#94a3b8" : "#64748b";
-  const gridColor = theme === "dark" ? "#1f2a3d" : "#e2e8f0";
-  const tip = {
-    background: "var(--surface)",
-    border: "1px solid var(--border)",
-    borderRadius: 10,
-    color: "var(--text)",
-    fontSize: 13,
-  } as const;
+  const chart = useChartTheme();
 
   if (pnl.isLoading || cashflow.isLoading) return <Spinner />;
   if (pnl.isError)
@@ -66,6 +63,9 @@ export default function Reports() {
   const p = pnl.data!;
   const cf = cashflow.data?.cashflow ?? [];
   const wo = workOrders.data;
+  // Cap the category list at the palette's slot count — the palette is never
+  // cycled, so a ninth category becomes "Other" instead of reusing slot 1.
+  const expenseByCategory = foldToOther(p.expense_by_category);
 
   return (
     <div className="content">
@@ -106,14 +106,16 @@ export default function Reports() {
           <h3>Monthly Cash Flow</h3>
           <div className="chart-sub">Income, expense &amp; net by month</div>
           <ResponsiveContainer width="100%" height={280}>
+            {/* Income and expense carry polarity — reserved state colours,
+                named in the legend, never colour alone. */}
             <BarChart data={cf}>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-              <XAxis dataKey="month" tickFormatter={monthLabel} stroke={axisColor} fontSize={12} tickLine={false} />
-              <YAxis stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
-              <Tooltip contentStyle={tip} formatter={(v: number) => formatCurrency(v)} labelFormatter={monthLabel} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
+              <XAxis dataKey="month" tickFormatter={monthLabel} stroke={chart.axis} fontSize={12} tickLine={false} />
+              <YAxis stroke={chart.axis} fontSize={12} tickLine={false} axisLine={false} />
+              <Tooltip content={<ChartTooltip />} formatter={(v: number) => formatCurrency(v)} labelFormatter={monthLabel} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="income" name="Income" fill={PALETTE[4]} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expense" name="Expense" fill={PALETTE[3]} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="income" name="Income" fill={chart.status.success} radius={[4, 4, 0, 0]} maxBarSize={26} />
+              <Bar dataKey="expense" name="Expense" fill={chart.status.danger} radius={[4, 4, 0, 0]} maxBarSize={26} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -124,18 +126,20 @@ export default function Reports() {
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie
-                data={p.expense_by_category}
+                data={expenseByCategory}
                 dataKey="value"
                 nameKey="name"
-                innerRadius={60}
-                outerRadius={98}
+                innerRadius={54}
+                outerRadius={82}
                 paddingAngle={2}
+                label={pieLabel}
+                labelLine={{ stroke: chart.axis }}
               >
-                {p.expense_by_category.map((_, i) => (
-                  <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
+                {expenseByCategory.map((row, i) => (
+                  <Cell key={row.name} fill={chart.seriesAt(i)} />
                 ))}
               </Pie>
-              <Tooltip contentStyle={tip} formatter={(v: number) => formatCurrency(v)} />
+              <Tooltip content={<ChartTooltip />} formatter={(v: number) => formatCurrency(v)} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
@@ -190,17 +194,21 @@ export default function Reports() {
           <div className="chart-sub">
             Open cost estimate: {formatCurrency(wo?.open_cost_estimate)}
           </div>
+          {/* Single series: length is the value, the tick is the identity —
+              so both work-order charts stay on slot 1. */}
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={wo?.by_status ?? []}>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-              <XAxis dataKey="name" stroke={axisColor} fontSize={12} tickLine={false} />
-              <YAxis stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={tip} cursor={{ fill: "var(--surface-2)" }} />
-              <Bar dataKey="value" name="Work orders" radius={[6, 6, 0, 0]}>
-                {(wo?.by_status ?? []).map((_, i) => (
-                  <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
-                ))}
-              </Bar>
+              <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
+              <XAxis dataKey="name" stroke={chart.axis} fontSize={12} tickLine={false} />
+              <YAxis stroke={chart.axis} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.cursor }} />
+              <Bar
+                dataKey="value"
+                name="Work orders"
+                fill={chart.series[0]}
+                radius={[4, 4, 0, 0]}
+                maxBarSize={54}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -210,15 +218,17 @@ export default function Reports() {
           <div className="chart-sub">Maintenance demand by trade</div>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={wo?.by_category ?? []} layout="vertical" margin={{ left: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} horizontal={false} />
-              <XAxis type="number" stroke={axisColor} fontSize={12} tickLine={false} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" stroke={axisColor} fontSize={11} tickLine={false} width={100} />
-              <Tooltip contentStyle={tip} cursor={{ fill: "var(--surface-2)" }} />
-              <Bar dataKey="value" name="Work orders" radius={[0, 6, 6, 0]}>
-                {(wo?.by_category ?? []).map((_, i) => (
-                  <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
-                ))}
-              </Bar>
+              <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} horizontal={false} />
+              <XAxis type="number" stroke={chart.axis} fontSize={12} tickLine={false} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" stroke={chart.axis} fontSize={11} tickLine={false} width={100} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.cursor }} />
+              <Bar
+                dataKey="value"
+                name="Work orders"
+                fill={chart.series[0]}
+                radius={[0, 4, 4, 0]}
+                maxBarSize={26}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -15,8 +15,8 @@ import {
   YAxis,
 } from "recharts";
 import {
-  Building2,
   CalendarClock,
+  FileStack,
   DollarSign,
   Percent,
   TrendingDown,
@@ -27,21 +27,12 @@ import {
 
 import { useDashboardCharts, useDashboardSummary } from "../api/hooks";
 import { errorMessage } from "../api/client";
-import { useTheme } from "../theme/ThemeContext";
+import { foldToOther, useChartTheme } from "../theme/charts";
 import { Alert, Spinner } from "../components/ui";
+import ChartTooltip from "../components/ChartTooltip";
+import { BrandMark } from "../components/BrandMark";
 import { formatCurrency } from "../utils/format";
 import type { ReactNode } from "react";
-
-const PALETTE = [
-  "#0ea5b7",
-  "#f59e0b",
-  "#6366f1",
-  "#ef4444",
-  "#22c55e",
-  "#ec4899",
-  "#14b8a6",
-  "#a855f7",
-];
 
 function monthLabel(m: string): string {
   const [y, mm] = m.split("-");
@@ -49,21 +40,23 @@ function monthLabel(m: string): string {
   return d.toLocaleDateString(undefined, { month: "short" });
 }
 
+/**
+ * Direct slice labels. Three of the lighter palette slots sit under 3:1 on a
+ * white card, which is only legal with a relief channel — these labels (plus
+ * the legend) are it, so a slice is never identified by its fill alone.
+ */
+interface PieLabelProps {
+  name?: string;
+  percent?: number;
+}
+const pieLabel = ({ name, percent }: PieLabelProps) =>
+  `${name ?? ""} · ${Math.round((percent ?? 0) * 100)}%`;
+
 export default function Dashboard() {
   const summary = useDashboardSummary();
   const charts = useDashboardCharts();
-  const { theme } = useTheme();
+  const chart = useChartTheme();
   const navigate = useNavigate();
-
-  const axisColor = theme === "dark" ? "#94a3b8" : "#64748b";
-  const gridColor = theme === "dark" ? "#1f2a3d" : "#e2e8f0";
-  const tooltipStyle = {
-    background: "var(--surface)",
-    border: "1px solid var(--border)",
-    borderRadius: 10,
-    color: "var(--text)",
-    fontSize: 13,
-  } as const;
 
   if (summary.isLoading || charts.isLoading) return <Spinner />;
 
@@ -77,6 +70,11 @@ export default function Dashboard() {
 
   const s = summary.data!;
   const c = charts.data;
+  // Cap the breakdown at the palette's slot count so a long category list
+  // never wraps around and reuses slot 1 for an unrelated category.
+  const expenseBreakdown = foldToOther(c?.expense_breakdown);
+  const propertyStatus = c?.property_status ?? [];
+  const maintenanceStatus = c?.maintenance_status ?? [];
 
   return (
     <div className="content">
@@ -98,7 +96,7 @@ export default function Dashboard() {
           label="Properties"
           value={s.properties.total}
           sub={`${s.properties.occupied} occupied · ${s.properties.vacant} vacant`}
-          icon={<Building2 size={18} />}
+          icon={<BrandMark size={18} />}
         />
         <Stat
           label="Active Leases"
@@ -142,7 +140,7 @@ export default function Dashboard() {
           label="Total Leases"
           value={s.leases.total}
           sub="All statuses"
-          icon={<CalendarClock size={18} />}
+          icon={<FileStack size={18} />}
         />
       </div>
 
@@ -152,27 +150,30 @@ export default function Dashboard() {
           <div className="chart-sub">Income vs. expenses over the last 6 months</div>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={c?.cashflow ?? []}>
+              {/* Income and expense carry polarity, so they wear the reserved
+                  state colours rather than categorical slots. The legend names
+                  them — the colour never carries the meaning alone. */}
               <defs>
                 <linearGradient id="gInc" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={PALETTE[0]} stopOpacity={0.35} />
-                  <stop offset="95%" stopColor={PALETTE[0]} stopOpacity={0} />
+                  <stop offset="5%" stopColor={chart.status.success} stopOpacity={0.22} />
+                  <stop offset="95%" stopColor={chart.status.success} stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="gExp" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={PALETTE[3]} stopOpacity={0.35} />
-                  <stop offset="95%" stopColor={PALETTE[3]} stopOpacity={0} />
+                  <stop offset="5%" stopColor={chart.status.danger} stopOpacity={0.22} />
+                  <stop offset="95%" stopColor={chart.status.danger} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
               <XAxis
                 dataKey="month"
                 tickFormatter={monthLabel}
-                stroke={axisColor}
+                stroke={chart.axis}
                 fontSize={12}
                 tickLine={false}
               />
-              <YAxis stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis stroke={chart.axis} fontSize={12} tickLine={false} axisLine={false} />
               <Tooltip
-                contentStyle={tooltipStyle}
+                content={<ChartTooltip />}
                 formatter={(v: number) => formatCurrency(v)}
                 labelFormatter={monthLabel}
               />
@@ -181,7 +182,7 @@ export default function Dashboard() {
                 type="monotone"
                 dataKey="income"
                 name="Income"
-                stroke={PALETTE[0]}
+                stroke={chart.status.success}
                 fill="url(#gInc)"
                 strokeWidth={2}
               />
@@ -189,7 +190,7 @@ export default function Dashboard() {
                 type="monotone"
                 dataKey="expense"
                 name="Expense"
-                stroke={PALETTE[3]}
+                stroke={chart.status.danger}
                 fill="url(#gExp)"
                 strokeWidth={2}
               />
@@ -200,22 +201,24 @@ export default function Dashboard() {
         <div className="card chart-card">
           <h3>Expense Breakdown</h3>
           <div className="chart-sub">Where money is going, by category</div>
-          <ChartOrEmpty data={c?.expense_breakdown ?? []}>
+          <ChartOrEmpty data={expenseBreakdown}>
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
                 <Pie
-                  data={c?.expense_breakdown ?? []}
+                  data={expenseBreakdown}
                   dataKey="value"
                   nameKey="name"
-                  innerRadius={62}
-                  outerRadius={98}
+                  innerRadius={54}
+                  outerRadius={82}
                   paddingAngle={2}
+                  label={pieLabel}
+                  labelLine={{ stroke: chart.axis }}
                 >
-                  {(c?.expense_breakdown ?? []).map((_, i) => (
-                    <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
+                  {expenseBreakdown.map((row, i) => (
+                    <Cell key={row.name} fill={chart.seriesAt(i)} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => formatCurrency(v)} />
+                <Tooltip content={<ChartTooltip />} formatter={(v: number) => formatCurrency(v)} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
@@ -225,18 +228,22 @@ export default function Dashboard() {
         <div className="card chart-card">
           <h3>Maintenance by Status</h3>
           <div className="chart-sub">Current work order pipeline</div>
-          <ChartOrEmpty data={c?.maintenance_status ?? []}>
+          {/* One series: bar length carries the value and the axis tick carries
+              the identity, so every bar takes slot 1 rather than a rainbow. */}
+          <ChartOrEmpty data={maintenanceStatus}>
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={c?.maintenance_status ?? []}>
-                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-                <XAxis dataKey="name" stroke={axisColor} fontSize={12} tickLine={false} />
-                <YAxis stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--surface-2)" }} />
-                <Bar dataKey="value" name="Requests" radius={[6, 6, 0, 0]}>
-                  {(c?.maintenance_status ?? []).map((_, i) => (
-                    <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
-                  ))}
-                </Bar>
+              <BarChart data={maintenanceStatus}>
+                <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
+                <XAxis dataKey="name" stroke={chart.axis} fontSize={12} tickLine={false} />
+                <YAxis stroke={chart.axis} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.cursor }} />
+                <Bar
+                  dataKey="value"
+                  name="Requests"
+                  fill={chart.series[0]}
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={54}
+                />
               </BarChart>
             </ResponsiveContainer>
           </ChartOrEmpty>
@@ -245,21 +252,22 @@ export default function Dashboard() {
         <div className="card chart-card">
           <h3>Property Status</h3>
           <div className="chart-sub">Portfolio occupancy split</div>
-          <ChartOrEmpty data={c?.property_status ?? []}>
+          <ChartOrEmpty data={propertyStatus}>
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie
-                  data={c?.property_status ?? []}
+                  data={propertyStatus}
                   dataKey="value"
                   nameKey="name"
-                  outerRadius={98}
-                  label
+                  outerRadius={80}
+                  label={pieLabel}
+                  labelLine={{ stroke: chart.axis }}
                 >
-                  {(c?.property_status ?? []).map((_, i) => (
-                    <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
+                  {propertyStatus.map((row, i) => (
+                    <Cell key={row.name ?? i} fill={chart.seriesAt(i)} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={tooltipStyle} />
+                <Tooltip content={<ChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>

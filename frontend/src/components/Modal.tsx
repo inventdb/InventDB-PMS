@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 export function Modal({
@@ -26,7 +27,13 @@ export function Modal({
     };
   }, [onClose]);
 
-  return (
+  // Rendered into <body> rather than in place. Pages are declared inside a
+  // container that animates on route change, and a transformed ancestor
+  // becomes the containing block for `position: fixed` — which would peg the
+  // backdrop to the page box instead of the viewport for the length of the
+  // entrance. The portal takes the dialog out of that subtree entirely, and
+  // incidentally puts it above every stacking context on the page.
+  return createPortal(
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div
         className={`modal ${narrow ? "narrow" : ""}`}
@@ -43,7 +50,8 @@ export function Modal({
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
