@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#201e21">
+<title>InventDB PMS — Frontend Test Results</title>
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='4 5 120 120'%3E%3Cpath d='M12 116 L12 54 L64 14 L116 54 L116 116' fill='none' stroke='%23c696e8' stroke-width='13' stroke-linejoin='round' stroke-linecap='round'/%3E%3Crect x='48' y='78' width='32' height='38' rx='5' fill='%23c696e8'/%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  /* ==========================================================================
+     Tokens lifted verbatim from the app's own dark theme
+     (frontend/src/styles/global.css → [data-theme="dark"]), so this page and
+     the product it documents are literally the same palette.
+     ========================================================================== */
+  :root {
+    color-scheme: dark;
+
+    --brand: #c696e8;          /* Wisteria Bloom */
+    --brand-strong: #edd7ff;   /* Lavender Mist */
+    --brand-solid: #6a229d;    /* Cosmic Indigo */
+    --brand-soft: rgba(198, 150, 232, 0.16);
+    --brand-tint: rgba(198, 150, 232, 0.09);
+    --brand-line: rgba(198, 150, 232, 0.34);
+    --brand-grad: linear-gradient(145deg, #48176a 0%, #6a229d 100%);
+
+    --bg: #17151a;
+    --surface: #201e21;        /* Midnight Graphite */
+    --surface-2: #272429;
+    --surface-3: #302c33;
+    --border: #35313a;
+    --border-strong: #4a4551;
+    --card-border: #302c33;
+
+    --text: #f3e9fa;           /* Nebula Lavender */
+    --text-muted: #b5b0bd;
+    --text-faint: #9f9ba4;     /* Steel Mist */
+
+    --success: #56bd87;
+    --success-soft: rgba(86, 189, 135, 0.14);
+    --warn: #e3b75e;
+    --danger: #e08589;
+    --danger-soft: rgba(224, 133, 137, 0.14);
+
+    --radius-sm: 8px;
+    --radius: 12px;
+    --radius-lg: 16px;
+    --radius-pill: 999px;
+
+    --font: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    --shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14.5px;
+    font-weight: 400;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 880px; margin: 0 auto; padding: 44px 28px 80px; }
+
+  /* ---------------- Masthead ---------------- */
+  .mast {
+    background: var(--surface);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    padding: 30px 32px 28px;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  .mast::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 4px;
+    background: var(--brand-grad);
+  }
+
+  .eyebrow {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--brand); margin-bottom: 14px;
+  }
+
+  h1 { margin: 0 0 10px; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.18; }
+  .sub { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 60ch; }
+
+  .runmeta {
+    margin-top: 18px; display: flex; flex-wrap: wrap; gap: 6px 22px;
+    font-size: 12.5px; color: var(--text-faint);
+  }
+  .runmeta b { color: var(--text-muted); font-weight: 500; }
+
+  /* ---------------- Verdict banner ---------------- */
+  .verdict {
+    margin-top: 18px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    background: var(--success-soft);
+    border: 1px solid rgba(86, 189, 135, 0.34);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+  }
+  .verdict-mark {
+    width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+    background: var(--success-soft); border: 1.5px solid var(--success);
+    display: grid; place-items: center; color: var(--success);
+  }
+  .verdict-text b { display: block; font-size: 17px; font-weight: 650; color: var(--success); letter-spacing: -0.01em; }
+  .verdict-text span { font-size: 12.8px; color: var(--text-muted); }
+
+  /* ---------------- Score strip ---------------- */
+  .scores {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+    gap: 1px; margin-top: 22px;
+    background: var(--border); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .score { background: var(--surface-2); padding: 13px 16px; }
+  .score b { display: block; font-size: 21px; font-weight: 700; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
+  .score span { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-faint); }
+  .score.ok b { color: var(--success); }
+  .score.zero b { color: var(--text-faint); }
+
+  /* ---------------- Sections ---------------- */
+  section { margin-top: 30px; }
+
+  .sec-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .sec-num {
+    flex-shrink: 0; width: 27px; height: 27px; border-radius: var(--radius-sm);
+    background: var(--brand-soft); border: 1px solid var(--brand-line);
+    color: var(--brand); font-size: 12px; font-weight: 700;
+    display: grid; place-items: center; font-variant-numeric: tabular-nums;
+  }
+  h2 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  .sec-count { margin-left: auto; font-size: 12px; color: var(--text-faint); white-space: nowrap; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.6px; }
+
+  thead th {
+    background: var(--surface-2);
+    font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--text-faint);
+    text-align: left; padding: 9px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  thead th.n, thead th.r { text-align: right; }
+
+  tbody td {
+    padding: 9px 18px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+    vertical-align: middle;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: var(--brand-tint); color: var(--text); }
+  tbody td.feature { color: var(--text); }
+  tbody td.n { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-faint); width: 62px; }
+  tbody td.r { text-align: right; width: 92px; }
+
+  .pass {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
+    padding: 2.5px 10px 2.5px 8px; border-radius: var(--radius-pill);
+    background: var(--success-soft); color: var(--success);
+    border: 1px solid rgba(86, 189, 135, 0.3);
+  }
+  .pass svg { flex-shrink: 0; }
+
+  code {
+    font-family: var(--font-mono); font-size: 0.88em;
+    background: var(--surface-3); color: var(--brand-strong);
+    padding: 1px 5px; border-radius: 4px;
+  }
+
+  /* ---------------- Total ---------------- */
+  .total { margin-top: 34px; }
+  .total .card { border-color: var(--brand-line); }
+  .total thead th { background: var(--brand-soft); color: var(--brand); }
+  .total tbody td { font-size: 14px; }
+  .total tbody td.k { color: var(--text); font-weight: 500; }
+  .total tbody td.v { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); }
+  .total tbody tr.headline td { font-size: 16px; font-weight: 700; background: var(--surface-2); }
+  .total tbody tr.headline td.v { color: var(--success); }
+
+  footer {
+    margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--border);
+    font-size: 12.3px; color: var(--text-faint);
+  }
+  footer p { margin: 0 0 5px; }
+
+  /* ---------------- Responsive ---------------- */
+  @media (max-width: 620px) {
+    .wrap { padding: 26px 14px 56px; }
+    .mast { padding: 22px 20px; }
+    h1 { font-size: 23px; }
+    thead th, tbody td { padding: 8px 12px; }
+    table { font-size: 12.8px; }
+    tbody td.r { width: 76px; }
+    .pass { font-size: 10.5px; padding: 2px 8px; }
+  }
+
+  /* ---------------- Print ----------------
+     Keeps the dark identity rather than inverting to a document that no longer
+     looks like the product; requires "background graphics" enabled. */
+  @media print {
+    @page { margin: 12mm; }
+    body { background: var(--bg); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .wrap { max-width: none; padding: 0; }
+    section, .card, .verdict, .total { break-inside: avoid; }
+    .sec-head { break-after: avoid; }
+    tbody tr:hover td { background: none; color: var(--text-muted); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">
+    <svg width="15" height="15" viewBox="4 5 120 120" aria-hidden="true">
+      <path d="M12 116 L12 54 L64 14 L116 54 L116 116" fill="none" stroke="#c696e8"
+            stroke-width="13" stroke-linejoin="round" stroke-linecap="round"/>
+      <rect x="48" y="78" width="32" height="38" rx="5" fill="#c696e8"/>
+    </svg>
+    InventDB PMS · Test report
+  </div>
+
+  <h1>Frontend test results</h1>
+  <p class="sub">
+    Playwright end-to-end suite covering the PMS React frontend, by feature area.
+  </p>
+
+  <div class="runmeta">
+    <span><b>Run:</b> 10 August 2026</span>
+    <span><b>Playwright:</b> 1.62.1</span>
+    <span><b>Browser:</b> Chromium</span>
+    <span><b>Profiles:</b> Desktop 1440×900 · Pixel 7</span>
+  </div>
+
+  <div class="verdict">
+    <div class="verdict-mark">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </div>
+    <div class="verdict-text">
+      <b>All tests passed</b>
+      <span>183 of 183 · no failures, no skips, no flakes · 32.9s</span>
+    </div>
+  </div>
+
+  <div class="scores">
+    <div class="score"><b>183</b><span>Total</span></div>
+    <div class="score ok"><b>183</b><span>Passed</span></div>
+    <div class="score zero"><b>0</b><span>Failed</span></div>
+    <div class="score zero"><b>0</b><span>Skipped</span></div>
+    <div class="score zero"><b>0</b><span>Flaky</span></div>
+    <div class="score"><b>32.9s</b><span>Duration</span></div>
+  </div>
+</header>
+
+<!-- 1 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">1</span>
+    <h2>Authentication &amp; login</h2>
+    <span class="sec-count">14 tests</span>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Feature</th><th class="n">Tests</th><th class="r">Result</th></tr></thead>
+      <tbody>
+        <tr><td class="feature">Sign-in lands on dashboard, token stored</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Username whitespace trimmed before send</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Bad credentials show server message</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Empty required field blocks submission</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">In-flight button state</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Network failure surfaces, no hang</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Password show / hide toggle</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Registration links, new tab, <code>noopener</code></td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Brand story and feature list render</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Route protection while signed out</td><td class="n">5</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 2 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">2</span>
+    <h2>Navigation &amp; routing</h2>
+    <span class="sec-count">20 tests</span>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Feature</th><th class="n">Tests</th><th class="r">Result</th></tr></thead>
+      <tbody>
+        <tr><td class="feature">Sidebar sections and 14 links present</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Each destination navigates correctly</td><td class="n">14</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Active destination highlighted</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Deep link survives full reload</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Browser back and forward</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Unknown segment → “Unknown module”</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Unknown deep path → dashboard</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 3 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">3</span>
+    <h2>Dashboard</h2>
+    <span class="sec-count">7 tests</span>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Feature</th><th class="n">Tests</th><th class="r">Result</th></tr></thead>
+      <tbody>
+        <tr><td class="feature">Eight stat tiles, exact formatted values</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Four chart cards mount</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Legend labels series (colour not sole cue)</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Empty data → “No data yet”</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Summary failure → error alert</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Loading spinner before data lands</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Link through to Reports</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 4 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">4</span>
+    <h2>Data modules — listing &amp; tables</h2>
+    <span class="sec-count">22 tests</span>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Feature</th><th class="n">Tests</th><th class="r">Result</th></tr></thead>
+      <tbody>
+        <tr><td class="feature">All ten modules list their records</td><td class="n">10</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Business key column shown</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Key column hidden for Daily Tasks</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Status values render as toned badges</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Reference columns resolve to titles</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Currency and date cell formatting</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Missing values render as em dash</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Empty module state</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Debounced search filters the table</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Search sent to server, not filtered locally</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">No-match empty state</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Sort direction toggles on header click</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Sort by column sends <code>order_by</code></td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 5 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">5</span>
+    <h2>Data modules — create / edit / delete</h2>
+    <span class="sec-count">20 tests</span>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Feature</th><th class="n">Tests</th><th class="r">Result</th></tr></thead>
+      <tbody>
+        <tr><td class="feature">Create posts, toasts, row appears</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Required field blocks submit</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Reference dropdowns populated</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Create from the empty state</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Create failure toasts, form stays open</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Edit prefills all field types</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Edit saves and refreshes the table</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Edit cancel discards changes</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Delete confirmation names the record</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Delete cancel leaves the record</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Delete confirm removes the row</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Delete failure keeps dialog open</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Modal dismissal — Esc, ✕, Cancel, backdrop</td><td class="n">4</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Clicking dialog body does not close it</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Page scroll locked while open</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Form state isolated between modules</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Boolean field round-trip (Vendors)</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Keyless module round-trip (Daily Tasks)</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 6 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">6</span>
+    <h2>Reports</h2>
+    <span class="sec-count">18 tests</span>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Feature</th><th class="n">Tests</th><th class="r">Result</th></tr></thead>
+      <tbody>
+        <tr><td class="feature">Gallery lists reports grouped by category</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">First report opens automatically</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Gallery search filter</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">No-match message</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Switching reports swaps the stage</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Empty instance state</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Gallery load failure surfaced</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Parameterless report renders on open</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Pickers seed from their defaults</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Unseedable required input waits</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Missing input named explicitly</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Renders once the input is supplied</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Refresh re-queries same parameters</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Sheet stays visible while refreshing</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Elapsed-time progress on first render</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Print disabled until a sheet exists</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Iframe sandbox excludes <code>allow-scripts</code></td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Render failure surfaced</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 7 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">7</span>
+    <h2>Settings, account &amp; theme</h2>
+    <span class="sec-count">11 tests</span>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Feature</th><th class="n">Tests</th><th class="r">Result</th></tr></thead>
+      <tbody>
+        <tr><td class="feature">Account details from session</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Connection card from <code>/api/health</code></td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Unreachable API warning</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Theme switch from settings card</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Theme persists across reload</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Password change succeeds, clears form</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Rejected password keeps the input</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Sign out from the account card</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Sign out from the topbar</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Theme toggle from the topbar</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">User initials in the avatar</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 8 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">8</span>
+    <h2>Workflows</h2>
+    <span class="sec-count">8 tests</span>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Feature</th><th class="n">Tests</th><th class="r">Result</th></tr></thead>
+      <tbody>
+        <tr><td class="feature">Workflow and run counts</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Cards with trigger and status badge</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Plan step timeline</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Recent runs with outcome and duration</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Run timeline chart and legend</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">“No runs recorded yet” state</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">No workflows empty state</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Load failure surfaced</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 9 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">9</span>
+    <h2>Mobile &amp; responsive — Pixel 7</h2>
+    <span class="sec-count">8 tests</span>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Feature</th><th class="n">Tests</th><th class="r">Result</th></tr></thead>
+      <tbody>
+        <tr><td class="feature">Drawer off-canvas until menu pressed</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Drawer closes after navigating</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Drawer closes on scrim tap</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">No horizontal scroll across four routes</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">All eight dashboard stats reachable</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Wide tables scroll inside their container</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Login hero reflows correctly</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Sign-in works on a phone</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 10 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">10</span>
+    <h2>API failure handling</h2>
+    <span class="sec-count">6 tests</span>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Feature</th><th class="n">Tests</th><th class="r">Result</th></tr></thead>
+      <tbody>
+        <tr><td class="feature">500 shows the server's message</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Malformed error body falls back readably</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Network failure renders an error</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">401 on read logs the user out</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">401 on write ends the session</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Recovers when the API comes back</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 11 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">11</span>
+    <h2>API contract conformance</h2>
+    <span class="sec-count">48 tests</span>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Feature</th><th class="n">Tests</th><th class="r">Result</th></tr></thead>
+      <tbody>
+        <tr><td class="feature">Response shape matches the backend contract</td><td class="n">24</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+        <tr><td class="feature">Every top-level field present</td><td class="n">24</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 12 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">12</span>
+    <h2>Session setup</h2>
+    <span class="sec-count">1 test</span>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Feature</th><th class="n">Tests</th><th class="r">Result</th></tr></thead>
+      <tbody>
+        <tr><td class="feature">Sign in once, save storage state</td><td class="n">1</td><td class="r"><span class="pass"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pass</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- TOTAL -->
+<section class="total">
+  <div class="sec-head">
+    <span class="sec-num">Σ</span>
+    <h2>Total</h2>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Metric</th><th class="r">Count</th></tr></thead>
+      <tbody>
+        <tr class="headline"><td class="k">Total tests run</td><td class="v">183</td></tr>
+        <tr><td class="k">Passed</td><td class="v" style="color: var(--success)">183</td></tr>
+        <tr><td class="k">Failed</td><td class="v">0</td></tr>
+        <tr><td class="k">Skipped</td><td class="v">0</td></tr>
+        <tr><td class="k">Flaky</td><td class="v">0</td></tr>
+        <tr><td class="k">Duration</td><td class="v">32.9s</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <p>
+    Result: <strong style="color: var(--success)">183 / 183 passed</strong> ·
+    Verified 10 August 2026 · Playwright 1.62.1 · Chromium · desktop 1440×900 and Pixel 7 profiles.
+  </p>
+  <p>
+    Source: <code>frontend/e2e/</code> · Full reference: <code>docs/frontend.html</code>
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

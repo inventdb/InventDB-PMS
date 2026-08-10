@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InventDB PMS — Backend Test Results</title>
+<style>
+  /* ==========================================================================
+     Tokens lifted verbatim from frontend/src/styles/global.css [data-theme="dark"]
+     so this document and the product read as one system. Brand hexes come from
+     the InventDB brand book: Orbital Indigo #48176a, Cosmic Indigo #6a229d,
+     Wisteria Bloom #c696e8 (the brand's light-on-dark purple), Nebula Lavender
+     #f3e9fa as warm white, Midnight Graphite #201e21 as the card surface.
+     ========================================================================== */
+  :root {
+    color-scheme: dark;
+
+    --brand: #c696e8;
+    --brand-strong: #edd7ff;
+    --brand-solid: #6a229d;
+    --brand-soft: rgba(198, 150, 232, 0.16);
+    --brand-tint: rgba(198, 150, 232, 0.09);
+    --brand-line: rgba(198, 150, 232, 0.34);
+    --on-brand: #ffffff;
+    --brand-grad: linear-gradient(145deg, #48176a 0%, #6a229d 100%);
+
+    --bg: #17151a;
+    --surface: #201e21;
+    --surface-2: #272429;
+    --surface-3: #302c33;
+    --border: #35313a;
+    --border-strong: #4a4551;
+
+    --text: #f3e9fa;
+    --text-muted: #b5b0bd;
+    --text-faint: #9f9ba4;
+
+    --success: #56bd87;
+    --success-soft: rgba(86, 189, 135, 0.14);
+    --warn: #e3b75e;
+    --warn-soft: rgba(227, 183, 94, 0.14);
+    --danger: #e08589;
+    --neutral: #9f9ba4;
+    --neutral-soft: rgba(159, 155, 164, 0.16);
+
+    --radius-sm: 8px;
+    --radius: 12px;
+    --radius-lg: 16px;
+    --radius-pill: 999px;
+
+    --shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+
+    --font: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+            Arial, sans-serif;
+    --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet { max-width: 940px; margin: 0 auto; padding: 52px 32px 72px; }
+
+  /* ---- Masthead ---- */
+  .mast {
+    border-radius: var(--radius-lg);
+    background: var(--brand-grad);
+    padding: 32px 34px 30px;
+    margin-bottom: 26px;
+    box-shadow: var(--shadow);
+  }
+
+  .eyebrow {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: .11em;
+    text-transform: uppercase; color: var(--brand-strong); margin-bottom: 13px;
+  }
+  .eyebrow svg { flex-shrink: 0; }
+
+  h1 {
+    margin: 0 0 10px;
+    font-size: 28px; line-height: 1.2; font-weight: 700;
+    letter-spacing: -0.015em; color: #ffffff;
+  }
+
+  .standfirst {
+    margin: 0; max-width: 62ch; font-size: 14.5px;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  /* ---- Stat tiles ---- */
+  .stats {
+    display: grid; gap: 12px; margin-bottom: 30px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px 14px;
+  }
+  .stat .k {
+    display: block; font-size: 11px; font-weight: 600; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--text-faint); margin-bottom: 5px;
+  }
+  .stat .v {
+    font-size: 28px; font-weight: 700; line-height: 1.1;
+    letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+  }
+  .stat.pass .v { color: var(--success); }
+  .stat.known .v { color: var(--warn); }
+  .stat.fail .v { color: var(--text-faint); }
+  .stat.total .v { color: var(--brand); }
+  .stat .sub { display: block; font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+
+  /* ---- Card ---- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    margin-bottom: 26px;
+  }
+  .card-head {
+    padding: 18px 22px 15px;
+    border-bottom: 1px solid var(--border);
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    justify-content: space-between; gap: 8px 16px;
+  }
+  .card-head h2 { margin: 0; font-size: 16.5px; font-weight: 650; letter-spacing: -0.01em; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-faint); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot.ok { background: var(--success); }
+  .dot.kd { background: var(--warn); }
+
+  /* ---- Table ---- */
+  .scroll { overflow-x: auto; }
+
+  table.results { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 620px; }
+
+  table.results thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--surface-2);
+    text-align: left; padding: 11px 16px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--text-faint);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  table.results thead th.n, table.results td.n { text-align: right; }
+
+  /* Module band: replaces repeating the module name on every row. */
+  tr.band th {
+    background: var(--surface-3);
+    padding: 9px 16px;
+    text-align: left; font-size: 11.5px; font-weight: 700;
+    letter-spacing: .07em; text-transform: uppercase;
+    color: var(--brand);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  tr.band th .file { font-family: var(--font-mono); text-transform: none; letter-spacing: 0; }
+  tr.band th .tally {
+    float: right; color: var(--text-faint); font-weight: 600;
+    letter-spacing: .02em; text-transform: none;
+    font-variant-numeric: tabular-nums;
+  }
+
+  table.results tbody td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+    vertical-align: middle;
+  }
+  table.results tbody tr:hover td { background: var(--brand-tint); }
+  td.idx { color: var(--text-faint); font-variant-numeric: tabular-nums; width: 44px; }
+  td.area { color: var(--text); }
+  td.n { font-variant-numeric: tabular-nums; white-space: nowrap; width: 68px; }
+  td.res { width: 210px; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 11px 3px 9px; border-radius: var(--radius-pill);
+    font-size: 12px; font-weight: 600; letter-spacing: .01em; white-space: nowrap;
+  }
+  .pill.ok { background: var(--success-soft); color: var(--success); }
+  .pill.kd { background: var(--warn-soft); color: var(--warn); }
+  .pill .glyph { font-size: 11px; line-height: 1; }
+
+  tfoot td {
+    padding: 14px 16px;
+    background: var(--surface-2);
+    border-top: 2px solid var(--border-strong);
+    font-weight: 650; color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- Totals table ---- */
+  table.totals { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  table.totals td { padding: 12px 22px; border-bottom: 1px solid var(--border); }
+  table.totals td:last-child {
+    text-align: right; font-variant-numeric: tabular-nums;
+    font-weight: 700; font-size: 16px;
+  }
+  table.totals tr:last-child td { border-bottom: none; background: var(--surface-2); }
+  table.totals tr:last-child td:last-child { color: var(--brand); font-size: 19px; }
+  table.totals .swatch { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 10px; }
+  .t-pass td:last-child { color: var(--success); }
+  .t-known td:last-child { color: var(--warn); }
+  .t-fail td:last-child { color: var(--text-faint); }
+
+  /* ---- Notes ---- */
+  .note {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warn);
+    border-radius: var(--radius);
+    padding: 18px 22px;
+    font-size: 13.5px; color: var(--text-muted);
+    margin-bottom: 26px;
+  }
+  .note h3 {
+    margin: 0 0 8px; font-size: 11px; font-weight: 700;
+    letter-spacing: .09em; text-transform: uppercase; color: var(--warn);
+  }
+  .note p { margin: 0 0 10px; max-width: 78ch; }
+  .note p:last-child { margin-bottom: 0; }
+  .note ul { margin: 0 0 10px; padding-left: 18px; }
+  .note li { margin-bottom: 4px; }
+  .note b { color: var(--text); font-weight: 600; }
+
+  code {
+    font-family: var(--font-mono); font-size: 0.87em;
+    background: var(--surface-3); color: var(--brand-strong);
+    padding: 1.5px 6px; border-radius: 5px;
+  }
+
+  .foot {
+    border-top: 1px solid var(--border);
+    padding-top: 18px; font-size: 12.5px; color: var(--text-faint);
+  }
+  .foot p { margin: 0 0 6px; }
+  .foot strong { color: var(--text-muted); }
+
+  /* ---- Print: dark surfaces would flood a printer, so invert to paper. ---- */
+  @page { margin: 14mm 12mm; }
+
+  @media print {
+    :root {
+      --bg: #ffffff; --surface: #ffffff; --surface-2: #f5f2f8; --surface-3: #f3e9fa;
+      --border: #e4e2e5; --border-strong: #d3cfd8;
+      --text: #201e21; --text-muted: #403d43; --text-faint: #6b6672;
+      --brand: #48176a; --brand-strong: #6a229d; --brand-tint: transparent;
+      --success: #1d7a4b; --success-soft: #e6f3eb;
+      --warn: #8a6200; --warn-soft: #f8f1dd;
+      --shadow: none;
+    }
+    body { font-size: 9.6pt; line-height: 1.45; }
+    .sheet { max-width: none; padding: 0; }
+    .mast { background: none; border-bottom: 3px solid var(--brand); border-radius: 0;
+            padding: 0 0 16px; margin-bottom: 20px; box-shadow: none; }
+    h1 { color: var(--text); font-size: 19pt; }
+    .standfirst { color: var(--text-muted); }
+    .eyebrow { color: var(--brand); }
+    .card, .stat, .note { break-inside: auto; box-shadow: none; }
+    table.results thead th { position: static; }
+    tr, .stat { break-inside: avoid; }
+    .scroll { overflow: visible; }
+    table.results { min-width: 0; }
+  }
+
+  @media (max-width: 680px) {
+    .sheet { padding: 32px 16px 48px; }
+    .mast { padding: 24px 20px 22px; }
+    h1 { font-size: 23px; }
+    .card-head { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header class="mast">
+    <div class="eyebrow">
+      <svg width="16" height="16" viewBox="4 5 120 120" aria-hidden="true">
+        <path d="M12 116 L12 54 L64 14 L116 54 L116 116" fill="none" stroke="#edd7ff"
+              stroke-width="13" stroke-linejoin="round" stroke-linecap="round"/>
+        <rect x="48" y="78" width="32" height="38" rx="5" fill="#edd7ff"/>
+      </svg>
+      InventDB PMS · Backend test suite
+    </div>
+    <h1>Backend test results</h1>
+    <p class="standfirst">
+      Every feature area covered by <code style="background:rgba(255,255,255,.14);color:#fff">backend/tests/</code>,
+      with its outcome. No network, no live InventDB instance, no database —
+      the whole suite runs in about nine seconds.
+    </p>
+  </header>
+
+  <section class="stats">
+    <div class="stat pass">
+      <span class="k">Passed</span>
+      <span class="v">721</span>
+      <span class="sub">98.5% of the suite</span>
+    </div>
+    <div class="stat known">
+      <span class="k">Known defects</span>
+      <span class="v">11</span>
+      <span class="sub">expected failures</span>
+    </div>
+    <div class="stat fail">
+      <span class="k">Failed</span>
+      <span class="v">0</span>
+      <span class="sub">unexpected</span>
+    </div>
+    <div class="stat total">
+      <span class="k">Total tests</span>
+      <span class="v">732</span>
+      <span class="sub">~9s runtime</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Results by feature area</h2>
+      <div class="legend">
+        <span><i class="dot ok"></i> Pass</span>
+        <span><i class="dot kd"></i> Known defect — asserts the correct behaviour, currently failing</span>
+      </div>
+    </div>
+
+    <div class="scroll">
+    <table class="results">
+      <thead>
+        <tr>
+          <th class="n">#</th>
+          <th>Feature area</th>
+          <th class="n">Tests</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr class="band"><th colspan="4">SQL safety <span class="file">· sqlutil.py</span><span class="tally">96 tests · all pass</span></th></tr>
+        <tr><td class="idx n">1</td><td class="area"><code>ident()</code> — identifier allow-listing</td><td class="n">46</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">2</td><td class="area"><code>sql_literal()</code> — quoting &amp; escaping</td><td class="n">44</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">3</td><td class="area"><code>like_literal()</code></td><td class="n">6</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+      </tbody>
+
+      <tbody>
+        <tr class="band"><th colspan="4">Generic CRUD <span class="file">· resources.py</span><span class="tally">150 tests · 146 pass · 4 known</span></th></tr>
+        <tr><td class="idx n">4</td><td class="area">Listing — composed statement</td><td class="n">16</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">5</td><td class="area">Listing — paging</td><td class="n">17</td><td class="res"><span class="pill kd"><span class="glyph">▲</span> 13 pass · 4 known</span></td></tr>
+        <tr><td class="idx n">6</td><td class="area">Listing — filters</td><td class="n">23</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">7</td><td class="area">Listing — response envelope &amp; count fallback</td><td class="n">12</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">8</td><td class="area">Listing — free-text search</td><td class="n">9</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">9</td><td class="area">Routing, entity resolution &amp; auth</td><td class="n">32</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">10</td><td class="area">Reading one record</td><td class="n">2</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">11</td><td class="area">Create</td><td class="n">24</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">12</td><td class="area">Update — read-merge-write</td><td class="n">12</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">13</td><td class="area">Delete</td><td class="n">3</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+      </tbody>
+
+      <tbody>
+        <tr class="band"><th colspan="4">InventDB client <span class="file">· inventdb.py</span><span class="tally">107 tests · 103 pass · 4 known</span></th></tr>
+        <tr><td class="idx n">14</td><td class="area">Identifier guards</td><td class="n">31</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">15</td><td class="area">Headers &amp; transport</td><td class="n">11</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">16</td><td class="area">Response parsing</td><td class="n">18</td><td class="res"><span class="pill kd"><span class="glyph">▲</span> 17 pass · 1 known</span></td></tr>
+        <tr><td class="idx n">17</td><td class="area">Auth endpoints</td><td class="n">4</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">18</td><td class="area">Discovery</td><td class="n">2</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">19</td><td class="area">Record endpoints</td><td class="n">16</td><td class="res"><span class="pill kd"><span class="glyph">▲</span> 13 pass · 3 known</span></td></tr>
+        <tr><td class="idx n">20</td><td class="area">SQL</td><td class="n">9</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">21</td><td class="area"><code>{ok, data}</code> envelope</td><td class="n">6</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">22</td><td class="area">Report templates</td><td class="n">5</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">23</td><td class="area">Workflows</td><td class="n">5</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+      </tbody>
+
+      <tbody>
+        <tr class="band"><th colspan="4">Reports <span class="file">· reports.py</span><span class="tally">114 tests · all pass</span></th></tr>
+        <tr><td class="idx n">24</td><td class="area">Formatting helpers</td><td class="n">21</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">25</td><td class="area">Parameter binding</td><td class="n">11</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">26</td><td class="area">Saved report listing</td><td class="n">7</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">27</td><td class="area">Detail &amp; picker resolution</td><td class="n">23</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">28</td><td class="area">Rendering</td><td class="n">13</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">29</td><td class="area">SQL rollups</td><td class="n">39</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+      </tbody>
+
+      <tbody>
+        <tr class="band"><th colspan="4">Dashboard <span class="file">· dashboard.py</span><span class="tally">58 tests · all pass</span></th></tr>
+        <tr><td class="idx n">30</td><td class="area">Coercion helpers</td><td class="n">30</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">31</td><td class="area">Summary — properties &amp; occupancy</td><td class="n">5</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">32</td><td class="area">Summary — leases</td><td class="n">4</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">33</td><td class="area">Summary — maintenance</td><td class="n">1</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">34</td><td class="area">Summary — financials</td><td class="n">3</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">35</td><td class="area">Summary — shape &amp; resilience</td><td class="n">3</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">36</td><td class="area">Charts</td><td class="n">12</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+      </tbody>
+
+      <tbody>
+        <tr class="band"><th colspan="4">Metadata &amp; raw SQL <span class="file">· meta.py</span><span class="tally">42 tests · 39 pass · 3 known</span></th></tr>
+        <tr><td class="idx n">37</td><td class="area">Entity registry</td><td class="n">4</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">38</td><td class="area">Type / relationship discovery</td><td class="n">4</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">39</td><td class="area">Raw SQL — what gets through</td><td class="n">28</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">40</td><td class="area">Raw SQL — limits of a prefix check</td><td class="n">6</td><td class="res"><span class="pill kd"><span class="glyph">▲</span> 3 pass · 3 known</span></td></tr>
+      </tbody>
+
+      <tbody>
+        <tr class="band"><th colspan="4">Authentication <span class="file">· auth.py</span><span class="tally">35 tests · all pass</span></th></tr>
+        <tr><td class="idx n">41</td><td class="area">Login</td><td class="n">17</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">42</td><td class="area">Current user</td><td class="n">3</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">43</td><td class="area">Password routes</td><td class="n">12</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">44</td><td class="area">Connectivity probe</td><td class="n">3</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+      </tbody>
+
+      <tbody>
+        <tr class="band"><th colspan="4">App factory <span class="file">· main.py</span><span class="tally">28 tests · all pass</span></th></tr>
+        <tr><td class="idx n">45</td><td class="area">ApiError</td><td class="n">3</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">46</td><td class="area">Error handlers</td><td class="n">13</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">47</td><td class="area">Health</td><td class="n">2</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">48</td><td class="area">CORS</td><td class="n">4</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">49</td><td class="area">Root route &amp; SPA hosting</td><td class="n">6</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+      </tbody>
+
+      <tbody>
+        <tr class="band"><th colspan="4">Workflows <span class="file">· workflows.py</span><span class="tally">26 tests · all pass</span></th></tr>
+        <tr><td class="idx n">50</td><td class="area">Listing workflows</td><td class="n">11</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">51</td><td class="area">Runs</td><td class="n">7</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">52</td><td class="area">Single workflow</td><td class="n">8</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+      </tbody>
+
+      <tbody>
+        <tr class="band"><th colspan="4">Frontend contract <span class="file">· contract/</span><span class="tally">76 tests · all pass</span></th></tr>
+        <tr><td class="idx n">53</td><td class="area">Conformance</td><td class="n">49</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">54</td><td class="area">Contract self-checks</td><td class="n">23</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+        <tr><td class="idx n">55</td><td class="area">Publishing</td><td class="n">4</td><td class="res"><span class="pill ok"><span class="glyph">✓</span> Pass</span></td></tr>
+      </tbody>
+
+      <tfoot>
+        <tr>
+          <td></td>
+          <td>55 feature areas · 10 modules</td>
+          <td class="n">732</td>
+          <td>721 pass · 11 known · 0 failed</td>
+        </tr>
+      </tfoot>
+    </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Totals</h2></div>
+    <table class="totals">
+      <tr class="t-pass">
+        <td><i class="swatch" style="background:var(--success)"></i>Passed</td>
+        <td>721</td>
+      </tr>
+      <tr class="t-known">
+        <td><i class="swatch" style="background:var(--warn)"></i>Known defects (<code>xfail</code>)</td>
+        <td>11</td>
+      </tr>
+      <tr class="t-fail">
+        <td><i class="swatch" style="background:var(--text-faint)"></i>Failed</td>
+        <td>0</td>
+      </tr>
+      <tr>
+        <td><i class="swatch" style="background:var(--brand)"></i><b>Total tests</b></td>
+        <td>732</td>
+      </tr>
+    </table>
+  </section>
+
+  <section class="note">
+    <h3>What the 11 known defects are</h3>
+    <p>
+      They are not broken tests. Each asserts the behaviour the code
+      <em>should</em> have, for a bug found while writing the suite — recorded as
+      a known defect rather than deleted or quietly asserted as correct.
+    </p>
+    <ul>
+      <li><b>4 ×</b> a non-numeric <code>limit</code> or <code>offset</code> returns 500 with the raw Python error text, where a malformed query string should be a 400.</li>
+      <li><b>3 ×</b> record ids reach the upstream URL without validation, so <code>?</code> appends query parameters to the internal InventDB call and <code>#</code> truncates the path.</li>
+      <li><b>3 ×</b> the raw-SQL guard only inspects the leading keyword, so <code>SELECT 1; DROP TABLE …</code> passes and is forwarded verbatim.</li>
+      <li><b>1 ×</b> a JSON <em>array</em> error body from InventDB raises inside the parser and surfaces as a 500, hiding the real upstream status.</li>
+    </ul>
+    <p>
+      <code>xfail_strict</code> is enabled, so fixing any of them turns that test
+      into a hard failure — which is the prompt to delete the marker. A fixed bug
+      cannot silently regress, and cannot stay flagged as broken forever.
+    </p>
+  </section>
+
+  <footer class="foot">
+    <p>
+      <strong>How to reproduce:</strong> <code>cd backend &amp;&amp; python -m pytest</code>.
+      Nothing in the suite opens a socket or needs a running InventDB instance.
+    </p>
+    <p>
+      Generated 10 August 2026 · InventDB PMS · backend/tests/ · findings and
+      rationale in <code>docs/backend.html</code> and <code>backend/tests/README.md</code>
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>
