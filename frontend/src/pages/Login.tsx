@@ -46,20 +46,25 @@ export default function Login() {
 
   return (
     <div className="login-page">
+      {/* On mobile `.login-hero` and `.hero-copy` become `display: contents`,
+          so these blocks reflow around the sign-in card — see the 960px query
+          in global.css. The grouping exists to let them move as units. */}
       <div className="login-hero">
-        <div>
+        <div className="hero-copy">
           <BrandLockup className="hero-badge" size="lg" />
-          <h1>Property management, modernised.</h1>
-          <p>
-            A single, fast workspace for managers to run their entire portfolio —
-            built on the InventDB SOAR database.
-          </p>
-          <div className="hero-feats">
-            {FEATURES.map((f) => (
-              <div className="hero-feat" key={f}>
-                <CheckCircle2 size={18} /> {f}
-              </div>
-            ))}
+          <div className="login-story">
+            <h1>Property management, modernised.</h1>
+            <p>
+              A single, fast workspace for managers to run their entire portfolio
+              — built on the InventDB SOAR database.
+            </p>
+            <div className="hero-feats">
+              {FEATURES.map((f) => (
+                <div className="hero-feat" key={f}>
+                  <CheckCircle2 size={18} /> {f}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
         <div className="hero-foot">

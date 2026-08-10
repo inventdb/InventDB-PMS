@@ -17,10 +17,19 @@ from .config import get_settings
 from .errors import ApiError
 
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Record ids are server-minted UUIDs, so they carry hyphens that _IDENT_RE
+# rejects. Still constrained enough that nothing can escape a URL path segment.
+_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 
 def _safe_ident(value: str, label: str = "identifier") -> str:
     if not isinstance(value, str) or not _IDENT_RE.match(value):
+        raise ApiError(400, f"Invalid {label}: {value!r}")
+    return value
+
+
+def _safe_id(value: str, label: str = "id") -> str:
+    if not isinstance(value, str) or not _ID_RE.match(value):
         raise ApiError(400, f"Invalid {label}: {value!r}")
     return value
 
@@ -188,6 +197,57 @@ class InventDBClient:
         ns = _safe_ident(self.namespace, "namespace")
         t = _safe_ident(type_name, "type")
         return self._request("POST", f"/query/{ns}/{t}/filter", json=body)
+
+    # --------------------------------------------------------------- reports
+    @staticmethod
+    def _unwrap(payload: Any) -> Any:
+        """Peel InventDB's ``{"ok": true, "data": ...}`` success envelope.
+
+        The report-template endpoints wrap their success bodies in it, while
+        some siblings (``render-ad-hoc``) return the payload bare — which is
+        why InventDB's own SOAR client reads ``r?.data?.html ?? r?.html``.
+        Unwrapping here means callers only ever see the inner payload.
+
+        Errors never reach this: a non-2xx carries ``{"ok": false, "error"}``
+        and `_parse` has already raised.
+        """
+        if (
+            isinstance(payload, dict)
+            and payload.get("ok") is True
+            and isinstance(payload.get("data"), (dict, list))
+        ):
+            return payload["data"]
+        return payload
+
+    # InventDB's saved reports are "report templates" — SQL-driven HTML stored
+    # in `_System.ReportTemplates` and rendered on demand by the server's report
+    # engine. They live at the instance level, not inside a namespace, so this
+    # is the same set the SOAR app's Report room lists. Template CRUD and
+    # rendering are deterministic (no LLM), so they work on every tier.
+    def list_report_templates(self) -> Any:
+        return self._unwrap(self._request("GET", "/api/report-templates"))
+
+    def get_report_template(self, template_id: str) -> Any:
+        tid = _safe_id(template_id, "template id")
+        return self._unwrap(self._request("GET", f"/api/report-templates/{tid}"))
+
+    def render_report_template(
+        self, template_id: str, params: Optional[dict[str, Any]] = None
+    ) -> Any:
+        """Render a saved report against live data.
+
+        `email_safe_charts=False` asks the engine for real SVG charts rather
+        than the Gmail-safe HTML-table fallback its POST endpoint defaults to —
+        we are drawing this in a browser, not an inbox.
+        """
+        tid = _safe_id(template_id, "template id")
+        return self._unwrap(
+            self._request(
+                "POST",
+                f"/api/report-templates/{tid}/render",
+                json={"params": params or {}, "email_safe_charts": False},
+            )
+        )
 
     # ------------------------------------------------------------- workflows
     def list_workflows(self) -> Any:

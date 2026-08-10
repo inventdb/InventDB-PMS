@@ -15,6 +15,9 @@ import type {
   Record as Rec,
   RenewalRow,
   RentRollRow,
+  ReportDetail,
+  ReportRender,
+  ReportSummary,
   Workflow,
   WorkflowRun,
   WorkOrdersReport,
@@ -106,7 +109,90 @@ export function useDashboardCharts() {
   });
 }
 
-// ---- Reports (each backed by an InventDB SQL query) ----------------------
+// ---- Saved reports (defined in InventDB SOAR) ----------------------------
+/** The report gallery — every saved report on the InventDB instance. */
+export function useReportTemplates() {
+  return useQuery<{ templates: ReportSummary[]; count: number }>({
+    queryKey: ["reports", "templates"],
+    queryFn: async () => {
+      const { data } = await api.get("/reports/templates");
+      return data;
+    },
+  });
+}
+
+/**
+ * One report's definition, with its parameter pickers already resolved.
+ *
+ * A template's shape changes only when someone edits it in SOAR, but fetching
+ * it costs a round trip *plus* one query per source-backed picker — and the
+ * report cannot start rendering until it lands. Holding it for five minutes
+ * keeps that off the path when clicking between reports.
+ *
+ * See `docs/report-caching.md` for the freshness trade-off and how to switch
+ * this page to stale-while-revalidate.
+ */
+export function useReportTemplate(id: string | null) {
+  return useQuery<ReportDetail>({
+    queryKey: ["reports", "template", id],
+    enabled: !!id,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    queryFn: async () => {
+      const { data } = await api.get<ReportDetail>(`/reports/templates/${id}`);
+      return data;
+    },
+  });
+}
+
+/**
+ * A rendered report, cached per (report, parameter set).
+ *
+ * Rendering is the expensive step: InventDB re-executes the template's SQL on
+ * every call, so a heavy report can take seconds. `staleTime: Infinity` means
+ * that cost is paid once — clicking between reports and back is instant rather
+ * than re-running the whole pass. The consequence is that a report edited in
+ * SOAR, or data that has moved since, will NOT appear on its own: Refresh is
+ * the way to re-query.
+ *
+ * `docs/report-caching.md` documents that trade-off and the one-line switch to
+ * stale-while-revalidate, which trades instance load for automatic freshness.
+ *
+ * Loading UI keys off `isPending` (no data at all), never `isFetching` — on an
+ * explicit Refresh the previous sheet stays on screen instead of blanking, and
+ * that stays correct if the staleness policy is ever changed.
+ *
+ * `retry: false` matters here. The client's global default retries once, which
+ * on a slow or timing-out report silently doubles the wait before the user
+ * sees anything at all.
+ */
+export function useRenderReport(
+  id: string | null,
+  params: Record<string, unknown> | null
+) {
+  // Key on the parameter *values*, insensitive to key order, so the same
+  // inputs never mint a second cache entry.
+  const paramKey = params
+    ? JSON.stringify(Object.keys(params).sort().map((k) => [k, params[k]]))
+    : "";
+
+  return useQuery<ReportRender>({
+    queryKey: ["reports", "render", id, paramKey],
+    enabled: !!id && params !== null,
+    staleTime: Infinity,
+    gcTime: 30 * 60_000,
+    retry: false,
+    queryFn: async () => {
+      const { data } = await api.post<ReportRender>(
+        `/reports/templates/${id}/render`,
+        { params }
+      );
+      return data;
+    },
+  });
+}
+
+// ---- PMS SQL rollups ------------------------------------------------------
 function reportHook<T>(path: string, key: string) {
   return () =>
     useQuery<T>({

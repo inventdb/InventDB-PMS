@@ -1,311 +1,401 @@
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { Database } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { FileBarChart, Printer, RefreshCw, Search } from "lucide-react";
 
 import {
-  useOccupancyReport,
-  usePnl,
-  useRenewals,
-  useRentRoll,
-  useReportCashflow,
-  useWorkOrdersReport,
+  useRenderReport,
+  useReportTemplate,
+  useReportTemplates,
 } from "../api/hooks";
 import { errorMessage } from "../api/client";
-import { foldToOther, useChartTheme } from "../theme/charts";
-import { Alert, Badge, Spinner } from "../components/ui";
-import ChartTooltip from "../components/ChartTooltip";
-import { formatCurrency, formatDate } from "../utils/format";
+import { Alert, EmptyState, Spinner } from "../components/ui";
+import { ReportFrame, type ReportFrameHandle } from "../components/ReportFrame";
+import type { ReportParameter, ReportSummary } from "../types";
 
-function monthLabel(m: string): string {
-  const [y, mm] = m.split("-");
-  return new Date(Number(y), Number(mm) - 1, 1).toLocaleDateString(undefined, {
-    month: "short",
-    year: "2-digit",
-  });
-}
-
-/** Direct slice labels — the relief channel for the lighter palette slots. */
-interface PieLabelProps {
-  name?: string;
-  percent?: number;
-}
-const pieLabel = ({ name, percent }: PieLabelProps) =>
-  `${name ?? ""} · ${Math.round((percent ?? 0) * 100)}%`;
-
+/**
+ * The Reports section is a viewer for the saved reports defined in InventDB
+ * SOAR — it does not define reports of its own. Everything on this page comes
+ * from `_System.ReportTemplates` on the connected instance: the gallery is
+ * that list, and each sheet is rendered by InventDB's report engine against
+ * live data at the moment you open it.
+ */
 export default function Reports() {
-  const pnl = usePnl();
-  const cashflow = useReportCashflow();
-  const rentRoll = useRentRoll();
-  const renewals = useRenewals(90);
-  const occupancy = useOccupancyReport();
-  const workOrders = useWorkOrdersReport();
-  const chart = useChartTheme();
+  const templates = useReportTemplates();
+  const [selected, setSelected] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
-  if (pnl.isLoading || cashflow.isLoading) return <Spinner />;
-  if (pnl.isError)
+  const all = useMemo(() => templates.data?.templates ?? [], [templates.data]);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((t) =>
+      `${t.name} ${t.description} ${t.category}`.toLowerCase().includes(q)
+    );
+  }, [all, query]);
+
+  // Open the first report as soon as the gallery arrives, so the page lands on
+  // something rather than an instruction to click.
+  useEffect(() => {
+    if (!selected && all.length) setSelected(all[0].id);
+  }, [all, selected]);
+
+  if (templates.isLoading) return <Spinner />;
+
+  if (templates.isError) {
     return (
       <div className="content">
-        <Alert kind="error">{errorMessage(pnl.error)}</Alert>
+        <PageHead count={0} />
+        <Alert kind="error">{errorMessage(templates.error)}</Alert>
       </div>
     );
+  }
 
-  const p = pnl.data!;
-  const cf = cashflow.data?.cashflow ?? [];
-  const wo = workOrders.data;
-  // Cap the category list at the palette's slot count — the palette is never
-  // cycled, so a ninth category becomes "Other" instead of reusing slot 1.
-  const expenseByCategory = foldToOther(p.expense_by_category);
+  if (all.length === 0) {
+    return (
+      <div className="content">
+        <PageHead count={0} />
+        <div className="card">
+          <EmptyState
+            icon={<FileBarChart size={26} />}
+            title="No saved reports yet"
+            message="This page lists the reports saved on your InventDB instance. Create one in the SOAR app's Report section and it will appear here."
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="content">
-      <div className="page-head">
-        <div className="titles">
-          <h2>Reports</h2>
-          <p>
-            Financial &amp; operational reporting — every figure computed live by the
-            InventDB SOAR SQL engine.
-          </p>
-        </div>
+      <PageHead count={all.length} />
+
+      <div className="report-layout">
+        <aside className="report-gallery card card-pad">
+          <div className="input-icon" style={{ marginBottom: 12 }}>
+            <Search size={15} />
+            <input
+              className="input"
+              placeholder="Find a report…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          {visible.length === 0 ? (
+            <p className="report-note">No report matches “{query}”.</p>
+          ) : (
+            <GalleryList
+              templates={visible}
+              selected={selected}
+              onSelect={setSelected}
+            />
+          )}
+        </aside>
+
+        <section className="report-stage">
+          {selected && <ReportSheet key={selected} id={selected} />}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function PageHead({ count }: { count: number }) {
+  return (
+    <div className="page-head">
+      <div className="titles">
+        <h2>Reports</h2>
+        <p>
+          Saved reports from InventDB SOAR. A report is rendered when you first
+          open it and kept until you Refresh.
+        </p>
+      </div>
+      {count > 0 && (
         <div className="actions">
           <span className="count-pill">
-            <Database size={13} style={{ verticalAlign: "-2px", marginRight: 6 }} />
-            Source: InventDB SQL
+            {count} report{count === 1 ? "" : "s"}
           </span>
         </div>
-      </div>
+      )}
+    </div>
+  );
+}
 
-      {/* P&L summary */}
-      <div className="stat-grid">
-        <Fin label="Total Income" value={formatCurrency(p.income_total)} tone="success" />
-        <Fin label="Total Expenses" value={formatCurrency(p.expense_total)} tone="danger" />
-        <Fin
-          label="Net Operating Income"
-          value={formatCurrency(p.net_total)}
-          tone={p.net_total >= 0 ? "success" : "danger"}
-        />
-        <Fin
-          label="Occupancy"
-          value={`${occupancy.data?.occupancy_rate ?? 0}%`}
-          tone="info"
-        />
-      </div>
+/** The gallery, grouped by the category each report declares in SOAR. */
+function GalleryList({
+  templates,
+  selected,
+  onSelect,
+}: {
+  templates: ReportSummary[];
+  selected: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const groups = useMemo(() => {
+    const byCategory = new Map<string, ReportSummary[]>();
+    for (const t of templates) {
+      const key = t.category || "Uncategorised";
+      const list = byCategory.get(key);
+      if (list) list.push(t);
+      else byCategory.set(key, [t]);
+    }
+    return [...byCategory.entries()];
+  }, [templates]);
 
-      <div className="grid-2">
-        <div className="card chart-card">
-          <h3>Monthly Cash Flow</h3>
-          <div className="chart-sub">Income, expense &amp; net by month</div>
-          <ResponsiveContainer width="100%" height={280}>
-            {/* Income and expense carry polarity — reserved state colours,
-                named in the legend, never colour alone. */}
-            <BarChart data={cf}>
-              <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
-              <XAxis dataKey="month" tickFormatter={monthLabel} stroke={chart.axis} fontSize={12} tickLine={false} />
-              <YAxis stroke={chart.axis} fontSize={12} tickLine={false} axisLine={false} />
-              <Tooltip content={<ChartTooltip />} formatter={(v: number) => formatCurrency(v)} labelFormatter={monthLabel} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="income" name="Income" fill={chart.status.success} radius={[4, 4, 0, 0]} maxBarSize={26} />
-              <Bar dataKey="expense" name="Expense" fill={chart.status.danger} radius={[4, 4, 0, 0]} maxBarSize={26} />
-            </BarChart>
-          </ResponsiveContainer>
+  return (
+    <>
+      {groups.map(([category, items]) => (
+        <div key={category}>
+          {groups.length > 1 && <div className="nav-section">{category}</div>}
+          {items.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={`report-item ${t.id === selected ? "active" : ""}`}
+              onClick={() => onSelect(t.id)}
+            >
+              <span className="report-item-name">{t.name}</span>
+              {t.description && (
+                <span className="report-item-desc">{t.description}</span>
+              )}
+            </button>
+          ))}
         </div>
+      ))}
+    </>
+  );
+}
 
-        <div className="card chart-card">
-          <h3>Expense Breakdown</h3>
-          <div className="chart-sub">Expenses by category</div>
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie
-                data={expenseByCategory}
-                dataKey="value"
-                nameKey="name"
-                innerRadius={54}
-                outerRadius={82}
-                paddingAngle={2}
-                label={pieLabel}
-                labelLine={{ stroke: chart.axis }}
-              >
-                {expenseByCategory.map((row, i) => (
-                  <Cell key={row.name} fill={chart.seriesAt(i)} />
-                ))}
-              </Pie>
-              <Tooltip content={<ChartTooltip />} formatter={(v: number) => formatCurrency(v)} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-            </PieChart>
-          </ResponsiveContainer>
+/** True when every required input has a value. */
+function unfilled(params: ReportParameter[], values: Record<string, unknown>) {
+  return params
+    .filter((p) => p.required && (values[p.name] == null || values[p.name] === ""))
+    .map((p) => p.label || p.name);
+}
+
+/** Ticks while a render is in flight, so a slow report doesn't look hung. */
+function useElapsed(active: boolean): number {
+  const [ms, setMs] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const started = Date.now();
+    setMs(0);
+    const timer = window.setInterval(() => setMs(Date.now() - started), 100);
+    return () => window.clearInterval(timer);
+  }, [active]);
+  return ms;
+}
+
+/** One report: its inputs, and the sheet InventDB renders from them. */
+function ReportSheet({ id }: { id: string }) {
+  const detail = useReportTemplate(id);
+  const frame = useRef<ReportFrameHandle>(null);
+
+  // `values` is what the form holds; `applied` is the parameter set the
+  // current render belongs to. Keeping them apart is what stops a text input
+  // from firing a full server-side render on every keystroke — and it gives
+  // the render cache a stable key.
+  const [values, setValues] = useState<Record<string, unknown>>({});
+  const [applied, setApplied] = useState<Record<string, unknown> | null>(null);
+  const [missing, setMissing] = useState<string[]>([]);
+
+  const render = useRenderReport(id, applied);
+  const params = detail.data?.parameters ?? [];
+
+  // Waiting on the *first* render — `isPending` means no data at all. Any
+  // later fetch (Refresh) sets `isFetching` instead, and leaves the existing
+  // sheet on screen rather than blanking the page under someone mid-read.
+  const awaitingFirst = applied !== null && render.isPending;
+  const refreshing = render.isFetching && !!render.data?.html;
+  const elapsed = useElapsed(awaitingFirst);
+
+  // Seed the inputs from the template's own defaults, preferring the first
+  // option for a picker that has no default — the same seeding SOAR does.
+  // When that leaves nothing to ask for, the seeded set is applied straight
+  // away and the report renders on open.
+  const seededFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!detail.data) return;
+    // Seed once per report. A refetch of the definition hands back a fresh
+    // object identity, and re-seeding on that would wipe out inputs the user
+    // had just typed.
+    if (seededFor.current === id) return;
+    seededFor.current = id;
+
+    const seed: Record<string, unknown> = {};
+    for (const p of detail.data.parameters) {
+      if (p.default != null && p.default !== "") seed[p.name] = p.default;
+      else if (p.options.length) seed[p.name] = p.options[0].value;
+    }
+    setValues(seed);
+    setApplied(unfilled(detail.data.parameters, seed).length === 0 ? seed : null);
+  }, [detail.data, id]);
+
+  const submit = () => {
+    const gaps = unfilled(params, values);
+    setMissing(gaps);
+    if (gaps.length === 0) setApplied(values);
+  };
+
+  if (detail.isLoading) return <Spinner />;
+  if (detail.isError) {
+    return <Alert kind="error">{errorMessage(detail.error)}</Alert>;
+  }
+
+  const meta = render.data?.meta;
+  // When these figures were produced — the honest version of "live", now that
+  // a cached sheet can be on screen while a fresh one is still being built.
+  const renderedAt = render.dataUpdatedAt
+    ? new Date(render.dataUpdatedAt).toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })
+    : "—";
+
+  return (
+    <>
+      <div className="report-stage-head">
+        <div className="titles">
+          <h3>{detail.data?.name}</h3>
+          {detail.data?.description && (
+            <p className="report-note">{detail.data.description}</p>
+          )}
+        </div>
+        <div className="report-stage-actions">
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => render.refetch()}
+            disabled={render.isFetching || applied === null}
+          >
+            <RefreshCw size={14} className={render.isFetching ? "spin" : ""} />
+            {render.isFetching ? "Rendering…" : "Refresh"}
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => frame.current?.print()}
+            disabled={!render.data?.html}
+          >
+            <Printer size={14} /> Print / PDF
+          </button>
         </div>
       </div>
 
-      {/* Lease renewals due — mirrors the InventDB saved report */}
-      <ReportTable
-        title="Lease Renewals Due (next 90 days)"
-        note={`${renewals.data?.count ?? 0} lease(s)`}
-        loading={renewals.isLoading}
-        empty="No leases ending in the next 90 days."
-        head={["Tenant", "Property", "City", "Ends", "Current Rent", "Market Rent", "Gap", "Renewal"]}
-        rows={(renewals.data?.rows ?? []).map((r) => [
-          r.tenant_name ?? "—",
-          r.property_id ?? "—",
-          r.city ?? "—",
-          formatDate(r.lease_end),
-          formatCurrency(r.contract_rent),
-          formatCurrency(r.market_rent),
-          <span style={{ color: (r.rent_gap ?? 0) > 0 ? "var(--success)" : "var(--text-muted)" }}>
-            {(r.rent_gap ?? 0) > 0 ? "+" : ""}
-            {formatCurrency(r.rent_gap)}
-          </span>,
-          <Badge value={r.renewal_type} />,
-        ])}
-      />
-
-      {/* Rent roll */}
-      <ReportTable
-        title="Rent Roll — Active Leases"
-        note={`${rentRoll.data?.count ?? 0} active · ${formatCurrency(rentRoll.data?.monthly_total)} / month`}
-        loading={rentRoll.isLoading}
-        empty="No active leases."
-        head={["Lease", "Tenant", "Property", "City", "Rent", "Start", "End", "Status"]}
-        rows={(rentRoll.data?.rows ?? []).map((r) => [
-          r.lease_id ?? "—",
-          r.tenant_name ?? "—",
-          r.property_id ?? "—",
-          r.city ?? "—",
-          formatCurrency(r.contract_rent),
-          formatDate(r.lease_start),
-          formatDate(r.lease_end),
-          <Badge value={r.status} />,
-        ])}
-      />
-
-      {/* Work order pipeline */}
-      <div className="grid-2" style={{ marginTop: 16 }}>
-        <div className="card chart-card">
-          <h3>Work Orders by Status</h3>
-          <div className="chart-sub">
-            Open cost estimate: {formatCurrency(wo?.open_cost_estimate)}
+      {params.length > 0 && (
+        <div className="card card-pad report-params">
+          <div className="report-note" style={{ marginBottom: 10 }}>
+            This report takes inputs — set them, then render.
           </div>
-          {/* Single series: length is the value, the tick is the identity —
-              so both work-order charts stay on slot 1. */}
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={wo?.by_status ?? []}>
-              <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
-              <XAxis dataKey="name" stroke={chart.axis} fontSize={12} tickLine={false} />
-              <YAxis stroke={chart.axis} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.cursor }} />
-              <Bar
-                dataKey="value"
-                name="Work orders"
-                fill={chart.series[0]}
-                radius={[4, 4, 0, 0]}
-                maxBarSize={54}
+          <div className="report-param-grid">
+            {params.map((p) => (
+              <ParamField
+                key={p.name}
+                param={p}
+                value={values[p.name]}
+                onChange={(v) => setValues((prev) => ({ ...prev, [p.name]: v }))}
               />
-            </BarChart>
-          </ResponsiveContainer>
+            ))}
+          </div>
+          {missing.length > 0 && (
+            <div className="report-note" style={{ color: "var(--danger)", marginTop: 10 }}>
+              Fill required inputs: {missing.join(", ")}
+            </div>
+          )}
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ marginTop: 12 }}
+            onClick={submit}
+            disabled={render.isFetching}
+          >
+            {render.isFetching ? "Rendering…" : "Render report"}
+          </button>
         </div>
+      )}
 
-        <div className="card chart-card">
-          <h3>Work Orders by Category</h3>
-          <div className="chart-sub">Maintenance demand by trade</div>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={wo?.by_category ?? []} layout="vertical" margin={{ left: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} horizontal={false} />
-              <XAxis type="number" stroke={chart.axis} fontSize={12} tickLine={false} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" stroke={chart.axis} fontSize={11} tickLine={false} width={100} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: chart.cursor }} />
-              <Bar
-                dataKey="value"
-                name="Work orders"
-                fill={chart.series[0]}
-                radius={[0, 4, 4, 0]}
-                maxBarSize={26}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+      {render.isError && <Alert kind="error">{errorMessage(render.error)}</Alert>}
+
+      {awaitingFirst ? (
+        <div className="report-progress card">
+          <div className="spinner" aria-label="Rendering" role="status" />
+          <div>
+            <div className="report-progress-title">Rendering “{detail.data?.name}”</div>
+            <div className="report-note">
+              InventDB is re-querying every figure · {(elapsed / 1000).toFixed(1)}s
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function Fin({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "success" | "danger" | "info";
-}) {
-  const color =
-    tone === "success" ? "var(--success)" : tone === "danger" ? "var(--danger)" : "var(--info)";
-  return (
-    <div className="card stat">
-      <span className="stat-label">{label}</span>
-      <div className="stat-value" style={{ color, fontSize: 22 }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function ReportTable({
-  title,
-  note,
-  head,
-  rows,
-  loading,
-  empty,
-}: {
-  title: string;
-  note?: string;
-  head: string[];
-  rows: React.ReactNode[][];
-  loading?: boolean;
-  empty: string;
-}) {
-  return (
-    <div className="card" style={{ marginTop: 16 }}>
-      <div className="card-pad" style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-        <h3 style={{ fontSize: 15 }}>{title}</h3>
-        {note && <span className="report-note">{note}</span>}
-      </div>
-      {loading ? (
-        <Spinner />
-      ) : rows.length === 0 ? (
-        <div className="card-pad report-note">{empty}</div>
+      ) : render.data?.html ? (
+        <>
+          <div className={`report-paper ${refreshing ? "is-refreshing" : ""}`}>
+            <ReportFrame
+              ref={frame}
+              html={render.data.html}
+              title={detail.data?.name ?? "Report"}
+            />
+          </div>
+          <p className="report-rendered-note">
+            {refreshing ? (
+              "Re-querying against live data…"
+            ) : (
+              <>
+                Rendered {renderedAt}
+                {typeof meta?.elapsed_ms === "number" && ` · ${meta.elapsed_ms} ms`}
+              </>
+            )}
+          </p>
+        </>
       ) : (
-        <div className="table-wrap" style={{ border: "none", borderRadius: 0 }}>
-          <table className="data">
-            <thead>
-              <tr>
-                {head.map((h) => (
-                  <th key={h} className="no-sort">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((cells, i) => (
-                <tr key={i}>
-                  {cells.map((cell, j) => (
-                    <td key={j}>{cell}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        !render.isError && (
+          <div className="card">
+            <EmptyState
+              icon={<FileBarChart size={26} />}
+              title="Set the inputs above"
+              message="Fill this report's inputs, then render."
+            />
+          </div>
+        )
+      )}
+    </>
+  );
+}
+
+function ParamField({
+  param,
+  value,
+  onChange,
+}: {
+  param: ReportParameter;
+  value: unknown;
+  onChange: (v: string) => void;
+}) {
+  const current = value == null ? "" : String(value);
+  return (
+    <div className="field">
+      <label htmlFor={`p-${param.name}`}>
+        {param.label || param.name}
+        {param.required && <span className="req">*</span>}
+      </label>
+      {param.options.length > 0 ? (
+        <select
+          id={`p-${param.name}`}
+          className="select"
+          value={current}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value="">— choose —</option>
+          {param.options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          id={`p-${param.name}`}
+          className="input"
+          type={param.type === "date" ? "date" : param.type === "number" ? "number" : "text"}
+          value={current}
+          onChange={(e) => onChange(e.target.value)}
+        />
       )}
     </div>
   );

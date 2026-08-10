@@ -85,8 +85,12 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* All eight stay visible everywhere. Below 700px they go two-up at a
+          reduced density, and the four marked `primary` lead — CSS-only, in
+          the media query, so the desktop sequence is untouched. */}
       <div className="stat-grid">
         <Stat
+          primary
           label="Occupancy Rate"
           value={`${s.properties.occupancy_rate}%`}
           sub={`${s.properties.occupied} occupied · ${s.properties.vacant} vacant`}
@@ -99,6 +103,7 @@ export default function Dashboard() {
           icon={<BrandMark size={18} />}
         />
         <Stat
+          primary
           label="Active Leases"
           value={s.leases.active}
           sub={`${s.leases.expiring_soon} expiring within 90 days`}
@@ -111,6 +116,7 @@ export default function Dashboard() {
           icon={<Users size={18} />}
         />
         <Stat
+          primary
           label="Net Income (mo.)"
           value={formatCurrency(s.financials.net_month)}
           sub={`${formatCurrency(s.financials.income_month)} in · ${formatCurrency(
@@ -125,6 +131,7 @@ export default function Dashboard() {
           }
         />
         <Stat
+          primary
           label="Open Maintenance"
           value={s.maintenance.open + s.maintenance.in_progress}
           sub={`${s.maintenance.open} open · ${s.maintenance.in_progress} in progress`}
@@ -289,14 +296,17 @@ function Stat({
   value,
   sub,
   icon,
+  primary,
 }: {
   label: string;
   value: ReactNode;
   sub?: string;
   icon: ReactNode;
+  /** Kept visible on a phone; the rest collapse behind "Show all". */
+  primary?: boolean;
 }) {
   return (
-    <div className="card stat">
+    <div className={`card stat${primary ? " stat-primary" : ""}`}>
       <div className="stat-top">
         <span className="stat-label">{label}</span>
         <span className="stat-ico">{icon}</span>

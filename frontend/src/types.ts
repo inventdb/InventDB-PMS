@@ -66,7 +66,46 @@ export interface DashboardCharts {
   expense_breakdown: NameValue[];
 }
 
-// ---- Reports (computed by InventDB SQL) ----------------------------------
+// ---- Saved reports (defined in InventDB SOAR) -----------------------------
+/** A report as it appears in the gallery — metadata only. */
+export interface ReportSummary {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  mode: string;
+  version?: number;
+  created_by: string;
+}
+
+/** One input a report asks for before it can be rendered. */
+export interface ReportParameter {
+  name: string;
+  label: string;
+  /** InventDB's declared type: text, date, number, … */
+  type: string;
+  required: boolean;
+  default?: string | number | null;
+  /** Pre-resolved by the backend when the parameter declares a `source`. */
+  options: { value: string; label: string }[];
+}
+
+export interface ReportDetail {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  mode: string;
+  version?: number;
+  parameters: ReportParameter[];
+}
+
+export interface ReportRender {
+  html: string;
+  meta: { elapsed_ms?: number; mode?: string; bytes?: number };
+}
+
+// ---- PMS SQL rollups ------------------------------------------------------
 export interface Pnl {
   income_total: number;
   expense_total: number;

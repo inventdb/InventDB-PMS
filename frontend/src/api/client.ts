@@ -5,6 +5,11 @@ const TOKEN_KEY = "pms.token";
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE || "/api",
   headers: { "Content-Type": "application/json" },
+  // Without this a stalled request spins forever with no way back. Sits above
+  // the backend's own InventDB timeout (INVENTDB_TIMEOUT, 30s by default) so
+  // the server's error message wins the race and the user sees the real
+  // reason. Raise both if a heavy report legitimately runs longer.
+  timeout: 60_000,
 });
 
 export function getToken(): string | null {

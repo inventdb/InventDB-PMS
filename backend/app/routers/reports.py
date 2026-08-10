@@ -1,20 +1,30 @@
-"""Reporting endpoints — computed **directly by InventDB's SQL engine**.
+"""Reporting endpoints.
 
-Every figure here is produced by a SQL query executed against InventDB
-(``GROUP BY`` / ``SUM`` / ``JOIN`` / date functions), not aggregated in Python.
-The backend only shapes the returned rows for the UI. This mirrors the saved
-reports that InventDB workflows render (e.g. "Lease Renewals Due").
+Two families live here.
+
+``/templates/*`` is the real thing: a thin proxy onto **InventDB's saved report
+templates** — the same reports the SOAR app's Report room lists, stored in
+``_System.ReportTemplates`` and rendered by InventDB's own report engine. The
+PMS neither defines nor computes these; it lists them, collects their
+parameters, and asks InventDB to render. Authoring happens in SOAR.
+
+The remaining endpoints are PMS-specific SQL rollups (P&L, rent roll, renewals
+…), each computed by a query executed *inside* InventDB rather than aggregated
+in Python. They are no longer surfaced by the Reports page — which now shows
+the SOAR reports — but are left in place as a working API.
 """
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from flask import Blueprint, jsonify, request
 
 from ..context import authed_client
-from ..inventdb import InventDBClient
+from ..errors import ApiError
+from ..inventdb import InventDBClient, _safe_ident
 
 bp = Blueprint("reports", __name__, url_prefix="/api/reports")
 
@@ -52,6 +62,171 @@ def _distribution(rows: list[dict[str, Any]], dim: str, num: bool = False):
         value = _num(r.get("value")) if num else int(r.get("value") or 0)
         out.append({"name": name, "value": value})
     return out
+
+
+# ===========================================================================
+# InventDB SOAR saved reports
+# ===========================================================================
+
+_LABEL_FIELDS = ("name", "title", "first_name", "label", "description")
+
+
+def _pick_bind_field(sample: dict[str, Any] | None) -> str | None:
+    """Choose the column a source-backed parameter should bind to.
+
+    Mirrors the SOAR Report room. A template's SQL filters on a *business* key
+    (``WHERE owner_id = :owner_id``), so binding InventDB's internal ``_id``
+    GUID matches nothing and the report renders empty. Prefer the first
+    non-internal ``*_id`` column that actually carries a value; only fall back
+    to ``_id`` when the type has no business key at all.
+    """
+    if not sample:
+        return None
+    for key, value in sample.items():
+        if key in ("_id", "id") or key.startswith("_"):
+            continue
+        if not key.lower().endswith("_id"):
+            continue
+        if isinstance(value, (int, float)) or (isinstance(value, str) and value):
+            return key
+    return None
+
+
+def _param_options(client: InventDBClient, param: dict[str, Any]) -> list[dict[str, str]]:
+    """Resolve the dropdown choices for a parameter that declares a `source`.
+
+    The source names an InventDB type (``pms.owners``). It comes from a stored
+    template rather than the request, but it is still interpolated into SQL, so
+    each half is validated as an identifier before use.
+    """
+    source = str(param.get("source") or "").strip()
+    if not source:
+        return []
+    parts = source.split(".")
+    if len(parts) != 2:
+        return []
+    ns, type_name = (_safe_ident(parts[0], "namespace"), _safe_ident(parts[1], "type"))
+
+    rows = client.query_rows(f"SELECT * FROM {ns}.{type_name} LIMIT 200")
+    if not rows:
+        return []
+
+    bind = str(param.get("bindField") or "") or _pick_bind_field(rows[0]) or "_id"
+    options: list[dict[str, str]] = []
+    for row in rows:
+        value = row.get(bind) if bind in row else row.get("_id")
+        if value in (None, ""):
+            continue
+        label = next(
+            (str(row[f]) for f in _LABEL_FIELDS if row.get(f) not in (None, "")),
+            str(value),
+        )
+        options.append({"value": str(value), "label": label})
+    return options
+
+
+@bp.get("/templates")
+def list_report_templates():
+    """The saved reports defined in InventDB SOAR."""
+    client = authed_client()
+    data = client.list_report_templates() or {}
+    templates = data.get("templates") or []
+    out = [
+        {
+            "id": t.get("_id"),
+            "name": t.get("name") or "(untitled report)",
+            "description": t.get("description") or "",
+            "category": t.get("category") or "",
+            "mode": t.get("mode") or "",
+            "version": t.get("version"),
+            "created_by": t.get("createdBy") or "",
+        }
+        for t in templates
+        if t.get("_id")
+    ]
+    out.sort(key=lambda t: (t["category"].lower(), t["name"].lower()))
+    return jsonify({"templates": out, "count": len(out)})
+
+
+@bp.get("/templates/<template_id>")
+def get_report_template(template_id: str):
+    """A single report's definition, with its parameter pickers pre-resolved.
+
+    The `html` body is deliberately dropped — it is the template source, can
+    run to tens of kilobytes, and the client only ever displays the *rendered*
+    output.
+    """
+    client = authed_client()
+    doc = client.get_report_template(template_id) or {}
+    params = doc.get("parameters") or []
+
+    resolved = []
+    for p in params:
+        if not isinstance(p, dict):
+            continue
+        resolved.append(
+            {
+                "name": p.get("name"),
+                "label": p.get("label") or p.get("name"),
+                "type": p.get("type") or "text",
+                "required": bool(p.get("required", True)),
+                "default": p.get("default"),
+                "options": [],
+                "_source": p,
+            }
+        )
+
+    # Each source-backed picker costs its own SQL round trip, and the report
+    # cannot start rendering until they all land — so resolve them
+    # concurrently rather than one after another. A report with four pickers
+    # went from four sequential round trips to one wall-clock round trip.
+    sourced = [e for e in resolved if e["_source"].get("source")]
+    if sourced:
+        with ThreadPoolExecutor(max_workers=min(8, len(sourced))) as pool:
+            futures = {
+                pool.submit(_param_options, client, e["_source"]): e for e in sourced
+            }
+            for future in as_completed(futures):
+                entry = futures[future]
+                try:
+                    entry["options"] = future.result()
+                except ApiError:
+                    # A bad `source` on one parameter must not take down the
+                    # whole report — the field degrades to a free-text input.
+                    entry["options"] = []
+
+    for entry in resolved:
+        entry.pop("_source", None)
+
+    return jsonify(
+        {
+            "id": doc.get("_id") or template_id,
+            "name": doc.get("name") or "(untitled report)",
+            "description": doc.get("description") or "",
+            "category": doc.get("category") or "",
+            "mode": doc.get("mode") or "",
+            "version": doc.get("version"),
+            "parameters": resolved,
+        }
+    )
+
+
+@bp.post("/templates/<template_id>/render")
+def render_report_template(template_id: str):
+    """Render a saved report against live data. Returns InventDB's HTML."""
+    body = request.get_json(silent=True)
+    params = body.get("params") if isinstance(body, dict) else None
+    if params is not None and not isinstance(params, dict):
+        raise ApiError(400, "params must be an object")
+
+    client = authed_client()
+    result = client.render_report_template(template_id, params or {}) or {}
+    return jsonify({"html": result.get("html") or "", "meta": result.get("meta") or {}})
+
+
+# ===========================================================================
+# PMS SQL rollups (retained API; not surfaced by the Reports page)
+# ===========================================================================
 
 
 @bp.get("/pnl")
