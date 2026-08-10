@@ -1,0 +1,7 @@
+{
+  "frontend_bundled": false,
+  "inventdb_base_url": "https://inventdb.test",
+  "namespace": "pms",
+  "ok": true,
+  "version": "1.0.0"
+}

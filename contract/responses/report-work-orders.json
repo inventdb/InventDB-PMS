@@ -1,0 +1,21 @@
+{
+  "by_category": [
+    {
+      "name": "HVAC",
+      "value": 1
+    }
+  ],
+  "by_priority": [
+    {
+      "name": "High",
+      "value": 1
+    }
+  ],
+  "by_status": [
+    {
+      "name": "Open",
+      "value": 1
+    }
+  ],
+  "open_cost_estimate": 450.0
+}

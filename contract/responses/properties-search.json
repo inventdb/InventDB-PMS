@@ -1,0 +1,39 @@
+{
+  "items": [
+    {
+      "_id": "rec-001",
+      "baths": 2,
+      "beds": 3,
+      "city": "Mumbai",
+      "owner_id": "O-001",
+      "property_id": "P-001",
+      "region": "West",
+      "sqft": 1450,
+      "state": "MH",
+      "status": "Occupied",
+      "street": "12 Marine Drive",
+      "type": "Condo",
+      "year_built": 2011,
+      "zip": "400020"
+    },
+    {
+      "_id": "rec-002",
+      "baths": 1,
+      "beds": 2,
+      "city": "Delhi",
+      "owner_id": "O-002",
+      "property_id": "P-002",
+      "region": "North",
+      "sqft": 980,
+      "state": "DL",
+      "status": "Vacant",
+      "street": "9 Park Lane",
+      "type": "Apartment",
+      "year_built": 2004,
+      "zip": "110001"
+    }
+  ],
+  "limit": 5,
+  "offset": 0,
+  "total": 2
+}

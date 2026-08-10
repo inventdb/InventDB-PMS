@@ -1,0 +1,558 @@
+{
+  "_comment": "InventDB responses replayed by tests/contract/test_contract.py. Regenerate with `python -m tests.contract.capture`.",
+  "source": "synthetic",
+  "base_url": null,
+  "captured_at": null,
+  "bindings": {
+    "record_id": "rec-001",
+    "template_id": "tpl-001"
+  },
+  "http": [
+    {
+      "method": "DELETE",
+      "path": "/db/pms/properties/rec-001",
+      "status": 200,
+      "payload": {
+        "ok": true
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200,
+      "payload": {
+        "id": "u-1",
+        "username": "e2e.manager",
+        "email": "e2e.manager@example.com",
+        "role": "manager",
+        "isActive": true
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/report-templates",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "data": {
+          "templates": [
+            {
+              "_id": "tpl-001",
+              "name": "Owner Statement",
+              "description": "Monthly statement for a single owner.",
+              "category": "Finance",
+              "mode": "sql",
+              "version": 3,
+              "createdBy": "soar.admin"
+            },
+            {
+              "_id": "tpl-002",
+              "name": "Lease Renewals Due",
+              "description": "Leases ending in the next 90 days.",
+              "category": "Leasing",
+              "mode": "sql",
+              "version": 1,
+              "createdBy": "soar.admin"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/report-templates/tpl-001",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "data": {
+          "_id": "tpl-001",
+          "name": "Owner Statement",
+          "description": "Monthly statement for a single owner.",
+          "category": "Finance",
+          "mode": "sql",
+          "version": 3,
+          "html": "<h1>{{ owner.name }}</h1>",
+          "parameters": [
+            {
+              "name": "owner_id",
+              "label": "Owner",
+              "type": "select",
+              "required": true,
+              "source": "pms.owners"
+            },
+            {
+              "name": "as_of",
+              "label": "As of",
+              "type": "date",
+              "required": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflows",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "data": {
+          "workflows": [
+            {
+              "_id": "wf-001",
+              "name": "Weekly Lease Renewals Due",
+              "trigger_kind": "schedule",
+              "active": true,
+              "plan": [
+                {
+                  "idx": 0,
+                  "kind": "sql",
+                  "label": "Query renewals"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/workflows/runs",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "data": {
+          "runs": [
+            {
+              "_id": "run-001",
+              "workflow_id": "wf-001",
+              "status": "success",
+              "started_at": "2026-08-03T06:00:00Z",
+              "ended_at": "2026-08-03T06:00:07Z",
+              "error": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/db/pms/properties/rec-001",
+      "status": 200,
+      "payload": {
+        "_id": "rec-001",
+        "property_id": "P-001",
+        "street": "12 Marine Drive",
+        "city": "Mumbai",
+        "state": "MH",
+        "zip": "400020",
+        "region": "West",
+        "owner_id": "O-001",
+        "type": "Condo",
+        "status": "Occupied",
+        "beds": 3,
+        "baths": 2,
+        "sqft": 1450,
+        "year_built": 2011
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "token": "<redacted>",
+        "user": {
+          "id": "u-1",
+          "username": "e2e.manager",
+          "email": "e2e.manager@example.com",
+          "role": "manager",
+          "isActive": true
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/report-templates/tpl-001/render",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "data": {
+          "html": "<section><h1>Owner Statement</h1></section>",
+          "meta": {
+            "elapsed_ms": 128,
+            "mode": "sql",
+            "bytes": 512
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/db/pms/properties",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "id": "rec-001"
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/db/pms/properties",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "id": "rec-001"
+      }
+    }
+  ],
+  "sql": [
+    {
+      "key": "SELECT * FROM pms.leases LIMIT 5000",
+      "status": 200,
+      "rows": [
+        {
+          "_id": "lease-001",
+          "lease_id": "L-001",
+          "tenant_name": "Asha Rao",
+          "property_id": "P-001",
+          "status": "Active",
+          "contract_rent": 2500,
+          "market_rent": 2750,
+          "lease_start": "2024-01-01",
+          "lease_end": "2026-12-31",
+          "renewal_type": "Auto"
+        }
+      ]
+    },
+    {
+      "key": "SELECT * FROM pms.owners LIMIT 200",
+      "status": 200,
+      "rows": [
+        {
+          "_id": "own-001",
+          "owner_id": "O-001",
+          "name": "Acme Holdings"
+        },
+        {
+          "_id": "own-002",
+          "owner_id": "O-002",
+          "name": "Vista Trust"
+        }
+      ]
+    },
+    {
+      "key": "SELECT * FROM pms.properties LIMIT 5000",
+      "status": 200,
+      "rows": [
+        {
+          "_id": "rec-001",
+          "property_id": "P-001",
+          "street": "12 Marine Drive",
+          "city": "Mumbai",
+          "state": "MH",
+          "zip": "400020",
+          "region": "West",
+          "owner_id": "O-001",
+          "type": "Condo",
+          "status": "Occupied",
+          "beds": 3,
+          "baths": 2,
+          "sqft": 1450,
+          "year_built": 2011
+        },
+        {
+          "_id": "rec-002",
+          "property_id": "P-002",
+          "street": "9 Park Lane",
+          "city": "Delhi",
+          "state": "DL",
+          "zip": "110001",
+          "region": "North",
+          "owner_id": "O-002",
+          "type": "Apartment",
+          "status": "Vacant",
+          "beds": 2,
+          "baths": 1,
+          "sqft": 980,
+          "year_built": 2004
+        }
+      ]
+    },
+    {
+      "key": "SELECT * FROM pms.properties ORDER BY street ASC LIMIT 500 OFFSET 0",
+      "status": 200,
+      "rows": [
+        {
+          "_id": "rec-001",
+          "property_id": "P-001",
+          "street": "12 Marine Drive",
+          "city": "Mumbai",
+          "state": "MH",
+          "zip": "400020",
+          "region": "West",
+          "owner_id": "O-001",
+          "type": "Condo",
+          "status": "Occupied",
+          "beds": 3,
+          "baths": 2,
+          "sqft": 1450,
+          "year_built": 2011
+        },
+        {
+          "_id": "rec-002",
+          "property_id": "P-002",
+          "street": "9 Park Lane",
+          "city": "Delhi",
+          "state": "DL",
+          "zip": "110001",
+          "region": "North",
+          "owner_id": "O-002",
+          "type": "Apartment",
+          "status": "Vacant",
+          "beds": 2,
+          "baths": 1,
+          "sqft": 980,
+          "year_built": 2004
+        }
+      ]
+    },
+    {
+      "key": "SELECT * FROM pms.properties ORDER BY street ASC LIMIT 5000",
+      "status": 200,
+      "rows": [
+        {
+          "_id": "rec-001",
+          "property_id": "P-001",
+          "street": "12 Marine Drive",
+          "city": "Mumbai",
+          "state": "MH",
+          "zip": "400020",
+          "region": "West",
+          "owner_id": "O-001",
+          "type": "Condo",
+          "status": "Occupied",
+          "beds": 3,
+          "baths": 2,
+          "sqft": 1450,
+          "year_built": 2011
+        },
+        {
+          "_id": "rec-002",
+          "property_id": "P-002",
+          "street": "9 Park Lane",
+          "city": "Delhi",
+          "state": "DL",
+          "zip": "110001",
+          "region": "North",
+          "owner_id": "O-002",
+          "type": "Apartment",
+          "status": "Vacant",
+          "beds": 2,
+          "baths": 1,
+          "sqft": 980,
+          "year_built": 2004
+        }
+      ]
+    },
+    {
+      "key": "SELECT * FROM pms.tenants LIMIT 5000",
+      "status": 200,
+      "rows": [
+        {
+          "_id": "ten-001",
+          "tenant_id": "T-001",
+          "first": "Asha",
+          "last": "Rao"
+        }
+      ]
+    },
+    {
+      "key": "SELECT * FROM pms.transactions LIMIT 5000",
+      "status": 200,
+      "rows": [
+        {
+          "_id": "tx-001",
+          "reference": "TX-001",
+          "type": "Income",
+          "account_category": "Rent",
+          "amount": 2500,
+          "date": "2026-08-01"
+        },
+        {
+          "_id": "tx-002",
+          "reference": "TX-002",
+          "type": "Expense",
+          "account_category": "Repairs",
+          "amount": 320,
+          "date": "2026-08-04"
+        }
+      ]
+    },
+    {
+      "key": "SELECT * FROM pms.work_orders LIMIT 5000",
+      "status": 200,
+      "rows": [
+        {
+          "_id": "wo-001",
+          "wo": "WO-001",
+          "status": "Open",
+          "priority": "High",
+          "category": "HVAC",
+          "est_cost": 450
+        }
+      ]
+    },
+    {
+      "key": "SELECT COUNT(*) AS c FROM pms.properties",
+      "status": 200,
+      "rows": [
+        {
+          "c": 2
+        }
+      ]
+    },
+    {
+      "key": "SELECT SUM(est_cost) AS total FROM pms.work_orders WHERE lower(status) != 'completed'",
+      "status": 200,
+      "rows": [
+        {
+          "total": 450
+        }
+      ]
+    },
+    {
+      "key": "SELECT YEAR(date) AS y, MONTH(date) AS m, type, SUM(amount) AS total FROM pms.transactions GROUP BY y, m, type",
+      "status": 200,
+      "rows": [
+        {
+          "y": 2026,
+          "m": 8,
+          "type": "income",
+          "total": 2500
+        },
+        {
+          "y": 2026,
+          "m": 8,
+          "type": "expense",
+          "total": 320
+        }
+      ]
+    },
+    {
+      "key": "SELECT account_category, SUM(amount) AS value FROM pms.transactions WHERE lower(type) = 'expense' GROUP BY account_category ORDER BY value DESC",
+      "status": 200,
+      "rows": [
+        {
+          "account_category": "repairs",
+          "value": 320
+        }
+      ]
+    },
+    {
+      "key": "SELECT account_category, SUM(amount) AS value FROM pms.transactions WHERE lower(type) = 'income' GROUP BY account_category ORDER BY value DESC",
+      "status": 200,
+      "rows": [
+        {
+          "account_category": "rent",
+          "value": 2500
+        }
+      ]
+    },
+    {
+      "key": "SELECT category, COUNT(*) AS value FROM pms.work_orders GROUP BY category ORDER BY value DESC",
+      "status": 200,
+      "rows": [
+        {
+          "category": "hvac",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "key": "SELECT l.lease_id AS lease_id, l.tenant_name AS tenant_name, l.property_id AS property_id, p.city AS city, l.lease_end AS lease_end, l.contract_rent AS contract_rent, l.market_rent AS market_rent, l.renewal_type AS renewal_type FROM pms.leases l JOIN pms.properties p ON l.property_id = p.property_id WHERE l.lease_end >= '<date>' AND l.lease_end <= '<date>' ORDER BY l.lease_end ASC",
+      "status": 200,
+      "rows": [
+        {
+          "lease_id": "L-001",
+          "tenant_name": "Asha Rao",
+          "property_id": "P-001",
+          "city": "Mumbai",
+          "lease_end": "2026-12-31",
+          "contract_rent": 2500,
+          "market_rent": 2750,
+          "renewal_type": "Auto"
+        }
+      ]
+    },
+    {
+      "key": "SELECT l.lease_id AS lease_id, l.tenant_name AS tenant_name, l.property_id AS property_id, p.city AS city, p.state AS state, l.contract_rent AS contract_rent, l.market_rent AS market_rent, l.lease_start AS lease_start, l.lease_end AS lease_end, l.status AS status FROM pms.leases l JOIN pms.properties p ON l.property_id = p.property_id WHERE lower(l.status) = 'active' ORDER BY l.contract_rent DESC",
+      "status": 200,
+      "rows": [
+        {
+          "lease_id": "L-001",
+          "tenant_name": "Asha Rao",
+          "property_id": "P-001",
+          "city": "Mumbai",
+          "state": "MH",
+          "contract_rent": 2500,
+          "market_rent": 2750,
+          "lease_start": "2024-01-01",
+          "lease_end": "2026-12-31",
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "key": "SELECT priority, COUNT(*) AS value FROM pms.work_orders GROUP BY priority ORDER BY value DESC",
+      "status": 200,
+      "rows": [
+        {
+          "priority": "high",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "key": "SELECT status, COUNT(*) AS value FROM pms.properties GROUP BY status ORDER BY value DESC",
+      "status": 200,
+      "rows": [
+        {
+          "status": "occupied",
+          "value": 1
+        },
+        {
+          "status": "vacant",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "key": "SELECT status, COUNT(*) AS value FROM pms.work_orders GROUP BY status ORDER BY value DESC",
+      "status": 200,
+      "rows": [
+        {
+          "status": "open",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "key": "SELECT type, SUM(amount) AS total, COUNT(*) AS n FROM pms.transactions GROUP BY type",
+      "status": 200,
+      "rows": [
+        {
+          "type": "income",
+          "total": 2500,
+          "n": 1
+        },
+        {
+          "type": "expense",
+          "total": 320,
+          "n": 1
+        }
+      ]
+    }
+  ]
+}

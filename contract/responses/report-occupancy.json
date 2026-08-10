@@ -1,0 +1,15 @@
+{
+  "distribution": [
+    {
+      "name": "Occupied",
+      "value": 1
+    },
+    {
+      "name": "Vacant",
+      "value": 1
+    }
+  ],
+  "occupancy_rate": 50.0,
+  "occupied": 1,
+  "total": 2
+}

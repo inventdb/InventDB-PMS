@@ -13,11 +13,13 @@ from typing import Any
 
 from .errors import ApiError
 
-_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 def ident(value: str, label: str = "identifier") -> str:
-    if not isinstance(value, str) or not _IDENT_RE.match(value):
+    # `fullmatch`, not `match`: Python's `$` also matches immediately before a
+    # trailing newline, so `^ident$` would accept "properties\n".
+    if not isinstance(value, str) or not _IDENT_RE.fullmatch(value):
         raise ApiError(400, f"Invalid {label}: {value!r}")
     return value
 

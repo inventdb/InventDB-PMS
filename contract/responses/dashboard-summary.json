@@ -1,0 +1,27 @@
+{
+  "financials": {
+    "expected_rent": 2500.0,
+    "expense_month": 320.0,
+    "income_month": 2500.0,
+    "net_month": 2180.0
+  },
+  "leases": {
+    "active": 1,
+    "expiring_soon": 0,
+    "total": 1
+  },
+  "maintenance": {
+    "in_progress": 0,
+    "open": 1,
+    "total": 1
+  },
+  "properties": {
+    "occupancy_rate": 50.0,
+    "occupied": 1,
+    "total": 2,
+    "vacant": 1
+  },
+  "tenants": {
+    "total": 1
+  }
+}

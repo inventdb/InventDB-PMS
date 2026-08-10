@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InventDB PMS — Frontend Test Suite</title>
+<style>
+  :root {
+    --brand: #48176a;
+    --brand-soft: #f4eef8;
+    --ink: #1c1a1f;
+    --ink-mid: #4a4650;
+    --ink-soft: #6b6673;
+    --rule: #e3e0e8;
+    --rule-soft: #efedf2;
+    --paper: #ffffff;
+    --code-bg: #f4f2f7;
+    --ok: #1f5c3d;
+    --warn: #7a5a00;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: #f7f6f9;
+    color: var(--ink);
+    font-family: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI",
+                 Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14.5px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 840px;
+    margin: 0 auto;
+    padding: 56px 46px 72px;
+    background: var(--paper);
+  }
+
+  /* ---------- Masthead ---------- */
+  .mast { border-bottom: 3px solid var(--brand); padding-bottom: 24px; margin-bottom: 12px; }
+
+  .eyebrow {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--brand); margin-bottom: 14px;
+  }
+
+  h1 { margin: 0 0 12px; font-size: 30px; line-height: 1.2; font-weight: 700; letter-spacing: -0.018em; }
+  .standfirst { margin: 0; color: var(--ink-mid); font-size: 15px; max-width: 64ch; }
+
+  .scorecard {
+    display: flex; flex-wrap: wrap; gap: 0;
+    margin-top: 24px; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden;
+  }
+  .score { flex: 1 1 130px; padding: 13px 16px; border-right: 1px solid var(--rule); }
+  .score:last-child { border-right: 0; }
+  .score b { display: block; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  .score span { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-soft); }
+
+  /* ---------- Contents ---------- */
+  .toc { margin: 32px 0 8px; padding: 18px 22px; background: #faf9fb; border-radius: 8px; }
+  .toc h4 { margin: 0 0 10px; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-soft); }
+  .toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; font-size: 13.5px; }
+  .toc li { margin-bottom: 4px; break-inside: avoid; }
+  .toc a { color: var(--ink-mid); text-decoration: none; }
+
+  /* ---------- Sections ---------- */
+  section { margin-top: 40px; }
+  h2 {
+    margin: 0 0 14px; padding-bottom: 8px;
+    border-bottom: 2px solid var(--rule);
+    font-size: 20px; font-weight: 650; letter-spacing: -0.012em;
+  }
+  h2 .n { color: var(--brand); font-weight: 700; margin-right: 10px; }
+  h3 { margin: 24px 0 7px; font-size: 15px; font-weight: 650; }
+  h4 { margin: 18px 0 6px; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+
+  p { margin: 0 0 11px; max-width: 68ch; }
+  ul { margin: 0 0 11px; padding-left: 20px; max-width: 68ch; }
+  li { margin-bottom: 5px; }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.87em; background: var(--code-bg);
+    padding: 1.5px 5px; border-radius: 4px; color: #3d2352;
+  }
+
+  pre {
+    margin: 10px 0 14px; padding: 14px 16px;
+    background: #f8f7fa; border: 1px solid var(--rule-soft); border-left: 3px solid var(--brand);
+    border-radius: 6px; overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.4px; line-height: 1.6; color: #2c2733;
+    break-inside: avoid;
+  }
+  pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+  .cmt { color: #8a8494; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 16px; font-size: 13.3px; break-inside: avoid; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  th { font-size: 10.8px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-soft); font-weight: 700; border-bottom: 1.5px solid var(--rule); }
+  td code { font-size: 0.9em; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .num-col { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  .note {
+    margin: 14px 0; padding: 13px 16px; border-radius: 6px;
+    background: #faf9fb; border-left: 3px solid var(--ink-soft);
+    font-size: 13.4px; color: var(--ink-mid); break-inside: avoid;
+  }
+  .note.brand { background: var(--brand-soft); border-left-color: var(--brand); }
+  .note.warn { background: #fdf6e7; border-left-color: var(--warn); }
+  .note b { color: var(--ink); }
+  .note p:last-child { margin-bottom: 0; }
+
+  .pill { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .05em;
+          padding: 2px 8px; border-radius: 999px; background: #e9f3ed; color: var(--ok); }
+
+  .foot { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--rule); font-size: 12.4px; color: var(--ink-soft); }
+  .foot p { max-width: none; }
+
+  /* ---------- Print ---------- */
+  @page { margin: 15mm 14mm; }
+
+  @media print {
+    body { background: #fff; font-size: 10.2pt; line-height: 1.5; }
+    .sheet { max-width: none; margin: 0; padding: 0; }
+    h1 { font-size: 21pt; }
+    h2 { font-size: 13.5pt; margin-top: 0; break-after: avoid; }
+    h3, h4 { break-after: avoid; }
+    section { margin-top: 24px; break-inside: auto; }
+    .toc { break-inside: avoid; }
+    pre { font-size: 8.6pt; background: #f7f6f9; }
+    table { font-size: 8.9pt; }
+    a { color: inherit; text-decoration: none; }
+  }
+
+  @media (max-width: 640px) {
+    .sheet { padding: 32px 20px 48px; }
+    h1 { font-size: 24px; }
+    .toc ol { columns: 1; }
+    table { font-size: 12.4px; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+<header class="mast">
+  <div class="eyebrow">
+    <svg width="16" height="16" viewBox="4 5 120 120" aria-hidden="true">
+      <path d="M12 116 L12 54 L64 14 L116 54 L116 116" fill="none" stroke="#48176a"
+            stroke-width="13" stroke-linejoin="round" stroke-linecap="round"/>
+      <rect x="48" y="78" width="32" height="38" rx="5" fill="#48176a"/>
+    </svg>
+    InventDB PMS · Documentation
+  </div>
+
+  <h1>Frontend test suite</h1>
+
+  <p class="standfirst">
+    Complete reference for the Playwright end-to-end suite covering the PMS
+    React frontend — how to run it, what it covers, how the mocked API and
+    contract checks fit together, and how to add to it.
+  </p>
+
+  <div class="scorecard">
+    <div class="score"><b>183</b><span>Tests</span></div>
+    <div class="score"><b>12</b><span>Files</span></div>
+    <div class="score"><b>~33s</b><span>Full run</span></div>
+    <div class="score"><b>2</b><span>Device profiles</span></div>
+    <div class="score"><b>0</b><span>External services</span></div>
+  </div>
+</header>
+
+<div class="toc">
+  <h4>Contents</h4>
+  <ol>
+    <li><a href="#s1">Quick start</a></li>
+    <li><a href="#s2">What the suite covers</a></li>
+    <li><a href="#s3">How it is wired together</a></li>
+    <li><a href="#s4">Authentication</a></li>
+    <li><a href="#s5">The mocked API</a></li>
+    <li><a href="#s6">The contract layer</a></li>
+    <li><a href="#s7">Writing a new test</a></li>
+    <li><a href="#s8">Configuration reference</a></li>
+    <li><a href="#s9">What is not covered</a></li>
+    <li><a href="#s10">Troubleshooting</a></li>
+    <li><a href="#s11">Running in CI</a></li>
+  </ol>
+</div>
+
+<!-- ================= 1 ================= -->
+<section id="s1">
+  <h2><span class="n">1</span>Quick start</h2>
+
+  <p>
+    Everything lives under <code>frontend/</code>. The suite needs no Flask
+    backend, no InventDB instance, and no network — the API is answered inside
+    the browser.
+  </p>
+
+<pre><code><span class="cmt"># one-time, after cloning</span>
+cd frontend
+npm install
+npx playwright install chromium
+
+<span class="cmt"># run</span>
+npm run test:e2e</code></pre>
+
+  <table>
+    <thead><tr><th>Command</th><th>Does</th></tr></thead>
+    <tbody>
+      <tr><td><code>npm run test:e2e</code></td><td>Full suite, headless, both device profiles</td></tr>
+      <tr><td><code>npm run test:e2e:ui</code></td><td>UI mode — watch, time-travel, pick locators. Best place to write tests</td></tr>
+      <tr><td><code>npm run test:e2e:headed</code></td><td>Desktop profile with a visible browser</td></tr>
+      <tr><td><code>npm run test:e2e:mobile</code></td><td>Pixel 7 profile only</td></tr>
+      <tr><td><code>npm run test:e2e:report</code></td><td>Open the HTML report from the last run</td></tr>
+      <tr><td><code>npm run typecheck:e2e</code></td><td>Type-check the test files (not part of <code>npm run build</code>)</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Useful flags</h4>
+<pre><code>npx playwright test login                 <span class="cmt"># only files matching "login"</span>
+npx playwright test -g "signs in"         <span class="cmt"># only tests whose title matches</span>
+npx playwright test --project=chromium    <span class="cmt"># skip the mobile profile</span>
+npx playwright test --debug               <span class="cmt"># step through with the inspector</span>
+npx playwright test --repeat-each=3       <span class="cmt"># flake hunting</span>
+npx playwright show-trace test-results/…/trace.zip</code></pre>
+
+  <div class="note">
+    <b>The dev server starts itself.</b> Playwright runs <code>npm run dev</code>
+    and waits for port 5173. If a dev server is already running there it reuses
+    it instead — so a stale server with an invalidated dependency cache can
+    affect a local run. If results look impossible, stop your dev server and let
+    Playwright start its own.
+  </div>
+</section>
+
+<!-- ================= 2 ================= -->
+<section id="s2">
+  <h2><span class="n">2</span>What the suite covers</h2>
+
+  <table>
+    <thead><tr><th>File</th><th class="num-col">Tests</th><th>Covers</th></tr></thead>
+    <tbody>
+      <tr><td><code>auth.setup.ts</code></td><td class="num-col">1</td><td>Signs in once through the real form; saves the state every other project starts from</td></tr>
+      <tr><td><code>contract.spec.ts</code></td><td class="num-col">48</td><td>Holds the mocked API to the shape the backend publishes — see §6</td></tr>
+      <tr><td><code>entity-list.spec.ts</code></td><td class="num-col">22</td><td>All ten modules; table rendering, status badges, reference resolution, currency and date formatting, search, sort, empty states</td></tr>
+      <tr><td><code>navigation.spec.ts</code></td><td class="num-col">20</td><td>All 14 sidebar destinations, active highlighting, reload on a deep route, back/forward, unmatched routes</td></tr>
+      <tr><td><code>entity-crud.spec.ts</code></td><td class="num-col">20</td><td>Create / edit / delete round trips, payload type coercion, required-field blocking, reference dropdowns, modal dismissal, form-state isolation between modules</td></tr>
+      <tr><td><code>reports.spec.ts</code></td><td class="num-col">18</td><td>Gallery grouping and filtering, parameter seeding, rendering into the sandboxed frame, refresh without blanking the sheet, print enablement, failure paths</td></tr>
+      <tr><td><code>login.spec.ts</code></td><td class="num-col">14</td><td>Sign-in, credential errors, in-flight button state, network failure, password visibility, registration links, route protection while signed out</td></tr>
+      <tr><td><code>settings.spec.ts</code></td><td class="num-col">11</td><td>Account details, InventDB connection card, theme switching and persistence, password change, sign-out from both places</td></tr>
+      <tr><td><code>workflows.spec.ts</code></td><td class="num-col">8</td><td>Workflow cards, trigger hints, plan step timelines, run history, the run-timeline chart, empty and error states</td></tr>
+      <tr><td><code>mobile.spec.ts</code></td><td class="num-col">8</td><td>Drawer open/close behaviour, login hero reflow, horizontal-overflow guard across four routes</td></tr>
+      <tr><td><code>dashboard.spec.ts</code></td><td class="num-col">7</td><td>Eight stat tiles with exact formatted values, four charts, empty-data branch, error branch, loading spinner</td></tr>
+      <tr><td><code>errors.spec.ts</code></td><td class="num-col">6</td><td>401 auto-logout on both reads and writes, 5xx surfacing, network abort, recovery after the API returns</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    Ten of the eleven spec files drive the real React app in a real browser.
+    <code>contract.spec.ts</code> is different in kind: it never opens a page, it
+    validates the fake API itself.
+  </p>
+
+  <h3>Coverage by feature area</h3>
+  <ul>
+    <li><b>Every module.</b> Properties, Owners, Tenants, Leases, Work Orders,
+        Vendors, Inspections, Compliance, Daily Tasks and Accounting are each
+        driven through the same generic list contract, because they are one
+        component configured by <code>src/config/entities.ts</code>.</li>
+    <li><b>Every route.</b> All 14 sidebar destinations plus the two unmatched-route
+        behaviours (single unknown segment renders “Unknown module”; a deeper
+        unknown path redirects to the dashboard).</li>
+    <li><b>Both themes' plumbing.</b> Theme toggling from the topbar and the
+        settings card, persistence across reload, and the pre-paint stamp on
+        <code>&lt;html&gt;</code>.</li>
+    <li><b>Failure paths, not just happy paths.</b> Roughly a quarter of the
+        assertions are about what happens when the API returns 400, 401, 409,
+        500, 502, 503, or simply never answers.</li>
+  </ul>
+</section>
+
+<!-- ================= 3 ================= -->
+<section id="s3">
+  <h2><span class="n">3</span>How it is wired together</h2>
+
+  <h3>File layout</h3>
+<pre><code>frontend/
+├─ playwright.config.ts        <span class="cmt">projects, timeouts, dev server</span>
+├─ tsconfig.e2e.json           <span class="cmt">type-checks the suite in isolation</span>
+└─ e2e/
+   ├─ auth.setup.ts            <span class="cmt">signs in, saves storage state</span>
+   ├─ *.spec.ts                <span class="cmt">the tests</span>
+   ├─ .auth/user.json          <span class="cmt">generated, git-ignored</span>
+   └─ fixtures/
+      ├─ index.ts              <span class="cmt">extended `test`, helpers, options</span>
+      ├─ data.ts               <span class="cmt">seed records and payloads</span>
+      ├─ mock-api.ts           <span class="cmt">the fake backend</span>
+      └─ contract.ts           <span class="cmt">reads recorded real responses</span></code></pre>
+
+  <h3>Projects</h3>
+  <p>Three projects run in dependency order:</p>
+
+  <table>
+    <thead><tr><th>Project</th><th>Runs</th><th>Profile</th></tr></thead>
+    <tbody>
+      <tr><td><code>setup</code></td><td><code>auth.setup.ts</code> only</td><td>Signed out; produces <code>e2e/.auth/user.json</code></td></tr>
+      <tr><td><code>chromium</code></td><td>All specs except <code>mobile.spec.ts</code></td><td>Desktop Chrome, 1440×900, signed in</td></tr>
+      <tr><td><code>mobile</code></td><td><code>mobile.spec.ts</code> only</td><td>Pixel 7 (412px), signed in</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    The mobile profile exists because the layout genuinely changes below 820px —
+    the sidebar becomes a drawer — and below 960px, where the login hero reflows
+    via <code>display: contents</code>. Those are different behaviours, not the
+    same page at a different size, so they get their own tests rather than a
+    resize inside a desktop test.
+  </p>
+
+  <h3>Fixtures</h3>
+  <p>
+    Specs import <code>test</code> from <code>./fixtures</code> rather than from
+    Playwright directly. That extended <code>test</code> supplies:
+  </p>
+
+  <table>
+    <thead><tr><th>Name</th><th>Kind</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>store</code></td><td>Fixture</td><td>A fresh, mutable copy of the seed data for this test</td></tr>
+      <tr><td><code>mockApi</code></td><td>Auto fixture</td><td>Installs the fake API before the test body runs. Specs never request it</td></tr>
+      <tr><td><code>liveApi</code></td><td>Option</td><td><code>test.use({ liveApi: true })</code> skips mocking entirely</td></tr>
+      <tr><td><code>apiLatency</code></td><td>Option</td><td>Delays every API response, for asserting on loading states</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>Why <code>store</code> does not depend on <code>page</code>.</b> It would
+    be natural to build the store and install the routes in one fixture. Doing so
+    creates a <code>page → store → page</code> cycle once the auto fixture needs
+    both, which Playwright rejects at load time. Keeping <code>store</code> pure
+    and putting the installation in a separate auto fixture avoids it.
+  </div>
+</section>
+
+<!-- ================= 4 ================= -->
+<section id="s4">
+  <h2><span class="n">4</span>Authentication</h2>
+
+  <p>
+    <code>AuthContext</code> gates every route behind a user and token held in
+    <code>localStorage</code> (<code>pms.token</code> and <code>pms.user</code>).
+    Signing in once per test would be slow and would put the same assertions in
+    every file, so the <code>setup</code> project does it once and saves the
+    resulting browser state.
+  </p>
+
+  <p>
+    That state is produced by driving the real login form — not by writing the
+    token directly. If the login contract changes, the failure appears in one
+    obvious place instead of silently handing every other test a shape the app no
+    longer accepts. The setup also pins <code>pms.theme</code> to light, so
+    theme assertions do not depend on the machine's colour-scheme preference.
+  </p>
+
+  <h4>Starting a test signed out</h4>
+<pre><code>import { signedOut, test } from "./fixtures";
+
+test.use(signedOut);   <span class="cmt">// clears the saved state for this file</span></code></pre>
+
+  <p>
+    <code>login.spec.ts</code> uses this for the form itself and for the
+    route-protection checks. There is also a <code>signIn(page)</code> helper for
+    tests that need to sign in mid-test.
+  </p>
+</section>
+
+<!-- ================= 5 ================= -->
+<section id="s5">
+  <h2><span class="n">5</span>The mocked API</h2>
+
+  <p>
+    <code>fixtures/mock-api.ts</code> installs <b>one</b> route handler for every
+    same-origin <code>/api/</code> call and dispatches internally by path. One
+    broad handler rather than a dozen narrow ones is deliberate: Playwright
+    matches handlers in reverse registration order, so with many overlapping
+    patterns the effective precedence becomes hard to reason about. With a single
+    handler installed by the fixture, a <code>page.route()</code> a spec registers
+    later <i>always</i> wins — which is exactly the override behaviour the failure
+    tests need.
+  </p>
+
+  <p>
+    Writes mutate the per-test <code>store</code>. A create really does appear in
+    the list refetch React Query fires afterwards, so the assertions exercise the
+    full round trip rather than just inspecting the outgoing request.
+  </p>
+
+  <h3>Overriding one endpoint</h3>
+<pre><code>await page.route("**/api/dashboard/summary", (route) =&gt;
+  route.fulfill({
+    status: 500,
+    contentType: "application/json",
+    body: JSON.stringify({ error: "InventDB is unreachable" }),
+  })
+);
+await page.reload();
+
+await expect(page.locator(".alert.error")).toHaveText("InventDB is unreachable");</code></pre>
+
+  <h3>Overriding only some methods</h3>
+  <p>
+    Call <code>route.fallback()</code> to defer to the mock for the requests you
+    did not mean to change:
+  </p>
+<pre><code>await page.route("**/api/properties", (route) =&gt; {
+  if (route.request().method() !== "POST") return route.fallback();
+  return route.fulfill({ status: 400, contentType: "application/json",
+                         body: JSON.stringify({ error: "street must be unique" }) });
+});</code></pre>
+
+  <h3>Extending the mock</h3>
+  <p>
+    Add a branch in the dispatch chain in <code>mock-api.ts</code>, keyed on the
+    first path segment. Two rules matter:
+  </p>
+  <ul>
+    <li><b>Match <code>/api/</code> at the root of the path, not anywhere in the
+        URL.</b> The handler uses a regex rather than a glob for this reason. In
+        development Vite serves the app's own source files at their real paths,
+        and some of those paths contain <code>/api/</code> — a pattern loose
+        enough to catch them will intercept application code. The comment above
+        the regex in <code>mock-api.ts</code> explains it in full; leave it
+        there.</li>
+    <li><b>Envelope endpoints should come from the contract, not by hand.</b> If
+        the backend composes the response itself, serve the recorded one via
+        <code>backendResponse(key)</code> — see §6.</li>
+  </ul>
+
+  <h3>Seed data</h3>
+  <p>
+    <code>fixtures/data.ts</code> holds three properties, two of everything else,
+    plus dashboard, report and workflow payloads. Field names mirror
+    <code>src/config/entities.ts</code> exactly, because the UI reads records by
+    those names — a drifting fixture shows up as a blank cell rather than a clear
+    failure. Every record carries an <code>_id</code>, which is what the edit and
+    delete paths key off.
+  </p>
+</section>
+
+<!-- ================= 6 ================= -->
+<section id="s6">
+  <h2><span class="n">6</span>The contract layer</h2>
+
+  <p>
+    A mocked API has one structural weakness: it can agree with itself forever
+    while drifting away from the real backend. A renamed field or a dropped
+    envelope would leave the whole suite green against a backend it no longer
+    describes.
+  </p>
+
+  <p>
+    The contract layer closes that gap. <code>backend/tests/contract/</code>
+    replays recorded InventDB responses through the real Flask app, validates the
+    output against <code>contract/api-contract.json</code>, and publishes the
+    app's actual responses to <code>contract/responses/</code>.
+    <code>contract.spec.ts</code> then holds the mock to the same contract and
+    the same responses. Drift on either side now fails on that side.
+  </p>
+
+  <div class="note brand">
+    <p><b>Regenerate after changing a backend response shape:</b></p>
+<pre style="margin:8px 0 0"><code>cd backend
+UPDATE_CONTRACT=1 python -m pytest tests/contract</code></pre>
+  </div>
+
+  <p>
+    The mock serves recorded responses for <i>envelope</i> endpoints — metadata
+    and other bodies the backend composes itself. Per-record fixtures stay in
+    <code>data.ts</code>, because those exist to drive assertions on specific
+    rendered values, and a captured dataset would change them every time someone
+    edited the sandbox.
+  </p>
+
+  <div class="note">
+    The validator in <code>contract.spec.ts</code> is a deliberate re-implementation
+    of the Python one in <code>backend/tests/contract/spec.py</code>, not a shared
+    module. A validator generated from the backend would agree with the backend by
+    construction, which is the one thing it must not do.
+  </div>
+</section>
+
+<!-- ================= 7 ================= -->
+<section id="s7">
+  <h2><span class="n">7</span>Writing a new test</h2>
+
+<pre><code>import { dialog, expect, field, row, rows, test } from "./fixtures";
+
+test("creates a vendor", async ({ page }) =&gt; {
+  await page.goto("/vendors");
+  await page.getByRole("button", { name: "New Vendor" }).click();
+
+  await field(page, "company").fill("Summit Roofing");
+  await dialog(page).getByRole("button", { name: "Save" }).click();
+
+  await expect(page.locator(".toast.success")).toHaveText("Vendor created");
+  await expect(row(page, "Summit Roofing")).toBeVisible();
+});</code></pre>
+
+  <h3>Helpers</h3>
+  <table>
+    <thead><tr><th>Helper</th><th>Returns</th></tr></thead>
+    <tbody>
+      <tr><td><code>field(page, "street")</code></td><td>An EntityForm control by its field name</td></tr>
+      <tr><td><code>reportParam(page, "region")</code></td><td>A report parameter input</td></tr>
+      <tr><td><code>dialog(page)</code></td><td>The open modal or confirm dialog</td></tr>
+      <tr><td><code>row(page, "Mumbai")</code></td><td>A table row containing that text</td></tr>
+      <tr><td><code>rows(page)</code></td><td>All rendered data rows</td></tr>
+      <tr><td><code>signIn(page)</code></td><td>Signs in through the form mid-test</td></tr>
+      <tr><td><code>signedOut</code></td><td>Config object for <code>test.use()</code> to start anonymous</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Conventions that keep tests stable</h3>
+
+  <h4>Headings repeat — always pass a level</h4>
+  <p>
+    The layout renders the page title as an <code>&lt;h1&gt;</code> in the topbar,
+    and entity pages repeat the same text as an <code>&lt;h2&gt;</code>. Asking
+    for the heading by name alone matches both and fails strict mode.
+  </p>
+<pre><code>page.getByRole("heading", { name: "Properties", level: 1 })   <span class="cmt">// topbar</span>
+page.getByRole("heading", { name: "Properties", level: 2 })   <span class="cmt">// page head</span></code></pre>
+
+  <h4>Labels are substring-matched by default</h4>
+  <p>
+    <code>getByLabel("Password")</code> also matches the show/hide toggle, whose
+    <code>aria-label</code> is “Show password”. Use <code>{ exact: true }</code>
+    on the login and settings forms.
+  </p>
+
+  <h4>Use <code>field()</code> for entity forms</h4>
+  <p>
+    Required labels render as <code>Street*</code>, which defeats exact label
+    matching, while loose matching makes <code>Phone</code> ambiguous with
+    <code>Emergency Phone</code>. Every control has a stable
+    <code>id="f-&lt;name&gt;"</code>, which is what the helper targets.
+  </p>
+
+  <h4>Counting charts</h4>
+  <p>
+    Recharts gives legend icons their own <code>.recharts-surface</code>. Count
+    <code>.recharts-wrapper</code> when you mean “how many charts”.
+  </p>
+
+  <h4>Prefer round-trip assertions</h4>
+  <p>
+    Because writes mutate the store, assert on the resulting row rather than only
+    on the outgoing request. Check the request payload as well when type coercion
+    matters — numeric and currency fields are converted out of their string form
+    before sending, and untouched fields are omitted rather than sent empty.
+  </p>
+
+  <div class="note warn">
+    <b>Do not add <code>waitForTimeout</code>.</b> Every locator and assertion
+    already retries until it passes or times out. A fixed sleep either makes the
+    suite slower than it needs to be or hides a real race. The search box is
+    debounced by 300ms and the assertions absorb that without help.
+  </div>
+</section>
+
+<!-- ================= 8 ================= -->
+<section id="s8">
+  <h2><span class="n">8</span>Configuration reference</h2>
+
+  <table>
+    <thead><tr><th>Setting</th><th>Value</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td><code>baseURL</code></td><td><code>http://localhost:5173</code></td><td>Vite dev server</td></tr>
+      <tr><td><code>locale</code></td><td><code>en-US</code></td><td>The app formats money with <code>toLocaleString</code>; unpinned, <code>$2,400</code> is machine-dependent</td></tr>
+      <tr><td><code>timezoneId</code></td><td><code>UTC</code></td><td>Same reason for dates — a date-only value is parsed as local time</td></tr>
+      <tr><td><code>contextOptions.reducedMotion</code></td><td><code>reduce</code></td><td>Removes the route-change animation from under click assertions</td></tr>
+      <tr><td><code>timeout</code></td><td>45s per test</td><td>Generous; a typical test finishes in 1–2s</td></tr>
+      <tr><td><code>expect.timeout</code></td><td>10s</td><td>React Query retries failed requests once, so error states need headroom</td></tr>
+      <tr><td><code>retries</code></td><td>2 in CI, 0 locally</td><td>Local failures should be reproduced, not retried away</td></tr>
+      <tr><td><code>workers</code></td><td>2 in CI, auto locally</td><td>CI runners are usually smaller than a dev machine</td></tr>
+      <tr><td><code>trace</code></td><td><code>on-first-retry</code></td><td>Full DOM, network and console capture for anything that fails</td></tr>
+      <tr><td><code>screenshot</code> / <code>video</code></td><td>On failure only</td><td>Keeps artifacts small</td></tr>
+      <tr><td><code>webServer.reuseExistingServer</code></td><td>true locally</td><td>Uses your running dev server; CI always starts a clean one</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    Google Fonts is intercepted and answered with an empty stylesheet. That keeps
+    the suite offline-capable and removes a slow third-party dependency; the app
+    falls back to its system font stack, which no assertion depends on.
+  </p>
+
+  <h4>Git-ignored outputs</h4>
+  <p>
+    <code>frontend/e2e/.auth/</code>, <code>frontend/test-results/</code>,
+    <code>frontend/playwright-report/</code> and <code>frontend/blob-report/</code>
+    are all excluded in the root <code>.gitignore</code>.
+  </p>
+</section>
+
+<!-- ================= 9 ================= -->
+<section id="s9">
+  <h2><span class="n">9</span>What is not covered</h2>
+
+  <p>Stated plainly, because a green suite invites more confidence than it earns.</p>
+
+  <ul>
+    <li><b>No backend Python runs.</b> During a frontend test run the Flask app is
+        not started. Backend behaviour is covered by the separate pytest suite in
+        <code>backend/tests/</code>, and the two are joined only by the contract
+        layer in §6.</li>
+    <li><b>No real InventDB.</b> Nothing here proves the app works against a live
+        instance — only against responses shaped like one.</li>
+    <li><b>Per-record fixtures are assumptions.</b> The contract pins envelope
+        shapes. The individual records in <code>data.ts</code> are hand-written,
+        so a field renamed in the real schema would not fail here.</li>
+    <li><b>No visual regression.</b> Layout is asserted structurally and through
+        the mobile overflow guard, not by pixel comparison.</li>
+    <li><b>No accessibility audit.</b> Tests use accessible roles and names
+            throughout, which exercises the accessibility tree incidentally, but
+            nothing runs an axe-style ruleset.</li>
+    <li><b>Chromium only.</b> Both profiles are Chromium-based. Firefox and WebKit
+        are installed but no project targets them.</li>
+    <li><b>Passing tests are weak evidence of correctness.</b> The assertions were
+        written by reading the current implementation, so they largely encode
+        today's behaviour as correct. Their value is catching tomorrow's
+        regression, not proving today's code right.</li>
+  </ul>
+</section>
+
+<!-- ================= 10 ================= -->
+<section id="s10">
+  <h2><span class="n">10</span>Troubleshooting</h2>
+
+  <table>
+    <thead><tr><th>Symptom</th><th>Likely cause</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Blank page, timeout waiting for any element</td>
+        <td>The app did not boot. Check the browser console rather than the test output — run the same navigation with a <code>page.on("pageerror")</code> listener. A route pattern intercepting application code is the usual cause</td>
+      </tr>
+      <tr>
+        <td><code>strict mode violation: resolved to 2 elements</code></td>
+        <td>An ambiguous locator. Add <code>level:</code> to headings, <code>exact: true</code> to labels and text, or scope to a container</td>
+      </tr>
+      <tr>
+        <td>Element “intercepts pointer events”</td>
+        <td>Something overlays the click target — usually an open drawer or modal scrim. Click a position that is actually exposed</td>
+      </tr>
+      <tr>
+        <td>Currency or date assertions fail</td>
+        <td><code>locale</code> or <code>timezoneId</code> lost from the config</td>
+      </tr>
+      <tr>
+        <td>Contract tests fail after a backend change</td>
+        <td>Expected. Regenerate with <code>UPDATE_CONTRACT=1</code> (§6), then update the mock to match</td>
+      </tr>
+      <tr>
+        <td>Local run behaves impossibly</td>
+        <td>A stale dev server on 5173 is being reused. Stop it and let Playwright start its own</td>
+      </tr>
+      <tr>
+        <td>Fixture dependency cycle at startup</td>
+        <td>A fixture was made to depend on <code>page</code> which something else needs first. See the note in §3</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    For anything that fails on a retry, the trace is the fastest route to an
+    answer — it carries a DOM snapshot, the network log and the console for every
+    step: <code>npx playwright show-trace test-results/…/trace.zip</code>.
+  </p>
+</section>
+
+<!-- ================= 11 ================= -->
+<section id="s11">
+  <h2><span class="n">11</span>Running in CI</h2>
+
+<pre><code>- run: npm ci
+  working-directory: frontend
+
+- run: npx playwright install --with-deps chromium
+  working-directory: frontend
+
+- run: npx playwright test
+  working-directory: frontend
+
+- uses: actions/upload-artifact@v4
+  if: ${{ !cancelled() }}
+  with:
+    name: playwright-report
+    path: frontend/playwright-report/</code></pre>
+
+  <p>
+    Setting <code>CI</code> changes four things automatically: retries go to 2,
+    workers drop to 2, <code>test.only</code> becomes an error rather than a
+    silent filter, and the dev server is always started fresh instead of reusing
+    whatever is on 5173.
+  </p>
+
+  <div class="note">
+    <b>Consider adding <code>npm run typecheck:e2e</code> as a CI step.</b> It is
+    deliberately not part of <code>npm run build</code>, so a type error in a test
+    file will not block a deploy — which means nothing catches it unless CI runs
+    it explicitly.
+  </div>
+</section>
+
+<footer class="foot">
+  <p>
+    <span class="pill">183 PASSING</span> &nbsp;Verified 10 August 2026 · full run 32.6s ·
+    Playwright 1.62.1 · Chromium.
+  </p>
+  <p>
+    Source: <code>frontend/e2e/</code> · Contract: <code>contract/</code> ·
+    Backend suite: <code>backend/tests/</code>
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

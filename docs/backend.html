@@ -1,0 +1,905 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InventDB PMS — The Backend Test Suite</title>
+<style>
+  :root {
+    --brand: #48176a;
+    --brand-soft: #f4eef8;
+    --ink: #1c1a1f;
+    --ink-mid: #4a4650;
+    --ink-soft: #6b6673;
+    --rule: #e3e0e8;
+    --paper: #ffffff;
+    --flag-a: #b3261e;
+    --flag-b: #7a5a00;
+    --flag-c: #1f5c3d;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: #f7f6f9;
+    color: var(--ink);
+    font-family: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI",
+                 Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 56px 44px 72px;
+    background: var(--paper);
+    min-height: 100vh;
+  }
+
+  /* ---- Masthead ---- */
+  .mast { border-bottom: 3px solid var(--brand); padding-bottom: 22px; margin-bottom: 34px; }
+
+  .eyebrow {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--brand); margin-bottom: 14px;
+  }
+  .eyebrow svg { flex-shrink: 0; }
+
+  h1 {
+    margin: 0 0 12px;
+    font-size: 29px; line-height: 1.22; font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+
+  .standfirst { margin: 0; color: var(--ink-mid); font-size: 15.5px; max-width: 62ch; }
+
+  .meta {
+    margin-top: 18px; font-size: 12.5px; color: var(--ink-soft);
+    display: flex; flex-wrap: wrap; gap: 6px 18px;
+  }
+  .meta b { color: var(--ink-mid); font-weight: 600; }
+
+  /* ---- Contents ---- */
+  .toc {
+    margin: 0 0 34px;
+    padding: 16px 20px;
+    background: #faf9fb;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    font-size: 13.5px;
+  }
+  .toc h4 {
+    margin: 0 0 8px;
+    font-size: 11px; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--ink-soft);
+  }
+  .toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 30px; }
+  .toc li { margin-bottom: 3px; break-inside: avoid; }
+  .toc a { color: var(--ink-mid); text-decoration: none; border-bottom: 1px solid var(--rule); }
+  .toc a:hover { color: var(--brand); border-bottom-color: var(--brand); }
+
+  /* ---- Sections ---- */
+  .block { margin-bottom: 40px; break-inside: avoid-page; }
+
+  .block-head { display: flex; gap: 16px; align-items: baseline; margin-bottom: 14px; }
+
+  .num {
+    font-size: 12px; font-weight: 700; letter-spacing: .08em;
+    color: var(--accent, var(--brand)); flex-shrink: 0; padding-top: 3px;
+  }
+
+  h2 { margin: 0; font-size: 19px; line-height: 1.32; font-weight: 650; letter-spacing: -0.01em; }
+
+  h3 {
+    margin: 20px 0 5px;
+    font-size: 11.5px; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--ink-soft);
+  }
+
+  .body { margin-left: 40px; }
+
+  p { margin: 0 0 11px; max-width: 64ch; }
+  p:last-child { margin-bottom: 0; }
+
+  ul.plain { margin: 0 0 11px; padding-left: 20px; max-width: 64ch; }
+  ul.plain li { margin-bottom: 5px; }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.875em;
+    background: #f2f0f5;
+    padding: 1.5px 5px;
+    border-radius: 4px;
+    color: #3d2352;
+  }
+
+  pre {
+    margin: 12px 0;
+    padding: 14px 16px;
+    background: #faf9fb;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.58;
+    color: var(--ink-mid);
+  }
+  pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
+  pre .cm { color: var(--ink-soft); font-style: italic; }
+  pre .kw { color: var(--brand); font-weight: 600; }
+
+  /* ---- Table ---- */
+  table.files {
+    width: 100%; border-collapse: collapse; margin: 4px 0 12px; font-size: 13.5px;
+  }
+  table.files th {
+    text-align: left; padding: 7px 10px 7px 0;
+    font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink-soft);
+    border-bottom: 2px solid var(--rule);
+  }
+  table.files td {
+    padding: 8px 10px 8px 0; border-bottom: 1px solid var(--rule);
+    vertical-align: top; color: var(--ink-mid);
+  }
+  table.files td:first-child { white-space: nowrap; color: var(--ink); }
+  table.files td.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.files tr:last-child td { border-bottom: none; }
+  table.files tfoot td { font-weight: 600; color: var(--ink); border-top: 2px solid var(--rule); }
+
+  /* ---- Pipeline diagram ---- */
+  .pipeline {
+    display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px;
+    margin: 16px 0 6px;
+  }
+  .stage {
+    flex: 1 1 130px;
+    border: 1px solid var(--rule); border-radius: 7px;
+    padding: 10px 12px; background: var(--paper);
+    font-size: 12.5px; line-height: 1.42;
+  }
+  .stage.lit { background: var(--brand-soft); border-color: #d9c8e6; }
+  .stage b { display: block; color: var(--ink); font-weight: 650; font-size: 13px; }
+  .stage span { color: var(--ink-soft); }
+  .arrow {
+    flex: 0 0 auto; align-self: center; text-align: center;
+    color: var(--ink-soft); font-size: 15px; line-height: 1.1; padding: 0 2px;
+  }
+  .arrow em { display: block; font-size: 10px; font-style: normal; letter-spacing: .04em; }
+  .pipeline-note { font-size: 12.5px; color: var(--ink-soft); margin: 0; }
+
+  /* ---- Finding cards ---- */
+  .flag {
+    border: 1px solid var(--rule);
+    border-left: 5px solid var(--accent, var(--brand));
+    border-radius: 8px;
+    padding: 24px 26px 20px;
+    margin-bottom: 22px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .flag.sev-high { --accent: var(--flag-a); }
+  .flag.sev-mid  { --accent: var(--flag-b); }
+  .flag.sev-low  { --accent: var(--flag-c); }
+
+  .flag-head { display: flex; gap: 16px; align-items: baseline; margin-bottom: 6px; }
+  .flag h2 { font-size: 17.5px; }
+
+  .verdict {
+    display: inline-block; margin: 10px 0 0 40px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: .03em;
+    padding: 3px 10px; border-radius: 999px;
+    background: var(--brand-soft); color: var(--brand);
+  }
+  .verdict.hot  { background: #fbeceb; color: var(--flag-a); }
+  .verdict.warn { background: #fdf3e2; color: var(--flag-b); }
+  .verdict.calm { background: #e9f3ed; color: var(--flag-c); }
+
+  /* ---- Compact findings ---- */
+  .minor {
+    border: 1px solid var(--rule); border-radius: 8px;
+    padding: 4px 24px; margin-left: 40px;
+  }
+  .minor dl { margin: 0; }
+  .minor dt {
+    margin: 18px 0 3px; font-weight: 650; font-size: 14.5px;
+    display: flex; gap: 12px; align-items: baseline;
+  }
+  .minor dt .num { font-size: 11.5px; color: var(--flag-c); }
+  .minor dd { margin: 0 0 18px 33px; color: var(--ink-mid); font-size: 14px; max-width: 60ch; }
+
+  /* ---- Fixed list ---- */
+  .fixed { margin-left: 40px; padding: 0; list-style: none; }
+  .fixed li {
+    position: relative; padding-left: 26px; margin-bottom: 13px;
+    max-width: 62ch; color: var(--ink-mid);
+  }
+  .fixed li::before {
+    content: "✓"; position: absolute; left: 0; top: -1px;
+    color: var(--flag-c); font-weight: 700;
+  }
+  .fixed b { color: var(--ink); font-weight: 650; }
+
+  .aside {
+    margin-top: 16px; padding: 13px 16px;
+    background: #faf9fb; border-radius: 6px;
+    font-size: 13.5px; color: var(--ink-mid);
+  }
+  .aside b { color: var(--ink); }
+
+  /* ---- Footer ---- */
+  .foot {
+    margin-top: 40px; padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-size: 12.5px; color: var(--ink-soft);
+  }
+  .foot p { max-width: none; margin-bottom: 7px; }
+  .foot strong { color: var(--ink-mid); }
+
+  /* ---- Print ---- */
+  @page { margin: 15mm 14mm; }
+
+  @media print {
+    body { background: #fff; font-size: 10.7pt; line-height: 1.55; }
+    .sheet { max-width: none; margin: 0; padding: 0; min-height: 0; }
+    .mast { padding-bottom: 16px; margin-bottom: 26px; }
+    h1 { font-size: 22pt; }
+    .standfirst { font-size: 11pt; }
+    h2 { font-size: 13.5pt; }
+    .flag h2 { font-size: 12.5pt; }
+    .flag { margin-bottom: 16px; padding: 17px 19px 15px; }
+    .toc { background: #f8f7fa; }
+    .aside, pre, .stage.lit { background: #f6f5f8; }
+    pre { white-space: pre-wrap; word-break: break-word; }
+    .toc a { border-bottom: none; }
+  }
+
+  @media (max-width: 620px) {
+    .sheet { padding: 34px 20px 48px; }
+    h1 { font-size: 24px; }
+    .body, .verdict, .minor, .fixed { margin-left: 0; }
+    .flag-head, .block-head { gap: 10px; }
+    .toc ol { columns: 1; }
+    .arrow { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header class="mast">
+    <div class="eyebrow">
+      <svg width="16" height="16" viewBox="4 5 120 120" aria-hidden="true">
+        <path d="M12 116 L12 54 L64 14 L116 54 L116 116" fill="none" stroke="#48176a"
+              stroke-width="13" stroke-linejoin="round" stroke-linecap="round"/>
+        <rect x="48" y="78" width="32" height="38" rx="5" fill="#48176a"/>
+      </svg>
+      InventDB PMS · Backend test suite
+    </div>
+
+    <h1>The backend now has a test suite — and it found ten things</h1>
+
+    <p class="standfirst">
+      732 tests now cover the Flask API, the InventDB client and the SQL helpers,
+      with no network and no live instance. A contract layer ties them to the
+      frontend's Playwright suite so the two can't quietly drift apart. Writing
+      them turned up thirteen defects: three were small enough to fix on the spot,
+      and ten are described here.
+    </p>
+
+    <div class="meta">
+      <span><b>Suite:</b> 732 tests, ~9s</span>
+      <span><b>Location:</b> backend/tests/</span>
+      <span><b>Findings:</b> 10 open, 3 fixed</span>
+      <span><b>Needs a decision:</b> 1</span>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h4>Contents</h4>
+    <ol>
+      <li><a href="#covers">What it covers</a></li>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#contract">The contract layer</a></li>
+      <li><a href="#findings">Findings — the six that matter</a></li>
+      <li><a href="#minor">Four rough edges</a></li>
+      <li><a href="#fixed">Already fixed</a></li>
+      <li><a href="#running">Running it</a></li>
+    </ol>
+  </nav>
+
+  <!-- ============ 01 ============ -->
+  <section class="block" id="covers">
+    <div class="block-head">
+      <span class="num">01</span>
+      <h2>What it covers</h2>
+    </div>
+
+    <div class="body">
+      <p>
+        Tests are weighted toward where a mistake is expensive rather than spread
+        evenly. <code>sqlutil.py</code> is forty lines of code and gets ninety-six
+        tests, because every filter, sort column and search term in the
+        application passes through it on its way into a SQL statement.
+      </p>
+
+      <table class="files">
+        <thead>
+          <tr><th>File</th><th>Covers</th><th class="n">Tests</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>test_sqlutil.py</td>
+            <td>Quoting, escaping, null bytes, injection payloads, identifier allow-listing</td>
+            <td class="n">96</td>
+          </tr>
+          <tr>
+            <td>test_resources.py</td>
+            <td>Generic CRUD — the composed SQL, paging clamps, filters, free-text search, the read-merge-write cycle behind every edit</td>
+            <td class="n">150</td>
+          </tr>
+          <tr>
+            <td>test_inventdb_client.py</td>
+            <td>Upstream paths, auth headers, response and error parsing, envelope unwrapping</td>
+            <td class="n">107</td>
+          </tr>
+          <tr>
+            <td>test_reports.py</td>
+            <td>Saved-report proxying, parameter binding, the six SQL rollups</td>
+            <td class="n">114</td>
+          </tr>
+          <tr>
+            <td>test_dashboard.py</td>
+            <td>Occupancy, the expiring-lease window, month bucketing, coercion helpers</td>
+            <td class="n">58</td>
+          </tr>
+          <tr>
+            <td>test_meta.py</td>
+            <td>The entity registry and the raw-SQL guard</td>
+            <td class="n">42</td>
+          </tr>
+          <tr>
+            <td>test_auth.py</td>
+            <td>Credential validation and status pass-through</td>
+            <td class="n">35</td>
+          </tr>
+          <tr>
+            <td>test_workflows.py</td>
+            <td>Every envelope shape InventDB might return</td>
+            <td class="n">26</td>
+          </tr>
+          <tr>
+            <td>test_app.py</td>
+            <td>Error handlers, CORS, SPA hosting</td>
+            <td class="n">28</td>
+          </tr>
+          <tr>
+            <td>contract/</td>
+            <td>The shape agreement with the frontend</td>
+            <td class="n">76</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr><td>Total</td><td>721 passing, 11 marked as known defects</td><td class="n">732</td></tr>
+        </tfoot>
+      </table>
+
+      <div class="aside">
+        <b>Why the eleven "failing" tests are a good sign.</b> Each one is marked
+        <code>xfail</code> — a test that asserts what the code <em>should</em> do,
+        recorded as a known defect rather than deleted. The suite is configured so
+        that fixing one turns its test into a hard failure. That's the prompt to
+        delete the marker, and it means a bug can't be silently re-broken later.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 02 ============ -->
+  <section class="block" id="how">
+    <div class="block-head">
+      <span class="num">02</span>
+      <h2>How it works</h2>
+    </div>
+
+    <div class="body">
+      <h3>One seam, replaced</h3>
+      <p>
+        The application reaches InventDB through exactly one function call.
+        Replacing that single call swaps out the whole upstream while leaving
+        every layer above it real — URL construction, header building, error
+        parsing, and the SQL the routers compose.
+      </p>
+      <p>
+        The obvious alternative, replacing the <code>InventDBClient</code> class,
+        would mean the tests assert against a mock of the very code they are
+        supposed to be testing. This way a test can state the property that
+        actually matters: <em>given this request, the application sent InventDB
+        exactly this statement</em>.
+      </p>
+
+<pre><code><span class="kw">def</span> test_arbitrary_query_params_become_equality_filters(api, fake):
+    api.get(<span class="cm">"/api/properties"</span>, query_string={<span class="cm">"city"</span>: <span class="cm">"Mumbai"</span>})
+
+    <span class="kw">assert</span> fake.sql_log[0] == (
+        <span class="cm">"SELECT * FROM pms.properties WHERE city = 'Mumbai' "</span>
+        <span class="cm">"ORDER BY street ASC LIMIT 500 OFFSET 0"</span>
+    )</code></pre>
+
+      <p>
+        The same seam is what lets the suite prove the injection defence
+        end-to-end. A hostile value goes in through an ordinary HTTP query
+        string, and the test checks the statement that came out the other side is
+        still one inert literal — not by pattern-matching the text, but by
+        counting quotes, which is the actual invariant.
+      </p>
+
+      <h3>No network, no database, no fixtures to reset</h3>
+      <p>
+        Nothing in the suite opens a socket or needs a running InventDB. That is
+        what keeps it at nine seconds, and it also means the tests can exercise
+        the failure paths a live instance would never produce on demand: an
+        unreachable host, a malformed error body, a namespace that doesn't exist
+        yet.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ 03 ============ -->
+  <section class="block" id="contract">
+    <div class="block-head">
+      <span class="num">03</span>
+      <h2>The contract layer</h2>
+    </div>
+
+    <div class="body">
+      <h3>The problem it solves</h3>
+      <p>
+        The frontend's Playwright suite runs against an API written by hand in
+        <code>e2e/fixtures/mock-api.ts</code>. That fake is only useful while it
+        matches the real backend, and nothing was checking that. A renamed field
+        or a dropped envelope would leave 183 frontend tests green against a
+        backend they no longer described.
+      </p>
+
+      <div class="pipeline">
+        <div class="stage">
+          <b>InventDB</b>
+          <span>a real instance</span>
+        </div>
+        <div class="arrow">→<em>capture</em></div>
+        <div class="stage">
+          <b>recordings</b>
+          <span>what it replied</span>
+        </div>
+        <div class="arrow">→<em>replay</em></div>
+        <div class="stage">
+          <b>the real Flask app</b>
+          <span>not a mock of it</span>
+        </div>
+        <div class="arrow">→<em>publish</em></div>
+        <div class="stage lit">
+          <b>contract/</b>
+          <span>shapes + responses</span>
+        </div>
+      </div>
+      <p class="pipeline-note">
+        Both suites then validate against <code>contract/</code>: pytest checks the
+        backend produces it, Playwright checks the mock matches it. A change on
+        either side that the other hasn't followed fails on that side.
+      </p>
+
+      <h3>Two guards against rot</h3>
+      <p>
+        A contract test that quietly stops testing anything is worse than no test
+        at all, so two things are enforced. If the application issues a query no
+        recording covers, that's reported as a failure rather than answered with
+        an empty result set. And any endpoint that replays to an empty response is
+        rejected — otherwise a file full of empty envelopes would satisfy every
+        shape check while proving nothing.
+      </p>
+
+      <h3>What it caught on the first run</h3>
+      <p>
+        Two pieces of drift in the hand-written mock, both invisible until now:
+        <code>/api/meta/entities</code> was returning <code>{name, key}</code> when
+        the real backend returns six fields, and every mocked error response
+        omitted the <code>ok: false</code> that the backend always sends. The
+        entities response is now served from the backend's own captured output
+        rather than being rebuilt by hand.
+      </p>
+
+      <div class="aside">
+        <b>The recordings shipped here are synthetic.</b> They're shaped like
+        InventDB's responses but the values are invented, because this repository
+        holds no credentials. Running <code>capture.py</code> against your sandbox
+        replaces them with real ones — it drives the actual application with a
+        recorder attached, so whatever the app asks InventDB for is what gets
+        recorded, and the recordings update themselves when the app's queries
+        change. It reads only by default; capturing the write endpoints is an
+        explicit opt-in because it creates and deletes a record in the live
+        namespace.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 04 ============ -->
+  <section class="block" id="findings">
+    <div class="block-head">
+      <span class="num">04</span>
+      <h2>Findings — the six that matter</h2>
+    </div>
+
+    <div class="body" style="margin-left:0">
+      <p style="margin-left:40px">
+        Ordered by what each would cost if it went wrong. Numbering matches
+        <code>backend/tests/README.md</code>.
+      </p>
+    </div>
+
+    <!-- 01 -->
+    <section class="flag sev-high">
+      <div class="flag-head">
+        <span class="num">01</span>
+        <h2>Values containing a backslash may not be safely escaped</h2>
+      </div>
+      <span class="verdict hot">Needs a decision — I can't answer this one for you</span>
+
+      <div class="body">
+        <h3>What happened</h3>
+        <p>
+          When the application puts a user's value into a SQL statement, it wraps
+          it in quotes and doubles any quotes inside — the standard defence.
+          It does not touch backslashes.
+        </p>
+
+        <h3>Why it matters</h3>
+        <p>
+          Whether that's correct depends entirely on which SQL dialect InventDB
+          speaks. Under strict SQL rules a backslash inside a quoted value is just
+          a backslash, and the current code is right. Under MySQL-style rules a
+          backslash is an escape character, and a value ending in a lone backslash
+          would escape the closing quote and break out of the literal — a live
+          injection.
+        </p>
+        <p>
+          I couldn't resolve it by guessing, because guessing the other way is
+          also harmful: escaping backslashes on an engine that doesn't need it
+          would corrupt legitimate data. A Windows file path stored in a note field
+          would come back with doubled separators.
+        </p>
+
+        <h3>What to do</h3>
+        <p>
+          Find out how InventDB's SQL engine treats a backslash inside a quoted
+          string. If it's an escape character, <code>sql_literal</code> needs one
+          more line. If it isn't, the current behaviour is correct and this can be
+          closed. The test that pins today's behaviour is already written either
+          way.
+        </p>
+      </div>
+    </section>
+
+    <!-- 02 -->
+    <section class="flag sev-mid">
+      <div class="flag-head">
+        <span class="num">02</span>
+        <h2>Record ids go into the upstream URL unchecked</h2>
+      </div>
+      <span class="verdict warn">The guard already exists — it just isn't wired up</span>
+
+      <div class="body">
+        <h3>What happened</h3>
+        <p>
+          When you open a record, its id is pasted straight into the address the
+          backend calls on InventDB. A caller who puts a <code>?</code> in that id
+          appends their own parameters to the internal API call; a <code>#</code>
+          silently truncates the path.
+        </p>
+
+        <h3>Why it matters</h3>
+        <p>
+          It isn't a privilege escalation — the call still carries the caller's own
+          token, so InventDB's row-level security still applies. But it hands a
+          caller partial control over a request the backend makes on their behalf,
+          which is the wrong shape of thing to leave lying around. Directory
+          traversal via encoded slashes is separately blocked by the web framework's
+          router, so that avenue is already closed.
+        </p>
+        <p>
+          The odd part is that the validator for exactly this already exists in the
+          codebase, is documented as being for exactly this, and is applied to
+          report ids — just never to record ids.
+        </p>
+
+        <h3>What to do</h3>
+        <p>
+          One call per site. I left it alone only because it would break every
+          record read if InventDB's real internal ids turn out to contain
+          characters outside letters, digits, hyphens and underscores — worth
+          confirming against a live instance first.
+        </p>
+      </div>
+    </section>
+
+    <!-- 03 -->
+    <section class="flag sev-mid">
+      <div class="flag-head">
+        <span class="num">03</span>
+        <h2>The raw-SQL endpoint only inspects the first word</h2>
+      </div>
+      <span class="verdict warn">Closeable without knowing whether it's exploitable</span>
+
+      <div class="body">
+        <h3>What happened</h3>
+        <p>
+          <code>/api/meta/sql</code> lets a signed-in caller run a query, and
+          protects itself by refusing anything that doesn't start with
+          <code>SELECT</code> or <code>WITH</code>. A statement like
+          <code>SELECT 1; DROP TABLE …</code> starts with <code>SELECT</code>, so it
+          passes the check and is forwarded to InventDB word for word.
+        </p>
+
+        <h3>Why it matters</h3>
+        <p>
+          Whether that's dangerous depends on whether InventDB's SQL endpoint
+          executes more than one statement per request. I couldn't verify that
+          without an instance, so this is recorded as an open question rather than a
+          confirmed hole.
+        </p>
+
+        <h3>What to do</h3>
+        <p>
+          Reject statements containing a semicolon anywhere but the very end. That
+          closes it regardless of the answer, and costs nothing — no legitimate
+          read query needs an interior semicolon.
+        </p>
+      </div>
+    </section>
+
+    <!-- 04 -->
+    <section class="flag sev-mid">
+      <div class="flag-head">
+        <span class="num">04</span>
+        <h2>One kind of upstream error is reported as a server crash</h2>
+      </div>
+      <span class="verdict warn">Known defect — test is written and marked</span>
+
+      <div class="body">
+        <h3>What happened</h3>
+        <p>
+          When InventDB returns an error, the backend reads the message out of it
+          and passes it on with the original status. It assumes the error body is
+          an object. If InventDB ever returns a <em>list</em> of errors — the usual
+          shape for field-level validation failures — reading it fails, and the
+          user sees a generic 500.
+        </p>
+
+        <h3>Why it matters</h3>
+        <p>
+          The real status is lost. A 422 "these three fields are wrong" becomes
+          "internal error", so the interface can't show the user what to fix, and
+          whoever investigates starts by looking in the wrong place.
+        </p>
+
+        <h3>What to do</h3>
+        <p>
+          A type check before reading the message. Three lines.
+        </p>
+      </div>
+    </section>
+
+    <!-- 05 -->
+    <section class="flag sev-mid">
+      <div class="flag-head">
+        <span class="num">05</span>
+        <h2>A malformed page size returns 500, with the Python error in the body</h2>
+      </div>
+      <span class="verdict warn">Known defect — test is written and marked</span>
+
+      <div class="body">
+        <h3>What happened</h3>
+        <p>
+          Requesting <code>/api/properties?limit=abc</code> crashes the handler. The
+          response is a 500 whose body contains the raw interpreter message
+          (<code>invalid literal for int()…</code>).
+        </p>
+
+        <h3>Why it matters</h3>
+        <p>
+          A malformed query string is the client's mistake and should be a 400. A
+          500 tells monitoring the server is broken when it isn't, so this is the
+          kind of thing that erodes trust in an alert channel. The report endpoints
+          handle the identical situation correctly, which makes the inconsistency
+          harder to spot than the bug itself.
+        </p>
+
+        <h3>What to do</h3>
+        <p>
+          Coerce with a fallback, the way <code>/api/reports/renewals</code> already
+          does with its <code>days</code> parameter.
+        </p>
+      </div>
+    </section>
+
+    <!-- 06 -->
+    <section class="flag sev-high">
+      <div class="flag-head">
+        <span class="num">06</span>
+        <h2>Two helpers with the same name disagree about money</h2>
+      </div>
+      <span class="verdict hot">Silently wrong numbers — no error, no warning</span>
+
+      <div class="body">
+        <h3>What happened</h3>
+        <p>
+          The dashboard and the reports each have a helper for turning a stored
+          value into a number. They share a name and a purpose but not their
+          tolerance. The dashboard's strips currency symbols and thousands
+          separators before converting; the reports' does not, and falls back to
+          zero when conversion fails.
+        </p>
+
+        <h3>Why it matters</h3>
+        <p>
+          InventDB is schemaless, so an amount can perfectly well be stored as the
+          text <code>"1,500"</code>. When it is, that lease contributes 1500 to the
+          dashboard's expected rent and <strong>0</strong> to the rent roll's
+          monthly total. Two pages, two different answers, from the same record,
+          with nothing on screen to suggest anything went wrong.
+        </p>
+        <p>
+          This is the finding I'd expect to cause an argument in a meeting before
+          anyone traces it to code.
+        </p>
+
+        <h3>What to do</h3>
+        <p>
+          Delete one of them and share the tolerant version. The test that
+          demonstrates the divergence is in <code>test_reports.py</code>.
+        </p>
+      </div>
+    </section>
+  </section>
+
+  <!-- ============ 05 ============ -->
+  <section class="block" id="minor">
+    <div class="block-head">
+      <span class="num">05</span>
+      <h2>Four rough edges</h2>
+    </div>
+
+    <div class="minor">
+      <dl>
+        <dt><span class="num">07</span> A missing value is labelled “None” on the charts</dt>
+        <dd>
+          The dashboard means to show “Unknown” when a record has no status. Because
+          of how the fallback is written, an <em>absent</em> column stringifies to
+          the literal word <code>"None"</code> instead, while a <em>blank</em> one
+          correctly becomes “Unknown”. The legend can end up showing both slices,
+          meaning the same thing. Cosmetic, but it looks like a data problem.
+        </dd>
+
+        <dt><span class="num">08</span> The report rollups ignore the configured namespace</dt>
+        <dd>
+          Six endpoints hardcode <code>pms</code> rather than reading the namespace
+          from configuration, unlike every other router. Harmless today; deploy
+          against a differently-named namespace and those six break while the rest
+          of the application keeps working — which is a confusing way to find out.
+        </dd>
+
+        <dt><span class="num">09</span> Unexpected errors echo their message to the client</dt>
+        <dd>
+          The catch-all handler puts the exception text into the response body.
+          That's genuinely convenient in a sandbox, and it's why finding 05 above is
+          as visible as it is. Worth revisiting before this faces anyone untrusted,
+          since an exception message can carry a connection string.
+        </dd>
+
+        <dt><span class="num">10</span> A helper that nothing calls, and its docstring is wrong</dt>
+        <dd>
+          <code>like_literal</code> claims to escape search wildcards. It doesn't, so
+          a user searching for <code>100%</code> would match every row. Nothing calls
+          it, so nobody has hit this — but a future caller would reasonably trust
+          the docstring. Fix it or delete it.
+        </dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ============ 06 ============ -->
+  <section class="block" id="fixed">
+    <div class="block-head">
+      <span class="num">06</span>
+      <h2>Already fixed</h2>
+    </div>
+
+    <ul class="fixed">
+      <li>
+        <b>Three identifier allow-lists accepted a trailing newline.</b> All three
+        used a pattern anchored with <code>$</code>, which in Python also matches
+        immediately <em>before</em> a final newline — so <code>"properties\n"</code>
+        passed a check that was never meant to accept it. Not exploitable on its
+        own, but an allow-list that accepts a character it didn't intend to is
+        worth closing. Now anchored properly. This was safe to change without
+        asking, because no legitimate identifier ends in a newline.
+      </li>
+      <li>
+        <b>The frontend mock's entity metadata was missing four fields.</b> It
+        returned <code>{name, key}</code>; the backend returns six fields. It now
+        serves the backend's captured response instead of a hand-written one.
+      </li>
+      <li>
+        <b>The frontend mock's error responses were missing <code>ok: false</code>.</b>
+        The backend includes it on every failure. Now the mock does too.
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============ 07 ============ -->
+  <section class="block" id="running">
+    <div class="block-head">
+      <span class="num">07</span>
+      <h2>Running it</h2>
+    </div>
+
+    <div class="body">
+<pre><code><span class="cm"># the whole suite — no network, no InventDB needed</span>
+cd backend
+pip install -r requirements-dev.txt
+python -m pytest
+
+<span class="cm"># just the cross-suite contract checks</span>
+python -m pytest -m contract</code></pre>
+
+      <h3>After changing a response shape</h3>
+      <p>
+        Republish the contract, then confirm the frontend mock followed:
+      </p>
+
+<pre><code>cd backend &amp;&amp; UPDATE_CONTRACT=1 python -m pytest tests/contract
+cd ../frontend &amp;&amp; npx playwright test contract.spec.ts</code></pre>
+
+      <h3>Replacing the synthetic recordings with real ones</h3>
+
+<pre><code>cd backend
+INVENTDB_BASE_URL=https://&lt;slug&gt;.sandbox.inventdb.com \
+INVENTDB_USERNAME=you INVENTDB_PASSWORD=... \
+python -m tests.contract.capture</code></pre>
+
+      <p>
+        Reads only by default. Pass <code>--include-writes</code> to also capture
+        create, update and delete — that writes to the live namespace, creating one
+        property and removing it again. Credentials are stripped from everything
+        before it's written to disk, and a test checks that the stripping worked,
+        since these files are committed.
+      </p>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>
+      <strong>Where this sits relative to the frontend suite.</strong> The 183
+      Playwright tests cover the interface with the API faked inside the browser;
+      these 732 cover the API with InventDB faked below it. The contract layer is
+      the only place the two meet, and it now fails loudly rather than silently
+      when they disagree. What still isn't covered by either: the real InventDB
+      instance itself, and whether the per-record fixtures in
+      <code>e2e/fixtures/data.ts</code> resemble real data — those remain
+      assumptions.
+    </p>
+    <p>
+      Generated 10 August 2026 · InventDB PMS · backend/tests/ · full detail in
+      <code>backend/tests/README.md</code>
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>

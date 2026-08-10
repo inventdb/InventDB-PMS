@@ -1,0 +1,8 @@
+# Test-only dependencies. Install with:
+#   pip install -r requirements-dev.txt
+#
+# Same constraint as requirements.txt: pure Python only, so the suite installs
+# on 3.13/3.14 without a C or Rust toolchain.
+-r requirements.txt
+
+pytest==9.1.1

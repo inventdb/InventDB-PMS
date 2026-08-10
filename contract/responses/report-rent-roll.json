@@ -1,0 +1,18 @@
+{
+  "count": 1,
+  "monthly_total": 2500.0,
+  "rows": [
+    {
+      "city": "Mumbai",
+      "contract_rent": 2500,
+      "lease_end": "2026-12-31",
+      "lease_id": "L-001",
+      "lease_start": "2024-01-01",
+      "market_rent": 2750,
+      "property_id": "P-001",
+      "state": "MH",
+      "status": "active",
+      "tenant_name": "Asha Rao"
+    }
+  ]
+}

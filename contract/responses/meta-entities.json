@@ -1,0 +1,145 @@
+{
+  "entities": [
+    {
+      "key": "property_id",
+      "label": "Property",
+      "label_plural": "Properties",
+      "name": "properties",
+      "order_by": "street",
+      "search_fields": [
+        "street",
+        "city",
+        "state",
+        "zip",
+        "region",
+        "type",
+        "status"
+      ]
+    },
+    {
+      "key": "owner_id",
+      "label": "Owner",
+      "label_plural": "Owners",
+      "name": "owners",
+      "order_by": "name",
+      "search_fields": [
+        "name",
+        "contact",
+        "email",
+        "phone",
+        "type"
+      ]
+    },
+    {
+      "key": "tenant_id",
+      "label": "Tenant",
+      "label_plural": "Tenants",
+      "name": "tenants",
+      "order_by": "last",
+      "search_fields": [
+        "first",
+        "last",
+        "email",
+        "phone",
+        "property_id"
+      ]
+    },
+    {
+      "key": "lease_id",
+      "label": "Lease",
+      "label_plural": "Leases",
+      "name": "leases",
+      "order_by": "lease_start",
+      "search_fields": [
+        "tenant_name",
+        "property_id",
+        "status",
+        "renewal_type"
+      ]
+    },
+    {
+      "key": "wo",
+      "label": "Work Order",
+      "label_plural": "Work Orders",
+      "name": "work_orders",
+      "order_by": "date_opened",
+      "search_fields": [
+        "wo",
+        "issue",
+        "category",
+        "status",
+        "priority",
+        "property_id",
+        "vendor"
+      ]
+    },
+    {
+      "key": "vendor_id",
+      "label": "Vendor",
+      "label_plural": "Vendors",
+      "name": "vendors",
+      "order_by": "company",
+      "search_fields": [
+        "company",
+        "trade",
+        "contact",
+        "email",
+        "phone"
+      ]
+    },
+    {
+      "key": "reference",
+      "label": "Transaction",
+      "label_plural": "Accounting",
+      "name": "transactions",
+      "order_by": "date",
+      "search_fields": [
+        "type",
+        "account_category",
+        "party_tenant_vendor",
+        "memo",
+        "reference",
+        "property_id"
+      ]
+    },
+    {
+      "key": "inspection_id",
+      "label": "Inspection",
+      "label_plural": "Inspections",
+      "name": "inspections",
+      "order_by": "scheduled",
+      "search_fields": [
+        "property_id",
+        "type",
+        "inspector",
+        "status"
+      ]
+    },
+    {
+      "key": "policy",
+      "label": "Compliance Record",
+      "label_plural": "Compliance",
+      "name": "compliance",
+      "order_by": "policy_expiry",
+      "search_fields": [
+        "property_id",
+        "insurance_carrier",
+        "policy",
+        "status"
+      ]
+    },
+    {
+      "key": "task",
+      "label": "Daily Task",
+      "label_plural": "Daily Tasks",
+      "name": "daily_tasks",
+      "order_by": "date",
+      "search_fields": [
+        "task",
+        "category",
+        "status",
+        "property_id"
+      ]
+    }
+  ]
+}

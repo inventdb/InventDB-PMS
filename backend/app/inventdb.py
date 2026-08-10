@@ -16,20 +16,23 @@ import requests
 from .config import get_settings
 from .errors import ApiError
 
-_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 # Record ids are server-minted UUIDs, so they carry hyphens that _IDENT_RE
 # rejects. Still constrained enough that nothing can escape a URL path segment.
-_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,128}")
 
 
+# Both use `fullmatch` rather than `match` with an anchored pattern: `$` in
+# Python also matches just before a trailing newline, which would let
+# "properties\n" through an allow-list that never meant to accept it.
 def _safe_ident(value: str, label: str = "identifier") -> str:
-    if not isinstance(value, str) or not _IDENT_RE.match(value):
+    if not isinstance(value, str) or not _IDENT_RE.fullmatch(value):
         raise ApiError(400, f"Invalid {label}: {value!r}")
     return value
 
 
 def _safe_id(value: str, label: str = "id") -> str:
-    if not isinstance(value, str) or not _ID_RE.match(value):
+    if not isinstance(value, str) or not _ID_RE.fullmatch(value):
         raise ApiError(400, f"Invalid {label}: {value!r}")
     return value
 

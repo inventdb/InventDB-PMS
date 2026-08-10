@@ -1,0 +1,17 @@
+{
+  "workflows": [
+    {
+      "_id": "wf-001",
+      "active": true,
+      "name": "Weekly Lease Renewals Due",
+      "plan": [
+        {
+          "idx": 0,
+          "kind": "sql",
+          "label": "Query renewals"
+        }
+      ],
+      "trigger_kind": "schedule"
+    }
+  ]
+}

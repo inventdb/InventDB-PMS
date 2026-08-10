@@ -1,0 +1,23 @@
+{
+  "count": 2,
+  "templates": [
+    {
+      "category": "Finance",
+      "created_by": "soar.admin",
+      "description": "Monthly statement for a single owner.",
+      "id": "tpl-001",
+      "mode": "sql",
+      "name": "Owner Statement",
+      "version": 3
+    },
+    {
+      "category": "Leasing",
+      "created_by": "soar.admin",
+      "description": "Leases ending in the next 90 days.",
+      "id": "tpl-002",
+      "mode": "sql",
+      "name": "Lease Renewals Due",
+      "version": 1
+    }
+  ]
+}

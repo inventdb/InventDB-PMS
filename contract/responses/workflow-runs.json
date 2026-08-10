@@ -1,0 +1,12 @@
+{
+  "runs": [
+    {
+      "_id": "run-001",
+      "ended_at": "2026-08-03T06:00:07Z",
+      "error": null,
+      "started_at": "2026-08-03T06:00:00Z",
+      "status": "success",
+      "workflow_id": "wf-001"
+    }
+  ]
+}

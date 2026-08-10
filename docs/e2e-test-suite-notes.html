@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InventDB PMS — Two Things Worth Knowing About the Test Suite</title>
+<style>
+  :root {
+    --brand: #48176a;
+    --brand-soft: #f4eef8;
+    --ink: #1c1a1f;
+    --ink-mid: #4a4650;
+    --ink-soft: #6b6673;
+    --rule: #e3e0e8;
+    --paper: #ffffff;
+    --flag-a: #b3261e;
+    --flag-b: #7a5a00;
+    --flag-c: #1f5c3d;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: #f7f6f9;
+    color: var(--ink);
+    font-family: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI",
+                 Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 56px 44px 72px;
+    background: var(--paper);
+    min-height: 100vh;
+  }
+
+  /* ---- Masthead ---- */
+  .mast { border-bottom: 3px solid var(--brand); padding-bottom: 22px; margin-bottom: 34px; }
+
+  .eyebrow {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--brand); margin-bottom: 14px;
+  }
+  .eyebrow svg { flex-shrink: 0; }
+
+  h1 {
+    margin: 0 0 12px;
+    font-size: 29px; line-height: 1.22; font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+
+  .standfirst { margin: 0; color: var(--ink-mid); font-size: 15.5px; max-width: 62ch; }
+
+  .meta {
+    margin-top: 18px; font-size: 12.5px; color: var(--ink-soft);
+    display: flex; flex-wrap: wrap; gap: 6px 18px;
+  }
+  .meta b { color: var(--ink-mid); font-weight: 600; }
+
+  /* ---- Flag cards ---- */
+  .flag {
+    border: 1px solid var(--rule);
+    border-left: 5px solid var(--accent, var(--brand));
+    border-radius: 8px;
+    padding: 26px 28px 22px;
+    margin-bottom: 26px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .flag:nth-of-type(1) { --accent: var(--flag-b); }
+  .flag:nth-of-type(2) { --accent: var(--flag-c); }
+
+  .flag-head { display: flex; gap: 16px; align-items: baseline; margin-bottom: 6px; }
+
+  .num {
+    font-size: 12px; font-weight: 700; letter-spacing: .08em;
+    color: var(--accent); flex-shrink: 0; padding-top: 3px;
+  }
+
+  h2 { margin: 0; font-size: 19px; line-height: 1.32; font-weight: 650; letter-spacing: -0.01em; }
+
+  .verdict {
+    display: inline-block; margin: 10px 0 0 40px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: .03em;
+    padding: 3px 10px; border-radius: 999px;
+    background: var(--brand-soft); color: var(--brand);
+  }
+  .verdict.warn { background: #fdf3e2; color: var(--flag-b); }
+  .verdict.calm { background: #e9f3ed; color: var(--flag-c); }
+
+  .body { margin-left: 40px; }
+
+  h3 {
+    margin: 20px 0 5px;
+    font-size: 11.5px; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--ink-soft);
+  }
+
+  p { margin: 0 0 11px; max-width: 64ch; }
+  p:last-child { margin-bottom: 0; }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.875em;
+    background: #f2f0f5;
+    padding: 1.5px 5px;
+    border-radius: 4px;
+    color: #3d2352;
+  }
+
+  .aside {
+    margin-top: 16px; padding: 13px 16px;
+    background: #faf9fb; border-radius: 6px;
+    font-size: 13.5px; color: var(--ink-mid);
+  }
+  .aside b { color: var(--ink); }
+
+  /* ---- Footer ---- */
+  .foot {
+    margin-top: 40px; padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-size: 12.5px; color: var(--ink-soft);
+  }
+  .foot p { max-width: none; margin-bottom: 7px; }
+  .foot strong { color: var(--ink-mid); }
+
+  /* ---- Print ---- */
+  @page { margin: 15mm 14mm; }
+
+  @media print {
+    body { background: #fff; font-size: 10.7pt; line-height: 1.55; }
+    .sheet { max-width: none; margin: 0; padding: 0; min-height: 0; }
+    .mast { padding-bottom: 16px; margin-bottom: 26px; }
+    h1 { font-size: 22pt; }
+    .standfirst { font-size: 11pt; }
+    h2 { font-size: 13.5pt; }
+    .flag { margin-bottom: 18px; padding: 18px 20px 16px; }
+    .aside { background: #f6f5f8; }
+  }
+
+  @media (max-width: 620px) {
+    .sheet { padding: 34px 20px 48px; }
+    h1 { font-size: 24px; }
+    .body, .verdict { margin-left: 0; }
+    .flag-head { gap: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header class="mast">
+    <div class="eyebrow">
+      <svg width="16" height="16" viewBox="4 5 120 120" aria-hidden="true">
+        <path d="M12 116 L12 54 L64 14 L116 54 L116 116" fill="none" stroke="#48176a"
+              stroke-width="13" stroke-linejoin="round" stroke-linecap="round"/>
+        <rect x="48" y="78" width="32" height="38" rx="5" fill="#48176a"/>
+      </svg>
+      InventDB PMS · End-to-end test suite
+    </div>
+
+    <h1>Two things worth knowing about the new test suite</h1>
+
+    <p class="standfirst">
+      A Playwright suite of 135 tests now covers the PMS frontend. Two points
+      came out of building it that are worth understanding — one is a quirk of
+      the app's markup that catches out anyone writing a new test, and one is a
+      decision left deliberately open for you.
+    </p>
+
+    <div class="meta">
+      <span><b>Suite:</b> 135 tests, all passing (~30s)</span>
+      <span><b>Scope:</b> Frontend only — backend untested</span>
+      <span><b>Location:</b> frontend/e2e/</span>
+    </div>
+  </header>
+
+  <!-- ============ 01 ============ -->
+  <section class="flag">
+    <div class="flag-head">
+      <span class="num">01</span>
+      <h2>The app says the same thing twice, and tests can't pick between them</h2>
+    </div>
+    <span class="verdict warn">Not a defect — just something test writers must know</span>
+
+    <div class="body">
+      <h3>What happened</h3>
+      <p>
+        When you're on the Properties page, the word <em>“Properties”</em> appears
+        twice as a heading: once large in the top bar, and again slightly smaller on
+        the page itself. When a test says “find the heading called Properties”, it
+        finds two, refuses to guess which one you meant, and fails.
+      </p>
+      <p>
+        The login form has the same shape of problem. The password box is labelled
+        <em>“Password”</em>, and the eye icon that reveals it is labelled
+        <em>“Show password”</em>. Ask for “Password” and you match both, because the
+        default search is a loose “contains this text” match.
+      </p>
+
+      <h3>Why it matters</h3>
+      <p>
+        This is <strong>not a bug in the app</strong>. The markup is perfectly
+        reasonable and the duplicate heading is a deliberate design choice. But it
+        catches out anyone writing their first test here, and the resulting error
+        message doesn't obviously point at the cause.
+      </p>
+
+      <h3>What to do</h3>
+      <p>
+        Be specific rather than loose: ask for “the top-level heading” instead of
+        just “the heading”, and “exactly the word Password” instead of “anything
+        containing password”. For form fields there's a small helper —
+        <code>field(page, "street")</code> — that sidesteps the problem entirely by
+        targeting each input's stable id.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ 02 ============ -->
+  <section class="flag">
+    <div class="flag-head">
+      <span class="num">02</span>
+      <h2>The test type-checker exists, but isn't wired into your build</h2>
+    </div>
+    <span class="verdict calm">Open decision — yours to make</span>
+
+    <div class="body">
+      <h3>What happened</h3>
+      <p>
+        There's now a command, <code>npm run typecheck:e2e</code>, that catches type
+        mistakes inside the test files themselves. It is not connected to
+        <code>npm run build</code>.
+      </p>
+
+      <h3>Why it matters</h3>
+      <p>
+        If it <em>were</em> connected, a typo in a test file would stop you shipping
+        the application. Some teams want exactly that — tests and code held to one
+        standard, nothing broken gets out. Others find it infuriating when they're
+        trying to push a hotfix at 6pm and a stale test file blocks the build.
+      </p>
+      <p>
+        That's a judgement about how strict your pipeline should be, and it affects
+        everyone who deploys. It isn't a technical question with a right answer, so
+        it wasn't decided on your behalf.
+      </p>
+
+      <h3>What to do</h3>
+      <p>
+        Nothing, if you're happy running it manually or in CI. If you want it
+        enforced at build time, it's a one-line change to the <code>build</code>
+        script in <code>frontend/package.json</code>.
+      </p>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>
+      <strong>One caveat that belongs alongside these two.</strong> This suite
+      covers the frontend only. During a run the Flask backend isn't even started —
+      every API call is answered inside the browser, and no Python in
+      <code>backend/</code> is executed. A separate pytest suite under
+      <code>backend/tests/</code> now covers that side directly, and the contract
+      recordings there replay real Flask responses into the frontend's fake ones, so
+      the envelope shapes can't quietly drift apart. The per-record fixtures in
+      <code>e2e/fixtures/data.ts</code> are still hand-written, so those remain an
+      assumption rather than a guarantee.
+    </p>
+    <p>
+      Generated 10 August 2026 · InventDB PMS · frontend/e2e/
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>

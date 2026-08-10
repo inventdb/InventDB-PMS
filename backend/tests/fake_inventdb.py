@@ -1,0 +1,288 @@
+"""A stand-in for the InventDB SOAR HTTP API.
+
+The app reaches InventDB through exactly one function — ``requests.request``,
+called from :meth:`app.inventdb.InventDBClient._request`. Replacing that single
+call swaps out the entire upstream while leaving every layer above it real: URL
+construction, header building, the error-envelope parsing in ``_parse``, and —
+the part these tests care about most — the SQL the routers compose.
+
+The alternative, stubbing ``InventDBClient`` itself, would mean the tests assert
+against a mock of the very code under test. Here a test can say "given this
+request, the app sent InventDB exactly this SQL string", which is the property
+worth protecting.
+
+Rules are matched in **reverse registration order**, so a rule a test registers
+later beats one installed by a fixture. That is deliberately the same override
+semantics as the frontend's Playwright mock (`e2e/fixtures/mock-api.ts`), so the
+two suites can be read the same way.
+"""
+
+from __future__ import annotations
+
+import json as jsonlib
+import re
+from dataclasses import dataclass, field
+from typing import Any, Callable, Optional, Pattern, Union
+
+
+class _Unset:
+    """Sentinel distinguishing "no payload given" from "a JSON null payload"."""
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return "<unset>"
+
+
+_UNSET = _Unset()
+
+
+@dataclass(frozen=True)
+class Call:
+    """One outbound HTTP request the app made to InventDB."""
+
+    method: str
+    path: str
+    params: dict[str, Any] = field(default_factory=dict)
+    body: Any = None
+    headers: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def sql(self) -> Optional[str]:
+        """The SQL statement, when this call is a ``POST /sql``."""
+        if self.path == "/sql" and isinstance(self.body, dict):
+            statement = self.body.get("sql")
+            if isinstance(statement, str):
+                return statement
+        return None
+
+    @property
+    def token(self) -> Optional[str]:
+        auth = self.headers.get("Authorization", "")
+        return auth[len("Bearer ") :] if auth.startswith("Bearer ") else None
+
+    def __repr__(self) -> str:  # pragma: no cover - test failure output only
+        suffix = f" sql={self.sql!r}" if self.sql else ""
+        return f"<Call {self.method} {self.path} params={self.params}{suffix}>"
+
+
+class Reply:
+    """A canned HTTP response.
+
+    Exactly one body style applies: a JSON ``payload`` (the default), ``raw``
+    text that is *not* valid JSON, or ``empty`` for a bodiless 204-style reply.
+    The last two exist because ``InventDBClient._parse`` has explicit branches
+    for both and they would otherwise go untested.
+    """
+
+    __slots__ = ("status", "payload", "raw", "empty")
+
+    def __init__(
+        self,
+        status: int = 200,
+        payload: Any = None,
+        *,
+        raw: Optional[str] = None,
+        empty: bool = False,
+    ) -> None:
+        self.status = status
+        self.payload = payload
+        self.raw = raw
+        self.empty = empty
+
+
+class _Response:
+    """The slice of ``requests.Response`` that ``_parse`` actually touches."""
+
+    def __init__(self, reply: Reply) -> None:
+        self._reply = reply
+        self.status_code = reply.status
+
+    @property
+    def text(self) -> str:
+        if self._reply.empty:
+            return ""
+        if self._reply.raw is not None:
+            return self._reply.raw
+        return jsonlib.dumps(self._reply.payload)
+
+    @property
+    def content(self) -> bytes:
+        return self.text.encode("utf-8")
+
+    def json(self) -> Any:
+        if self._reply.empty or self._reply.raw is not None:
+            # requests raises JSONDecodeError, which subclasses ValueError —
+            # the exception `_parse` catches.
+            raise ValueError("No JSON object could be decoded")
+        return self._reply.payload
+
+
+Matcher = Union[str, Pattern[str], Callable[[Call], bool]]
+Responder = Union[Reply, Callable[[Call], Reply], BaseException]
+
+
+@dataclass
+class _Rule:
+    method: Optional[str]
+    matcher: Matcher
+    responder: Responder
+
+    def matches(self, call: Call) -> bool:
+        if self.method and self.method != call.method:
+            return False
+        if isinstance(self.matcher, re.Pattern):
+            return bool(self.matcher.search(call.path))
+        if isinstance(self.matcher, str):
+            return self.matcher == call.path
+        return bool(self.matcher(call))
+
+
+class FakeInventDB:
+    """Records what the app sent upstream and decides what comes back."""
+
+    def __init__(self, base_url: str) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.calls: list[Call] = []
+        self._rules: list[_Rule] = []
+
+    # -------------------------------------------------------------- registration
+    def on(
+        self,
+        method: str,
+        path: Matcher,
+        payload: Any = None,
+        *,
+        status: int = 200,
+        raw: Optional[str] = None,
+        empty: bool = False,
+        error: Optional[BaseException] = None,
+    ) -> "FakeInventDB":
+        """Route ``method path`` to a canned reply (or raise ``error``).
+
+        ``path`` may be an exact string, a compiled regex (searched against the
+        path), or a predicate over the :class:`Call`.
+        """
+        responder: Responder = error or Reply(status, payload, raw=raw, empty=empty)
+        self._rules.append(_Rule(method.upper(), path, responder))
+        return self
+
+    def on_sql(
+        self,
+        contains: Union[str, Callable[[str], bool], None] = None,
+        *,
+        rows: Optional[list[dict[str, Any]]] = None,
+        status: int = 200,
+        payload: Any = _UNSET,
+        error: Optional[BaseException] = None,
+    ) -> "FakeInventDB":
+        """Answer ``POST /sql`` whose statement matches ``contains``.
+
+        ``contains`` is a case-insensitive substring, a predicate over the SQL
+        text, or ``None`` to match every statement.
+        """
+
+        def _matcher(call: Call) -> bool:
+            statement = call.sql
+            if statement is None:
+                return False
+            if contains is None:
+                return True
+            if callable(contains):
+                return bool(contains(statement))
+            return contains.lower() in statement.lower()
+
+        # `_UNSET` rather than `None`, so a test can assert what happens when
+        # InventDB replies with a JSON `null`.
+        body = (
+            payload
+            if payload is not _UNSET
+            else {"rows": list(rows or []), "metrics": {"count": len(rows or [])}}
+        )
+        responder: Responder = error or Reply(status, body)
+        self._rules.append(_Rule("POST", _matcher, responder))
+        return self
+
+    def on_record(self, type_name: str, record_id: str, payload: Any, *, status: int = 200):
+        """Shorthand for ``GET /db/<ns>/<type>/<id>``."""
+        return self.on(
+            "GET", f"/db/pms/{type_name}/{record_id}", payload, status=status
+        )
+
+    # --------------------------------------------------------------- inspection
+    @property
+    def sql_log(self) -> list[str]:
+        """Every SQL statement sent, in order."""
+        return [c.sql for c in self.calls if c.sql is not None]
+
+    @property
+    def last_sql(self) -> str:
+        log = self.sql_log
+        assert log, "no SQL was sent to InventDB"
+        return log[-1]
+
+    def only_sql(self) -> str:
+        """The single statement sent — asserts there was exactly one."""
+        log = self.sql_log
+        assert len(log) == 1, f"expected exactly 1 statement, got {len(log)}: {log}"
+        return log[0]
+
+    def calls_to(self, method: str, path: Optional[str] = None) -> list[Call]:
+        return [
+            c
+            for c in self.calls
+            if c.method == method.upper() and (path is None or c.path == path)
+        ]
+
+    def last_call(self, method: str, path: Optional[str] = None) -> Call:
+        matches = self.calls_to(method, path)
+        assert matches, f"no {method} {path or ''} call was made; saw {self.calls}"
+        return matches[-1]
+
+    def reset(self) -> None:
+        self.calls.clear()
+
+    # ---------------------------------------------------------------- transport
+    def transport(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Optional[dict[str, str]] = None,
+        json: Any = None,
+        params: Optional[dict[str, Any]] = None,
+        timeout: Any = None,
+        **_ignored: Any,
+    ) -> _Response:
+        """Drop-in for ``requests.request``."""
+        assert url.startswith(self.base_url), (
+            f"request escaped the configured instance: {url!r} "
+            f"is not under {self.base_url!r}"
+        )
+        call = Call(
+            method=method.upper(),
+            path=url[len(self.base_url) :],
+            params=dict(params or {}),
+            body=json,
+            headers=dict(headers or {}),
+        )
+        self.calls.append(call)
+
+        for rule in reversed(self._rules):
+            if rule.matches(call):
+                responder = rule.responder
+                if isinstance(responder, BaseException):
+                    raise responder
+                reply = responder(call) if callable(responder) else responder
+                return _Response(reply)
+
+        return _Response(self._default(call))
+
+    @staticmethod
+    def _default(call: Call) -> Reply:
+        """What an unrouted call gets: an empty result set, or a bare ack.
+
+        Deliberately benign. Tests that care about a response register a rule;
+        tests that don't should not have to stub endpoints they never assert on.
+        """
+        if call.path == "/sql":
+            return Reply(200, {"rows": [], "metrics": {"count": 0}})
+        return Reply(200, {"ok": True})

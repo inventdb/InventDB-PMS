@@ -1,0 +1,17 @@
+{
+  "expense_by_category": [
+    {
+      "name": "Repairs",
+      "value": 320.0
+    }
+  ],
+  "expense_total": 320.0,
+  "income_by_category": [
+    {
+      "name": "Rent",
+      "value": 2500.0
+    }
+  ],
+  "income_total": 2500.0,
+  "net_total": 2180.0
+}

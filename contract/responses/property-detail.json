@@ -1,0 +1,16 @@
+{
+  "_id": "rec-001",
+  "baths": 2,
+  "beds": 3,
+  "city": "Mumbai",
+  "owner_id": "O-001",
+  "property_id": "P-001",
+  "region": "West",
+  "sqft": 1450,
+  "state": "MH",
+  "status": "Occupied",
+  "street": "12 Marine Drive",
+  "type": "Condo",
+  "year_built": 2011,
+  "zip": "400020"
+}
