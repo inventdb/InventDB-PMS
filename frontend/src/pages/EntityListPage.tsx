@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowDown,
   ArrowUp,
@@ -42,8 +42,9 @@ export default function EntityListPage() {
 
 function EntityModule({ config }: { config: EntityConfig }) {
   const toast = useToast();
-  const [rawSearch, setRawSearch] = useState("");
-  const [q, setQ] = useState("");
+  const [params, setParams] = useSearchParams();
+  const [rawSearch, setRawSearch] = useState(() => params.get("q") ?? "");
+  const [q, setQ] = useState(() => params.get("q")?.trim() ?? "");
   const [sort, setSort] = useState<{ field: string; dir: "asc" | "desc" }>(
     config.defaultSort ?? { field: config.key, dir: "asc" }
   );
@@ -79,6 +80,31 @@ function EntityModule({ config }: { config: EntityConfig }) {
   const { labels } = useReferences(refEntities);
 
   const items = list.data?.items ?? [];
+
+  // `?focus=<id>` opens one record straight away. Analyze links here when a
+  // result row is clicked — this app has no separate record page, so the module
+  // list with that record open IS the record view. Consumed once, then dropped
+  // from the URL so a later refresh doesn't reopen the dialog.
+  const focusId = params.get("focus");
+  const focusedOnce = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusId || list.isLoading) return;
+    if (focusedOnce.current === focusId) return;
+    focusedOnce.current = focusId;
+    const match = items.find((r) => String(r._id ?? "") === focusId);
+    if (match) {
+      setEditing(match);
+      setModalOpen(true);
+    } else {
+      toast.error("That record is no longer in this list.");
+    }
+    const next = new URLSearchParams(params);
+    next.delete("focus");
+    setParams(next, { replace: true });
+    // `items` is a fresh array each render; the ref guard is what makes this
+    // run once per focused id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId, list.isLoading, items.length]);
 
   const toggleSort = (field: string) => {
     setSort((prev) =>

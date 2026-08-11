@@ -2,8 +2,10 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthContext";
 import { Layout } from "./components/Layout";
+import Analyze from "./pages/Analyze";
 import Dashboard from "./pages/Dashboard";
 import EntityListPage from "./pages/EntityListPage";
+import Inbox from "./pages/Inbox";
 import Login from "./pages/Login";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
@@ -21,6 +23,8 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route element={<ProtectedLayout />}>
         <Route index element={<Dashboard />} />
+        <Route path="inbox" element={<Inbox />} />
+        <Route path="analyze" element={<Analyze />} />
         <Route path="reports" element={<Reports />} />
         <Route path="workflows" element={<Workflows />} />
         <Route path="settings" element={<Settings />} />

@@ -4,14 +4,25 @@
       "_id": "wf-001",
       "active": true,
       "name": "Weekly Lease Renewals Due",
+      "pending_approval": false,
       "plan": [
         {
           "idx": 0,
-          "kind": "sql",
-          "label": "Query renewals"
+          "kind": "sql_query",
+          "label": "Query renewals",
+          "narration": "Finds leases ending in the next 30 days.",
+          "save_as": "expiring",
+          "sql": "SELECT * FROM pms.leases"
         }
       ],
-      "trigger_kind": "schedule"
+      "sandbox": false,
+      "trigger_intent": "Every Monday at 9 AM",
+      "trigger_kind": "cron",
+      "trigger_spec": {
+        "expr": "0 9 * * 1",
+        "tz": "UTC"
+      },
+      "version": 2
     }
   ]
 }

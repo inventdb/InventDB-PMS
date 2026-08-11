@@ -1,0 +1,40 @@
+{
+  "category": "Plumbing",
+  "total_matched": 2,
+  "trades": [
+    "Plumbing",
+    "General"
+  ],
+  "vendors": [
+    {
+      "_id": "ven-001",
+      "coi_on_file": true,
+      "company": "Coastal Plumbing",
+      "contact": "Ravi N.",
+      "email": "ops@coastalplumbing.example",
+      "insured": true,
+      "match_rank": 0,
+      "phone": "+91 22 5550 7788",
+      "rating": 4.6,
+      "trade": "Plumbing",
+      "vendor_id": "V-001",
+      "w_9_on_file": true,
+      "why": "Plumbing specialist, certificate of insurance on file, rated 4.6"
+    },
+    {
+      "_id": "ven-002",
+      "coi_on_file": false,
+      "company": "Handy Helpers",
+      "contact": "Priya K.",
+      "email": "team@handyhelpers.example",
+      "insured": false,
+      "match_rank": 1,
+      "phone": "+91 80 5550 9911",
+      "rating": 4.1,
+      "trade": "General",
+      "vendor_id": "V-002",
+      "w_9_on_file": false,
+      "why": "covers General work, no certificate of insurance on file, rated 4.1"
+    }
+  ]
+}

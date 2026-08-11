@@ -1,0 +1,12 @@
+{
+  "count": 1,
+  "snapshots": [
+    {
+      "attachment_id": "att-1",
+      "created_at": "2026-08-11T05:53:42Z",
+      "from_template": false,
+      "name": "Rent Roll",
+      "record_id": "report_1"
+    }
+  ]
+}

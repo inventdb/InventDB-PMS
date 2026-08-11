@@ -2,22 +2,36 @@ import type { Page, Route } from "@playwright/test";
 
 import { backendResponse } from "./contract";
 import {
+  AGENT_STEPS,
+  ANALYZE_MODELS,
+  ANALYZE_THREADS,
   AUTH_TOKEN,
   AUTH_USER,
   DASHBOARD_CHARTS,
   DASHBOARD_SUMMARY,
   ENTITY_KEYS,
   HEALTH,
+  INTAKE_COVERAGE,
+  INTAKE_RUN,
+  INTAKE_RUN_STEPS,
+  INTAKE_WORKFLOW,
+  NOTIFICATIONS,
   OCCUPANCY,
   PNL,
   RENEWALS,
   RENT_ROLL,
-  REPORT_DETAILS,
-  REPORT_TEMPLATES,
+  VENDOR_SHORTLIST,
+  createReportStore,
   WORKFLOWS,
+  WORKFLOW_DRAFT,
   WORKFLOW_RUNS,
+  WORKFLOW_RUN_STEPS,
+  WORKFLOW_VERSIONS,
   WORK_ORDERS_REPORT,
+  reportEditSse,
   reportHtml,
+  type ReportStore,
+  sseBody,
   type Rec,
   type Store,
 } from "./data";
@@ -122,7 +136,8 @@ function nextId(prefix: string): string {
 export async function installMockApi(
   page: Page,
   store: Store,
-  options: MockOptions = {}
+  options: MockOptions = {},
+  reports: ReportStore = createReportStore()
 ): Promise<void> {
   // index.html pulls Poppins from Google Fonts. Serving an empty stylesheet
   // keeps the suite offline-capable and removes a slow third-party dependency
@@ -131,6 +146,35 @@ export async function installMockApi(
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (route) =>
     route.fulfill({ status: 200, contentType: "text/css", body: "" })
   );
+
+  // Workflows live outside `store` — they are not PMS entities but records on
+  // the InventDB instance — so they get their own per-test copies. Cloned
+  // rather than shared, so one spec's create or delete cannot leak into the
+  // next.
+  // The draft rides along in the list exactly as InventDB would return it. The
+  // page filters it out, so it does not disturb the counts other specs assert —
+  // which is itself the point: a draft the user did not ask for is invisible.
+  const workflows: Rec[] = JSON.parse(JSON.stringify([...WORKFLOWS, WORKFLOW_DRAFT]));
+  const runs: Rec[] = JSON.parse(JSON.stringify(WORKFLOW_RUNS));
+  const runSteps: { [runId: string]: Rec[] } = JSON.parse(
+    JSON.stringify(WORKFLOW_RUN_STEPS)
+  );
+  const versions: { [workflowId: string]: Rec[] } = JSON.parse(
+    JSON.stringify(WORKFLOW_VERSIONS)
+  );
+  /** Version history for one workflow, created on first use. */
+  const versionsOf = (id: string): Rec[] => (versions[id] ??= []);
+
+  // The inbox and the intake are per-test for the same reason as the workflows
+  // above: a spec that approves something, or installs the intake, must not
+  // leave that state behind for the next one.
+  const notifications: Rec[] = JSON.parse(JSON.stringify(NOTIFICATIONS));
+  runs.push(JSON.parse(JSON.stringify(INTAKE_RUN)));
+  runSteps["run-intake"] = JSON.parse(JSON.stringify(INTAKE_RUN_STEPS));
+  const intake: { installed: boolean; workflow: Rec | null } = {
+    installed: false,
+    workflow: null,
+  };
 
   await page.route(API_ROUTE, async (route) => {
     if (options.latencyMs) {
@@ -195,16 +239,56 @@ export async function installMockApi(
     // ---- /api/reports/* ---------------------------------------------------
     if (head === "reports") {
       if (rest[0] === "templates" && rest.length === 1) {
-        return json(route, { templates: REPORT_TEMPLATES, count: REPORT_TEMPLATES.length });
+        return json(route, { templates: reports.templates, count: reports.templates.length });
+      }
+      // ---- Report Studio authoring ---------------------------------------
+      if (rest[0] === "snapshots" && rest.length === 1) {
+        return json(route, {
+          snapshots: reports.snapshots,
+          count: reports.snapshots.length,
+        });
+      }
+      if (rest[0] === "snapshots" && rest.length === 2 && method === "DELETE") {
+        return json(route, { ok: true, record_id: rest[1], deleted: 2 });
+      }
+      if (rest[0] === "snapshots" && rest.length === 3 && method === "GET") {
+        return json(route, { html: reportHtml("Rent Roll — All Properties") });
+      }
+      if (rest[0] === "snapshots" && rest[3] === "promote") {
+        return json(route, { ok: true, id: "tpl-promoted" });
+      }
+      if (rest[0] === "templates" && rest.length === 2 && method === "PUT") {
+        const detail = reports.details[rest[1]] as { name?: string } | undefined;
+        if (detail && typeof body.name === "string") detail.name = body.name;
+        const summary = reports.templates.find((t) => t.id === rest[1]);
+        if (summary && typeof body.name === "string") summary.name = body.name;
+        return json(route, { ok: true, id: rest[1], ...body });
+      }
+      if (rest[0] === "templates" && rest.length === 2 && method === "DELETE") {
+        const at = reports.templates.findIndex((t) => t.id === rest[1]);
+        if (at >= 0) reports.templates.splice(at, 1);
+        return json(route, { ok: true, id: rest[1] });
+      }
+      // The edit stream, fulfilled as a real `text/event-stream` so the page's
+      // own SSE parser runs — the part most likely to break.
+      if (rest[0] === "templates" && rest[2] === "edit" && rest[3] === "stream") {
+        const summary = reports.templates.find((t) => t.id === rest[1]);
+        const next = Number(summary?.version ?? 1) + 1;
+        if (summary) summary.version = next;
+        return route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          body: reportEditSse(String(rest[1]), next),
+        });
       }
       if (rest[0] === "templates" && rest.length === 2) {
-        const detail = REPORT_DETAILS[rest[1]];
+        const detail = reports.details[rest[1]];
         return detail
           ? json(route, detail)
           : json(route, { error: `No report ${rest[1]}` }, 404);
       }
       if (rest[0] === "templates" && rest[2] === "render") {
-        const detail = REPORT_DETAILS[rest[1]] as { name?: string } | undefined;
+        const detail = reports.details[rest[1]] as { name?: string } | undefined;
         if (!detail) return json(route, { error: `No report ${rest[1]}` }, 404);
         return json(route, {
           html: reportHtml(String(detail.name)),
@@ -221,11 +305,298 @@ export async function installMockApi(
     }
 
     // ---- /api/workflows/* -------------------------------------------------
+    // Stateful, like the entity routes below: a workflow created or edited in
+    // a spec shows up in the refetch that follows, so the assertions cover the
+    // round trip rather than only the outgoing request.
+    // ---- /api/notifications/* ---------------------------------------------
+    // Stateful, because the behaviour worth covering is what happens *after* an
+    // answer: the item flips to resolved, the badge drops, and the buttons stay
+    // visible but dead. A stub that always returned the seed would show none of
+    // that.
+    if (head === "notifications") {
+      const [id, action] = rest;
+
+      if (!id) return json(route, { notifications: [...notifications] });
+
+      const index = notifications.findIndex((n) => n._id === id);
+      if (index === -1) return json(route, { error: "Not found" }, 404);
+      const note = notifications[index];
+
+      if (method === "GET" && !action) return json(route, note);
+
+      if (action === "read" && method === "POST") {
+        notifications[index] = { ...note, read_at: note.read_at ?? new Date().toISOString() };
+        return json(route, { id, read_at: notifications[index].read_at });
+      }
+
+      if (action === "resolve" && method === "POST") {
+        const actionId = String(body.action_id ?? "");
+        if (!actionId) return json(route, { error: "action_id is required" }, 400);
+        const offered = (note.actions ?? []) as { id: string; kind?: string }[];
+        const chosen = offered.find((a) => a.id === actionId);
+        if (!chosen) return json(route, { error: "unknown action id" }, 400);
+        // The engine refuses a second answer rather than overwriting the first:
+        // the run has already resumed and cannot be un-resumed.
+        if (note.resolved_action) {
+          return json(route, { error: "notification already resolved" }, 409);
+        }
+        const kind = String(chosen.kind ?? "");
+        const now = new Date().toISOString();
+        notifications[index] = {
+          ...note,
+          resolved_action: actionId,
+          resolved_at: now,
+          read_at: note.read_at ?? now,
+          resolved_payload: body.payload ?? null,
+        };
+        return json(route, {
+          notification_id: id,
+          resolved_action: actionId,
+          action_kind: kind,
+          approved: kind === "approve",
+          declined: kind === "decline",
+          run_id: note.run_id,
+          resumed: true,
+        });
+      }
+
+      if (method === "DELETE" && !action) {
+        notifications.splice(index, 1);
+        return json(route, { deleted: id });
+      }
+
+      return json(route, { error: "Not found" }, 404);
+    }
+
+    // ---- /api/maintenance/* -----------------------------------------------
+    if (head === "maintenance") {
+      const action = rest[0];
+
+      if (action === "intake") {
+        if (method === "POST") {
+          if (intake.installed) {
+            return json(route, { created: false, workflow: intake.workflow }, 200);
+          }
+          intake.installed = true;
+          intake.workflow = JSON.parse(JSON.stringify(INTAKE_WORKFLOW)) as Rec;
+          if (typeof body.gmail_label === "string" && body.gmail_label.trim()) {
+            intake.workflow.trigger_spec = { gmail_label: body.gmail_label.trim() };
+          }
+          // Appears in the Workflows list too, exactly as the real one would.
+          workflows.push(intake.workflow);
+          return json(route, { created: true, workflow: intake.workflow }, 201);
+        }
+        return json(route, {
+          installed: intake.installed,
+          workflow: intake.workflow,
+          name: "Maintenance request intake",
+          trades_on_file: ["General", "HVAC", "Plumbing"],
+          coverage: INTAKE_COVERAGE,
+          uncovered: INTAKE_COVERAGE.filter((c) => !c.covered).map((c) => c.category),
+        });
+      }
+
+      if (action === "vendors") {
+        const category = url.searchParams.get("category") ?? "";
+        if (!category) return json(route, { error: "category is required" }, 400);
+        return json(
+          route,
+          VENDOR_SHORTLIST[category] ?? {
+            category,
+            trades: [],
+            vendors: [],
+            total_matched: 0,
+          }
+        );
+      }
+
+      if (action === "categories") {
+        return json(route, {
+          categories: INTAKE_COVERAGE.map((c) => ({ category: c.category, trades: c.trades })),
+          priorities: ["Low", "Medium", "High", "Emergency"],
+        });
+      }
+
+      return json(route, { error: "Not found" }, 404);
+    }
+
     if (head === "workflows") {
-      if (rest.length === 0) return json(route, { workflows: WORKFLOWS });
-      if (rest[0] === "runs") return json(route, { runs: WORKFLOW_RUNS });
-      const wf = WORKFLOWS.find((w) => w._id === rest[0]);
-      return wf ? json(route, wf) : json(route, { error: "Not found" }, 404);
+      const [first, second, third] = rest;
+
+      if (rest.length === 0) {
+        if (method === "POST") {
+          // Mirrors the backend's create: it refuses an unusable draft before
+          // InventDB ever sees it, and the engine — never the caller — decides
+          // that a new workflow starts inactive and awaiting approval.
+          if (!String(body.name ?? "").trim()) {
+            return json(route, { error: "name is required" }, 400);
+          }
+          if (!String(body.trigger_intent ?? "").trim()) {
+            return json(route, { error: "trigger_intent is required" }, 400);
+          }
+          const plan = Array.isArray(body.plan) ? body.plan : [];
+          if (!plan.length) {
+            return json(route, { error: "plan must contain at least one step" }, 400);
+          }
+          const created = {
+            ...body,
+            _id: nextId("wf"),
+            active: false,
+            pending_approval: true,
+            sandbox: body.sandbox !== false,
+            version: 1,
+            created_at: new Date().toISOString(),
+          } as Rec;
+          workflows.push(created);
+          return json(route, created, 201);
+        }
+        return json(route, { workflows });
+      }
+
+      if (first === "runs") {
+        if (!second) return json(route, { runs });
+        const found = runs.find((r) => r._id === second);
+        // `{run, steps}`, matching InventDB — the run alone would render a
+        // timeline with nothing on it.
+        return found
+          ? json(route, { run: found, steps: runSteps[second] ?? [] })
+          : json(route, { error: "Not found" }, 404);
+      }
+
+      const index = workflows.findIndex((w) => w._id === first);
+      if (index === -1) return json(route, { error: "Not found" }, 404);
+      const wf = workflows[index];
+
+      if (second === "runs") {
+        return json(route, { runs: runs.filter((r) => r.workflow_id === first) });
+      }
+
+      if (second === "versions") {
+        if (method === "GET" && !third) {
+          return json(route, {
+            versions: versionsOf(first).map((v) => ({ ...v, workflow_id: first })),
+          });
+        }
+        // .../versions/<n>/rollback
+        if (method === "POST" && third) {
+          const snapshot = versionsOf(first).find((v) => String(v.version) === third);
+          if (!snapshot) return json(route, { error: "Not found" }, 404);
+          const restored = {
+            ...wf,
+            ...snapshot,
+            _id: first,
+            version: Number(wf.version ?? 1) + 1,
+          } as Rec;
+          workflows[index] = restored;
+          return json(route, restored);
+        }
+        return json(route, { error: "Not found" }, 404);
+      }
+
+      if (second === "run" && method === "POST") {
+        const started = new Date().toISOString();
+        runs.unshift({
+          _id: nextId("run"),
+          workflow_id: first,
+          status: "running",
+          started_at: started,
+          sandbox: body.sandbox_override === true || wf.sandbox === true,
+        });
+        // The engine queues an event; the run itself starts afterwards. The
+        // response names the event, and `status` is the queue's, not the run's.
+        return json(
+          route,
+          { event_id: nextId("ev"), workflow_id: first, status: "pending" },
+          202
+        );
+      }
+
+      if ((second === "activate" || second === "pause" || second === "resume") && method === "POST") {
+        const updated: Rec = { ...wf };
+        if (second === "pause") updated.active = false;
+        else {
+          updated.active = true;
+          updated.pending_approval = false;
+        }
+        // Sandbox rides along on activate only, and only when asked for —
+        // pause/resume must never silently un-mock a workflow.
+        if (second === "activate" && typeof body.sandbox === "boolean") {
+          updated.sandbox = body.sandbox;
+        }
+        workflows[index] = updated;
+        return json(route, updated);
+      }
+
+      if (!second && method === "PUT") {
+        const merged: Rec = { ...wf, ...body };
+        // A definition edit mints a version; a bare rename does not.
+        if (body.plan || body.trigger_spec || body.trigger_intent) {
+          versionsOf(first).unshift({
+            _id: `${first}.v${wf.version ?? 1}`,
+            version: Number(wf.version ?? 1),
+            name: String(wf.name ?? ""),
+            trigger_intent: wf.trigger_intent,
+            plan: wf.plan,
+            created_at: String(wf.created_at ?? ""),
+          });
+          merged.version = Number(wf.version ?? 1) + 1;
+        }
+        workflows[index] = merged;
+        return json(route, merged);
+      }
+
+      if (!second && method === "DELETE") {
+        workflows.splice(index, 1);
+        return json(route, { deleted: first });
+      }
+
+      if (!second && method === "GET") return json(route, wf);
+
+      return json(route, { error: "Not found" }, 404);
+    }
+
+    // ---- /api/analyze/* ---------------------------------------------------
+    if (head === "analyze") {
+      const action = rest.join("/");
+
+      // The agent turn. Fulfilled as a real `text/event-stream` body so the
+      // page's own SSE parser runs — a JSON stub would skip the code most
+      // likely to break. A spec overrides this route to script a different turn.
+      if (action === "chat/stream") {
+        return route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          headers: { "cache-control": "no-cache", "x-accel-buffering": "no" },
+          body: sseBody(AGENT_STEPS),
+        });
+      }
+
+      if (action === "models") return json(route, { models: ANALYZE_MODELS });
+      if (action === "config") {
+        return json(route, {
+          configured: true,
+          model: "claude-sonnet-5",
+          modelFamily: "claude",
+        });
+      }
+      if (action === "websearch/status") {
+        return json(route, { enabled: false, consented: false });
+      }
+      if (rest[0] === "websearch") return json(route, { ok: true });
+      if (rest[0] === "threads") {
+        if (method === "GET") return json(route, { threads: ANALYZE_THREADS });
+        return json(route, { ok: true });
+      }
+      if (action === "sql") {
+        return json(route, { rows: [{ city: "Richmond" }], metrics: { count: 1 } });
+      }
+      if (rest[0] === "records") {
+        return json(route, { ok: true, recordId: nextId("vendors"), type: rest[1] });
+      }
+      if (action === "change-set/apply") {
+        return json(route, { ok: true, results: [{ ok: true, recordId: "v-9" }] });
+      }
+      return json(route, { error: "Not found" }, 404);
     }
 
     // ---- /api/meta/* ------------------------------------------------------

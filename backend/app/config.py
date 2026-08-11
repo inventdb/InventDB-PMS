@@ -29,6 +29,10 @@ class Settings:
     inventdb_namespace: str = _get("INVENTDB_NAMESPACE", "pms")
     inventdb_app: str = _get("INVENTDB_APP", "pms")
     inventdb_timeout: float = float(_get("INVENTDB_TIMEOUT", "30"))
+    # Idle gap allowed between SSE chunks on the Analyze agent stream. Not a
+    # total budget: the agent can reason for minutes without emitting anything,
+    # so this only catches a genuinely dead connection.
+    inventdb_stream_timeout: float = float(_get("INVENTDB_STREAM_TIMEOUT", "600"))
     api_host: str = _get("API_HOST", "0.0.0.0")
     api_port: int = int(_get("API_PORT", "8000"))
     cors_origins: str = _get(

@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { LogOut, Menu, Moon, Sun } from "lucide-react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Bell, LogOut, Menu, Moon, Sun } from "lucide-react";
 
 import { ENTITY_BY_NAME } from "../config/entities";
 import { useAuth } from "../auth/AuthContext";
+import { usePendingApprovalCount } from "../api/hooks";
 import { useTheme } from "../theme/ThemeContext";
 import { BrandLockup } from "./BrandLockup";
 import { Icon } from "./Icon";
@@ -13,6 +14,8 @@ interface NavEntry {
   label: string;
   icon: string;
   end?: boolean;
+  /** Show the outstanding-approvals count against this entry. */
+  badge?: "approvals";
 }
 interface NavGroup {
   section: string | null;
@@ -46,6 +49,8 @@ const NAV: NavGroup[] = [
   {
     section: "Automation & Insights",
     items: [
+      { to: "/inbox", label: "Inbox", icon: "inbox", badge: "approvals" },
+      { to: "/analyze", label: "Analyze", icon: "analyze" },
       { to: "/workflows", label: "Workflows", icon: "workflow" },
       { to: "/reports", label: "Reports", icon: "reports" },
     ],
@@ -59,6 +64,8 @@ const NAV: NavGroup[] = [
 function pageTitle(pathname: string): string {
   if (pathname === "/") return "Dashboard";
   const seg = pathname.split("/").filter(Boolean)[0] ?? "";
+  if (seg === "inbox") return "Inbox";
+  if (seg === "analyze") return "Analyze";
   if (seg === "reports") return "Reports";
   if (seg === "workflows") return "Workflows";
   if (seg === "settings") return "Settings";
@@ -70,6 +77,12 @@ export function Layout() {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const location = useLocation();
+  const navigate = useNavigate();
+  // A workflow parks whenever it reaches a decision — which is to say, while
+  // you are somewhere else in the app. Polled centrally here so the count is
+  // the same number wherever it appears, and so it keeps arriving without
+  // anyone having to sit on the Inbox page.
+  const waiting = usePendingApprovalCount();
 
   const initials = String(user?.username ?? "?")
     .split(/[\s._-]+/)
@@ -95,6 +108,11 @@ export function Layout() {
                 >
                   <Icon name={item.icon} size={18} />
                   {item.label}
+                  {item.badge === "approvals" && waiting > 0 && (
+                    <span className="nav-badge" aria-label={`${waiting} waiting on you`}>
+                      {waiting}
+                    </span>
+                  )}
                 </NavLink>
               ))}
             </div>
@@ -113,6 +131,24 @@ export function Layout() {
               animates in, rather than the text swapping in place. */}
           <h1 key={location.pathname}>{pageTitle(location.pathname)}</h1>
           <div className="spacer" />
+          {/* The count is the whole point of the bell: an approval that arrived
+              while you were on another page is invisible otherwise, and a run
+              is sitting parked until it is answered. */}
+          <button
+            className={`btn-icon topbar-bell ${waiting > 0 ? "has-waiting" : ""}`}
+            onClick={() => navigate("/inbox")}
+            aria-label={
+              waiting > 0 ? `Inbox — ${waiting} waiting on you` : "Inbox — nothing waiting"
+            }
+            title={
+              waiting > 0
+                ? `${waiting} decision${waiting === 1 ? "" : "s"} waiting on you`
+                : "Inbox"
+            }
+          >
+            <Bell size={18} />
+            {waiting > 0 && <span className="bell-count">{waiting > 9 ? "9+" : waiting}</span>}
+          </button>
           <button className="btn-icon" onClick={toggle} aria-label="Toggle theme" title="Toggle theme">
             {theme === "dark" ? <Sun key="sun" size={18} /> : <Moon key="moon" size={18} />}
           </button>

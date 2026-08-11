@@ -1,0 +1,442 @@
+/* ============================================================================
+   Report Studio.
+
+   Three columns: the library you pick from, the sheet you read, and the
+   controls that act on it. The sheet is the widest because it is the thing
+   being worked on; the other two are tools around it.
+
+   Everything is `rs-` prefixed and built from the tokens in global.css, so it
+   inherits the brand theme and both colour modes. The report sheet itself is
+   NOT styled here — it arrives as a whole HTML document from InventDB's engine
+   and renders inside a sandboxed iframe with its own styling context.
+   ========================================================================== */
+
+.rs-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr) minmax(0, 330px);
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 1400px) {
+  /* The controls drop under the library rather than squeezing the sheet. */
+  .rs-layout {
+    grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+  }
+  .rs-rail {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .rs-stage {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+@media (max-width: 900px) {
+  .rs-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Stacked, the sheet comes first — the library and controls are navigation,
+     and burying the report under both would mean scrolling past the tools to
+     reach the thing you opened. */
+  .rs-stage {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .rs-rail {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .rs-library {
+    grid-column: 1;
+    grid-row: 3;
+  }
+}
+
+.rs-stage {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+/* ---- library ------------------------------------------------------------- */
+
+.rs-library {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 12px;
+  max-height: calc(100vh - var(--topbar-h) - 40px);
+}
+
+@media (max-width: 1400px) {
+  .rs-library {
+    position: static;
+    max-height: none;
+  }
+}
+
+.rs-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.rs-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-1) var(--ease);
+}
+
+.rs-row:hover {
+  background: var(--surface-2);
+}
+
+.rs-row.active {
+  background: var(--brand-soft);
+}
+
+.rs-row-open {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 9px 11px;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.rs-row-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.rs-row.active .rs-row-name {
+  color: var(--brand);
+}
+
+.rs-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.rs-row-del {
+  flex: none;
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+.rs-row:hover .rs-row-del,
+.rs-row.active .rs-row-del {
+  opacity: 1;
+}
+
+.rs-new {
+  justify-content: center;
+}
+
+/* A live template re-queries; a snapshot is frozen. The distinction decides
+   whether the numbers on screen are current, so it is stated on every row. */
+.rs-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rs-tag.is-live {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.rs-tag.is-snapshot {
+  background: var(--neutral-soft);
+  color: var(--text-muted);
+}
+
+/* ---- stage head ---------------------------------------------------------- */
+
+.rs-head-titles {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.rs-head-titles h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.rs-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px;
+  margin-left: -6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+
+.rs-title:hover {
+  background: var(--surface-2);
+}
+
+.rs-title svg {
+  flex: none;
+  opacity: 0;
+  color: var(--text-faint);
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+.rs-title:hover svg {
+  opacity: 1;
+}
+
+.rs-title-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.rs-title-edit .input {
+  min-width: 220px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.rs-title-error {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+/* ---- rail ---------------------------------------------------------------- */
+
+.rs-rail {
+  min-width: 0;
+}
+
+@media (min-width: 1401px) {
+  .rs-rail {
+    position: sticky;
+    top: 16px;
+  }
+}
+
+.rs-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.rs-tab {
+  flex: 1;
+  padding: 7px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--dur-1) var(--ease);
+}
+
+.rs-tab:hover {
+  color: var(--text);
+}
+
+.rs-tab.is-active {
+  background: var(--surface);
+  color: var(--brand);
+  box-shadow: var(--shadow-sm);
+}
+
+.rs-panel {
+  margin-top: 14px;
+  min-width: 0;
+}
+
+.rs-panel-body {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.rs-panel-section {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  width: 100%;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.rs-panel-section:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.rs-panel-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.rs-detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  font-size: 13px;
+}
+
+.rs-detail-label {
+  flex: none;
+  min-width: 108px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.rs-detail-value {
+  color: var(--text);
+  min-width: 0;
+}
+
+.rs-share {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.rs-share-url {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-tint);
+  color: var(--brand);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- edit by instruction ------------------------------------------------- */
+
+.rs-edit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.rs-ai-chip {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.rs-progress {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 1px solid var(--brand-line);
+  border-radius: var(--radius);
+  background: var(--brand-tint);
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.rs-progress-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rs-tokens {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--brand);
+}
+
+.rs-history {
+  display: grid;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.rs-history-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.rs-history ol {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}

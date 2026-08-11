@@ -50,7 +50,9 @@ Playwright mock, so the two suites read alike.
 | `test_meta.py` | Entity registry and the raw-SQL guard. |
 | `test_dashboard.py` | Occupancy, the expiring-lease window, month bucketing, coercion helpers. |
 | `test_reports.py` | Saved-report proxying, parameter binding, and the six SQL rollups. |
-| `test_workflows.py` | Every envelope shape InventDB might return. |
+| `test_workflows.py` | Every envelope shape InventDB might return, and the authoring boundary: what the router forwards on create/edit, what it refuses to forward (engine-owned state like `active`), and that lifecycle and sandbox stay independent. |
+| `test_report_studio.py` | Report authoring: what a rename may change, the relayed edit stream, and collapsing a snapshot's two files into one report. |
+| `test_analyze.py` | The AI seam: the relayed agent stream, the pinned namespace, the read-only SQL guard, and forcing a change-set into this app's namespace. |
 | `test_app.py` | Error handlers, CORS, SPA hosting. |
 | `contract/` | The shape agreement with the frontend — see below. |
 

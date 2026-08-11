@@ -198,19 +198,49 @@ def test_an_empty_error_body_falls_back_to_the_status_code(db, fake):
     assert exc.value.detail == "InventDB returned 503"
 
 
-@pytest.mark.xfail(
-    reason=(
-        "KNOWN BUG: `_parse` calls `.get()` on the decoded error body without "
-        "checking it is a dict. A JSON *array* error body raises AttributeError, "
-        "which the catch-all handler reports as a 500 — hiding the real upstream "
-        "status from the client."
-    ),
-)
-def test_a_json_array_error_body_should_still_surface_the_upstream_status(db, fake):
+def test_a_json_array_error_body_still_surfaces_the_upstream_status(db, fake):
+    """`_parse` reads the error body with `.get()`, which a JSON *array* does
+    not have. Catching the AttributeError alongside ValueError keeps the real
+    upstream status instead of letting it surface as an internal 500."""
     fake.on("GET", "/api/auth/me", [{"field": "username", "msg": "required"}], status=422)
     with pytest.raises(ApiError) as exc:
         db.me()
     assert exc.value.status_code == 422
+    # Falls back to the raw text, so the upstream detail is not simply dropped.
+    assert "username" in str(exc.value.detail)
+
+
+def test_plan_validation_issues_ride_along_with_the_error(db, fake):
+    """InventDB rejects a bad plan with 400 + `issues` naming the step at
+    fault. The message alone ("plan validation failed") cannot say which step,
+    so the array is carried on the error and re-emitted in the JSON body."""
+    fake.on(
+        "POST",
+        "/api/workflows",
+        {
+            "ok": False,
+            "error": "plan validation failed",
+            "issues": [{"step_idx": 1, "severity": "error", "message": "unknown template"}],
+        },
+        status=400,
+    )
+
+    with pytest.raises(ApiError) as exc:
+        db.create_workflow({"name": "x"})
+
+    assert exc.value.detail == "plan validation failed"
+    assert exc.value.to_dict()["issues"] == [
+        {"step_idx": 1, "severity": "error", "message": "unknown template"}
+    ]
+
+
+def test_an_error_body_cannot_dress_a_failure_up_as_a_success(db, fake):
+    """`extra` is merged *under* `ok`/`error`, so an upstream body that happens
+    to carry those keys cannot flip the response the client sees."""
+    fake.on("GET", "/api/auth/me", {"error": "nope", "issues": [{"ok": True}]}, status=400)
+    with pytest.raises(ApiError) as exc:
+        db.me()
+    assert exc.value.to_dict()["ok"] is False
 
 
 # ===========================================================================

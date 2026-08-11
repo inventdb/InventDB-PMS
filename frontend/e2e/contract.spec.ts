@@ -175,9 +175,21 @@ async function resolveBindings(
   const templates = await callApi(page, "GET", "/api/reports/templates", null);
   const entries = (templates.json as { templates?: { id?: string }[] })?.templates ?? [];
 
+  const workflows = await callApi(page, "GET", "/api/workflows", null);
+  const automations = (workflows.json as { workflows?: { _id?: string }[] })?.workflows ?? [];
+
+  const runList = await callApi(page, "GET", "/api/workflows/runs", null);
+  const runs = (runList.json as { runs?: { _id?: string }[] })?.runs ?? [];
+
+  const inbox = await callApi(page, "GET", "/api/notifications", null);
+  const notes = (inbox.json as { notifications?: { _id?: string }[] })?.notifications ?? [];
+
   return {
     record_id: items[0]?._id ?? "prop-1",
     template_id: entries[0]?.id ?? "rpt-owner-statement",
+    workflow_id: automations[0]?._id ?? "wf-1",
+    run_id: runs[0]?._id ?? "run-1",
+    notification_id: notes[0]?._id ?? "n-1",
   };
 }
 

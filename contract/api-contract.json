@@ -425,7 +425,19 @@
       "body": null,
       "shape": {
         "workflows": [
-          "object"
+          {
+            "_id": "string",
+            "name": "string",
+            "trigger_kind?": "string",
+            "trigger_intent?": "string",
+            "trigger_spec?": "object",
+            "plan?": "array",
+            "active?": "bool",
+            "pending_approval?": "bool",
+            "sandbox?": "bool",
+            "version?": "int",
+            "next_run_at?": "string|null"
+          }
         ]
       }
     },
@@ -440,6 +452,329 @@
         "runs": [
           "object"
         ]
+      }
+    },
+    {
+      "key": "workflow-run-detail",
+      "method": "GET",
+      "path": "/api/workflows/runs/{run_id}",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "run": "object",
+        "steps": [
+          "object"
+        ]
+      }
+    },
+    {
+      "key": "notifications",
+      "method": "GET",
+      "path": "/api/notifications",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "notifications": [
+          {
+            "_id": "string",
+            "title": "string",
+            "body?": "string",
+            "actions?": "array",
+            "workflow_id?": "string",
+            "run_id?": "string",
+            "created_at?": "string",
+            "read_at?": "string|null",
+            "resolved_action?": "string|null"
+          }
+        ]
+      }
+    },
+    {
+      "key": "notification-detail",
+      "method": "GET",
+      "path": "/api/notifications/{notification_id}",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "_id": "string",
+        "title": "string",
+        "body?": "string",
+        "actions?": "array",
+        "workflow_id?": "string",
+        "run_id?": "string",
+        "created_at?": "string",
+        "read_at?": "string|null",
+        "resolved_action?": "string|null"
+      }
+    },
+    {
+      "key": "maintenance-vendors",
+      "method": "GET",
+      "path": "/api/maintenance/vendors?category=Plumbing",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "category": "string",
+        "trades": [
+          "string"
+        ],
+        "vendors": [
+          "object"
+        ],
+        "total_matched": "int"
+      }
+    },
+    {
+      "key": "maintenance-categories",
+      "method": "GET",
+      "path": "/api/maintenance/categories",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "categories": [
+          "object"
+        ],
+        "priorities": [
+          "string"
+        ]
+      }
+    },
+    {
+      "key": "maintenance-intake",
+      "method": "GET",
+      "path": "/api/maintenance/intake",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "installed": "bool",
+        "workflow": "any",
+        "name": "string",
+        "trades_on_file": [
+          "string"
+        ],
+        "coverage": [
+          "object"
+        ],
+        "uncovered": [
+          "string"
+        ]
+      }
+    },
+    {
+      "key": "workflow-detail",
+      "method": "GET",
+      "path": "/api/workflows/{workflow_id}",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "_id": "string",
+        "name": "string",
+        "trigger_kind?": "string",
+        "trigger_intent?": "string",
+        "trigger_spec?": "object",
+        "plan?": "array",
+        "active?": "bool",
+        "pending_approval?": "bool",
+        "sandbox?": "bool",
+        "version?": "int",
+        "next_run_at?": "string|null"
+      }
+    },
+    {
+      "key": "workflow-versions",
+      "method": "GET",
+      "path": "/api/workflows/{workflow_id}/versions",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "versions": [
+          "object"
+        ]
+      }
+    },
+    {
+      "key": "workflow-create",
+      "method": "POST",
+      "path": "/api/workflows",
+      "status": 201,
+      "auth": true,
+      "body": {
+        "name": "Contract check",
+        "trigger_kind": "cron",
+        "trigger_spec": {
+          "expr": "0 9 * * 1",
+          "tz": "UTC"
+        },
+        "trigger_intent": "Every Monday at 9 AM",
+        "plan": [
+          {
+            "idx": 0,
+            "kind": "sql_query",
+            "label": "Count leases",
+            "narration": "",
+            "sql": "SELECT 1"
+          }
+        ]
+      },
+      "shape": {
+        "_id": "string",
+        "name": "string",
+        "trigger_kind?": "string",
+        "trigger_intent?": "string",
+        "trigger_spec?": "object",
+        "plan?": "array",
+        "active?": "bool",
+        "pending_approval?": "bool",
+        "sandbox?": "bool",
+        "version?": "int",
+        "next_run_at?": "string|null"
+      }
+    },
+    {
+      "key": "workflow-update",
+      "method": "PUT",
+      "path": "/api/workflows/{workflow_id}",
+      "status": 200,
+      "auth": true,
+      "body": {
+        "trigger_intent": "Every Monday at 10 AM"
+      },
+      "shape": {
+        "_id": "string",
+        "name": "string",
+        "trigger_kind?": "string",
+        "trigger_intent?": "string",
+        "trigger_spec?": "object",
+        "plan?": "array",
+        "active?": "bool",
+        "pending_approval?": "bool",
+        "sandbox?": "bool",
+        "version?": "int",
+        "next_run_at?": "string|null"
+      }
+    },
+    {
+      "key": "workflow-activate",
+      "method": "POST",
+      "path": "/api/workflows/{workflow_id}/activate",
+      "status": 200,
+      "auth": true,
+      "body": {},
+      "shape": {
+        "_id": "string",
+        "name": "string",
+        "trigger_kind?": "string",
+        "trigger_intent?": "string",
+        "trigger_spec?": "object",
+        "plan?": "array",
+        "active?": "bool",
+        "pending_approval?": "bool",
+        "sandbox?": "bool",
+        "version?": "int",
+        "next_run_at?": "string|null"
+      }
+    },
+    {
+      "key": "workflow-run",
+      "method": "POST",
+      "path": "/api/workflows/{workflow_id}/run",
+      "status": 202,
+      "auth": true,
+      "body": {
+        "sandbox_override": true
+      },
+      "shape": {
+        "event_id": "string"
+      }
+    },
+    {
+      "key": "workflow-delete",
+      "method": "DELETE",
+      "path": "/api/workflows/{workflow_id}",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "deleted": "string"
+      }
+    },
+    {
+      "key": "report-snapshots",
+      "method": "GET",
+      "path": "/api/reports/snapshots",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "snapshots": [
+          {
+            "record_id": "string",
+            "attachment_id": "string",
+            "name": "string",
+            "created_at": "any",
+            "from_template": "bool"
+          }
+        ],
+        "count": "int"
+      }
+    },
+    {
+      "key": "analyze-config",
+      "method": "GET",
+      "path": "/api/analyze/config",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "configured": "bool",
+        "model": "string|null",
+        "modelFamily": "string|null"
+      }
+    },
+    {
+      "key": "analyze-models",
+      "method": "GET",
+      "path": "/api/analyze/models",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "models": [
+          "object"
+        ]
+      }
+    },
+    {
+      "key": "analyze-threads",
+      "method": "GET",
+      "path": "/api/analyze/threads",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "threads": [
+          "object"
+        ]
+      }
+    },
+    {
+      "key": "analyze-websearch-status",
+      "method": "GET",
+      "path": "/api/analyze/websearch/status",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "enabled": "bool",
+        "consented": "bool"
       }
     },
     {

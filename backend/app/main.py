@@ -21,7 +21,17 @@ from werkzeug.exceptions import HTTPException
 from . import __version__
 from .config import get_settings
 from .errors import ApiError
-from .routers import auth, dashboard, meta, reports, resources, workflows
+from .routers import (
+    analyze,
+    auth,
+    dashboard,
+    maintenance,
+    meta,
+    notifications,
+    reports,
+    resources,
+    workflows,
+)
 
 
 def _frontend_dist() -> Path | None:
@@ -67,6 +77,11 @@ def create_app() -> Flask:
     app.register_blueprint(dashboard.bp)
     app.register_blueprint(reports.bp)
     app.register_blueprint(workflows.bp)
+    app.register_blueprint(notifications.bp)
+    app.register_blueprint(maintenance.bp)
+    app.register_blueprint(analyze.bp)
+    # Registered last: its routes are `/api/<entity>`, which would otherwise
+    # shadow the specific prefixes above.
     app.register_blueprint(resources.bp)
 
     # --- Error handling: always return JSON for API-style errors ---

@@ -1,0 +1,22 @@
+{
+  "_id": "notif-001",
+  "actions": [
+    {
+      "id": "approve",
+      "kind": "approve",
+      "label": "Assign the recommended contractor"
+    },
+    {
+      "id": "decline",
+      "kind": "decline",
+      "label": "Not now"
+    }
+  ],
+  "body": "<p><strong>Recommended:</strong> Coastal Plumbing</p>",
+  "created_at": "2026-08-11T06:42:00Z",
+  "read_at": null,
+  "resolved_action": null,
+  "run_id": "run-001",
+  "title": "Assign a contractor: kitchen tap dripping",
+  "workflow_id": "wf-001"
+}

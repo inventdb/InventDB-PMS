@@ -1,0 +1,120 @@
+{
+  "coverage": [
+    {
+      "category": "Plumbing",
+      "covered": true,
+      "trades": [
+        "Plumbing",
+        "General"
+      ]
+    },
+    {
+      "category": "Electrical",
+      "covered": false,
+      "trades": [
+        "Electrical"
+      ]
+    },
+    {
+      "category": "HVAC",
+      "covered": false,
+      "trades": [
+        "HVAC"
+      ]
+    },
+    {
+      "category": "Appliance",
+      "covered": true,
+      "trades": [
+        "Appliance",
+        "General"
+      ]
+    },
+    {
+      "category": "General",
+      "covered": true,
+      "trades": [
+        "General",
+        "Handyman"
+      ]
+    },
+    {
+      "category": "Doors/Windows",
+      "covered": true,
+      "trades": [
+        "Carpentry",
+        "General",
+        "Handyman"
+      ]
+    },
+    {
+      "category": "Landscaping",
+      "covered": true,
+      "trades": [
+        "Landscaping",
+        "General"
+      ]
+    },
+    {
+      "category": "Roofing",
+      "covered": false,
+      "trades": [
+        "Roofing"
+      ]
+    },
+    {
+      "category": "Pest Control",
+      "covered": false,
+      "trades": [
+        "Pest Control"
+      ]
+    },
+    {
+      "category": "Locks/Keys",
+      "covered": true,
+      "trades": [
+        "Locksmith",
+        "Carpentry",
+        "General"
+      ]
+    },
+    {
+      "category": "Smoke Detector",
+      "covered": true,
+      "trades": [
+        "Electrical",
+        "General"
+      ]
+    },
+    {
+      "category": "Painting",
+      "covered": true,
+      "trades": [
+        "Painting",
+        "General"
+      ]
+    },
+    {
+      "category": "Flooring",
+      "covered": true,
+      "trades": [
+        "Flooring",
+        "Carpentry",
+        "General"
+      ]
+    }
+  ],
+  "installed": false,
+  "name": "Maintenance request intake",
+  "trades_on_file": [
+    "General",
+    "Plumbing"
+  ],
+  "uncovered": [
+    "Electrical",
+    "HVAC",
+    "Roofing",
+    "Pest Control"
+  ],
+  "workflow": null
+}

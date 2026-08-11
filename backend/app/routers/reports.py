@@ -16,15 +16,17 @@ the SOAR reports — but are left in place as a working API.
 
 from __future__ import annotations
 
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request, stream_with_context
 
 from ..context import authed_client
 from ..errors import ApiError
 from ..inventdb import InventDBClient, _safe_ident
+from ..sqlutil import sql_literal
 
 bp = Blueprint("reports", __name__, url_prefix="/api/reports")
 
@@ -222,6 +224,242 @@ def render_report_template(template_id: str):
     client = authed_client()
     result = client.render_report_template(template_id, params or {}) or {}
     return jsonify({"html": result.get("html") or "", "meta": result.get("meta") or {}})
+
+
+# ===========================================================================
+# Authoring — the Report Studio surface, as SOAR has it
+# ===========================================================================
+# A saved report is not read-only here. It can be renamed, described, edited by
+# instruction, deleted; and a frozen AI snapshot can be promoted into a live
+# template. InventDB owns all of it — the report agent writes the layout, the
+# engine versions it — so these routes are the same allow-listed seam the
+# Analyze room uses, not a second implementation of report authoring.
+
+# Fields the studio is allowed to change directly. The `html` body is
+# deliberately not among them: layout changes go through the report agent
+# (`/edit/stream`), which validates the markup and versions the result. Letting
+# a client PUT arbitrary HTML would bypass both.
+_EDITABLE_TEMPLATE_FIELDS = ("name", "description", "category")
+
+
+@bp.put("/templates/<template_id>")
+def update_report_template(template_id: str):
+    """Rename a report, or change its description/category."""
+    client = authed_client()
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        raise ApiError(400, "Expected a JSON object body")
+
+    patch = {k: body[k] for k in _EDITABLE_TEMPLATE_FIELDS if k in body}
+    if not patch:
+        raise ApiError(
+            400, f"Nothing to update — expected one of: {', '.join(_EDITABLE_TEMPLATE_FIELDS)}"
+        )
+    if "name" in patch:
+        name = str(patch["name"] or "").strip()
+        if not name:
+            raise ApiError(400, "A report needs a name")
+        patch["name"] = name[:200]
+
+    client.update_report_template(template_id, patch)
+    return jsonify({"ok": True, "id": template_id, **patch})
+
+
+@bp.delete("/templates/<template_id>")
+def delete_report_template(template_id: str):
+    authed_client().delete_report_template(template_id)
+    return jsonify({"ok": True, "id": template_id})
+
+
+@bp.post("/templates/<template_id>/edit/stream")
+def edit_report_template(template_id: str):
+    """Edit a report by describing the change, streamed as it happens.
+
+    Relayed rather than awaited: the report agent emits `reasoning` while it
+    thinks, then `html`, then `saved` with the new version number. Buffering
+    would turn a visible edit into a blank wait, and the events are what tell
+    the studio when to re-render.
+
+    The endpoint saves the new version itself, which is why nothing here writes
+    back — a `saved` event means the template has already changed.
+    """
+    client = authed_client()
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        raise ApiError(400, "Expected a JSON object body")
+    instruction = str(body.get("instruction") or "").strip()
+    if not instruction:
+        raise ApiError(400, "Describe the change you want")
+
+    payload: dict[str, Any] = {
+        "instruction": instruction,
+        # Prior instructions for THIS report, so a follow-up ("now drop the
+        # decimals too", "undo that") builds on the last one instead of
+        # starting over.
+        "messages": body.get("messages") if isinstance(body.get("messages"), list) else [],
+        "conversation_mode": True,
+    }
+    if body.get("model_family"):
+        payload["model_family"] = body["model_family"]
+
+    upstream = client.stream_report_layout_edit(template_id, payload)
+
+    if upstream.status_code >= 400:
+        try:
+            detail = upstream.json()
+            detail = detail.get("error") or detail.get("detail") or detail
+        except ValueError:
+            detail = upstream.text or f"InventDB returned {upstream.status_code}"
+        finally:
+            upstream.close()
+        raise ApiError(upstream.status_code, detail)
+
+    def relay():
+        try:
+            for chunk in upstream.iter_content(chunk_size=None):
+                if chunk:
+                    yield chunk
+        finally:
+            upstream.close()
+
+    return Response(
+        stream_with_context(relay()),
+        mimetype="text/event-stream",
+        # No `Connection` header: it is hop-by-hop, which WSGI forbids the
+        # application from sending and waitress rejects outright.
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ---------------------------------------------------------------- snapshots
+# A snapshot is a report the assistant rendered once and stored as an HTML
+# attachment on `_System.AIReports`. Its figures are frozen — unlike a template,
+# it does not re-query — so the studio shows both but says which is which.
+
+_SNAPSHOT_NS = "_System"
+_SNAPSHOT_TYPE = "AIReports"
+
+_SNAPSHOT_SQL = (
+    "SELECT _id, record_id, filename, description, content_type, tags, created_at "
+    "FROM _System._attachments WHERE record_type = 'AIReports' "
+    "ORDER BY created_at DESC LIMIT 500"
+)
+
+
+def _snapshot_name(description: Any, filename: Any) -> str:
+    """Recover the report's title from what the agent wrote on the attachment.
+
+    It stores one of two forms — ``AI-generated report: <Title> (<when>)`` or
+    ``Report rendered from template '<Title>' (<when>)`` — and falls back to the
+    filename, which is the title slugified with a timestamp appended.
+    """
+    text = str(description or "").strip()
+    match = re.search(r"template ['\"]([^'\"]+)['\"]", text, re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    match = re.search(r"report:\s*(.+?)\s*\([^)]*\)\s*$", text, re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    if text:
+        return re.sub(r"\s*\([^)]*\)\s*$", "", text).strip()
+    name = re.sub(
+        r"_\d{8}_\d{6}(?:\.source)?\.html$", "", str(filename or "Report"), flags=re.IGNORECASE
+    )
+    return name.replace("_", " ").strip() or "Report"
+
+
+def _tags_of(row: dict[str, Any]) -> list[str]:
+    tags = row.get("tags")
+    if isinstance(tags, list):
+        return [str(t) for t in tags]
+    if isinstance(tags, str):
+        return [t.strip() for t in tags.split(",") if t.strip()]
+    return []
+
+
+@bp.get("/snapshots")
+def list_report_snapshots():
+    """Every stored AI snapshot, newest first.
+
+    Only the rendered report is listed. Each one has a sibling `.source.html`
+    tagged `ai-report-source` — the regeneratable source that promotion reads —
+    which is machinery, not a second report.
+    """
+    client = authed_client()
+    out = []
+    for row in client.query_rows(_SNAPSHOT_SQL):
+        tags = _tags_of(row)
+        if "ai-report" not in tags:
+            continue
+        if "html" not in str(row.get("content_type") or "").lower():
+            continue
+        record_id = str(row.get("record_id") or "")
+        attachment_id = str(row.get("_id") or "")
+        if not record_id or not attachment_id:
+            continue
+        out.append(
+            {
+                "record_id": record_id,
+                "attachment_id": attachment_id,
+                "name": _snapshot_name(row.get("description"), row.get("filename")),
+                "created_at": row.get("created_at"),
+                # Rendered from a saved template, rather than authored one-off.
+                "from_template": "template-rendered" in tags,
+            }
+        )
+    return jsonify({"snapshots": out, "count": len(out)})
+
+
+@bp.get("/snapshots/<record_id>/<attachment_id>")
+def get_report_snapshot(record_id: str, attachment_id: str):
+    """The stored HTML of one snapshot.
+
+    Proxied rather than linked: the attachment endpoint needs the bearer token,
+    which a plain `<a href>` cannot carry.
+    """
+    html = authed_client().attachment_text(
+        _SNAPSHOT_NS, _SNAPSHOT_TYPE, record_id, attachment_id
+    )
+    return jsonify({"html": html})
+
+
+@bp.delete("/snapshots/<record_id>")
+def delete_report_snapshot(record_id: str):
+    """Delete a snapshot — both the rendered HTML and its `.source.html`.
+
+    They are one report in two files; leaving the source behind would orphan it
+    where nothing in the UI can reach it.
+    """
+    client = authed_client()
+    rows = client.query_rows(
+        f"SELECT _id FROM _System._attachments WHERE record_id = {sql_literal(record_id)}"
+    )
+    deleted = 0
+    for row in rows:
+        attachment_id = str(row.get("_id") or "")
+        if not attachment_id:
+            continue
+        try:
+            client.delete_attachment(
+                _SNAPSHOT_NS, _SNAPSHOT_TYPE, record_id, attachment_id
+            )
+            deleted += 1
+        except ApiError:
+            # One stubborn attachment should not abandon the rest.
+            continue
+    return jsonify({"ok": True, "record_id": record_id, "deleted": deleted})
+
+
+@bp.post("/snapshots/<record_id>/<attachment_id>/promote")
+def promote_report_snapshot(record_id: str, attachment_id: str):
+    """Turn a frozen snapshot into a live template that re-queries on render."""
+    body = request.get_json(silent=True) or {}
+    name = str(body.get("name") or "").strip() or "Report"
+    result = authed_client().promote_report_snapshot(record_id, attachment_id, name)
+    template_id = None
+    if isinstance(result, dict):
+        template_id = result.get("id") or result.get("_id")
+    return jsonify({"ok": True, "id": template_id})
 
 
 # ===========================================================================

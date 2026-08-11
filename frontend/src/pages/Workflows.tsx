@@ -1,103 +1,57 @@
-import {
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Scatter,
-  ScatterChart,
-  Tooltip,
-  XAxis,
-  YAxis,
-  ZAxis,
-} from "recharts";
-import {
-  Bell,
-  CalendarClock,
-  CheckCircle2,
-  Circle,
-  Clock,
-  Database,
-  FileBarChart,
-  Loader2,
-  Mail,
-  PencilLine,
-  Play,
-  PlusCircle,
-  Webhook,
-  XCircle,
-  Zap,
-  type LucideIcon,
-} from "lucide-react";
+/**
+ * Workflows — the automations that run against this portfolio.
+ *
+ * The engine is InventDB SOAR's: it owns the schedule, the step executor and
+ * the run history, and the same records back SOAR's Operate room. Workflows are
+ * authored there (or by describing one in Analyze); this page is where they are
+ * read, adjusted and operated — edit the plan, rehearse it, activate or pause
+ * it, and watch what it did.
+ *
+ * One card per workflow, showing its trigger, its plan and its recent outcomes.
+ * Opening one gives the full definition, its complete run history and its
+ * version history.
+ */
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Clock, PencilLine, Play, Zap } from "lucide-react";
 
-import { useWorkflow, useWorkflowRuns, useWorkflows } from "../api/hooks";
+import { useToast } from "../components/Toast";
 import { errorMessage } from "../api/client";
-import { statusColor, useChartTheme } from "../theme/charts";
+import { useRunWorkflow, useWorkflow, useWorkflowRuns, useWorkflows } from "../api/hooks";
 import { Alert, EmptyState, Spinner } from "../components/ui";
-import type { Workflow, WorkflowRun, WorkflowStep } from "../types";
-
-// ---- Icon maps ------------------------------------------------------------
-const STEP_ICONS: { [kind: string]: LucideIcon } = {
-  render_report: FileBarChart,
-  send_email: Mail,
-  notify_user: Bell,
-  sql_query: Database,
-  insert_record: PlusCircle,
-  create_record: PlusCircle,
-  update_record: PencilLine,
-  finish: CheckCircle2,
-};
-
-const TRIGGER_ICONS: { [kind: string]: LucideIcon } = {
-  cron: CalendarClock,
-  schedule: CalendarClock,
-  webhook: Webhook,
-  event: Zap,
-  manual: Play,
-};
-
-/** Run outcomes wear the reserved state colours, always beside an icon + label. */
-function StatusIcon({ status, size = 15 }: { status: string; size?: number }) {
-  const chart = useChartTheme();
-  const s = status.toLowerCase();
-  const color = statusColor(status, chart);
-  if (s === "succeeded" || s === "success")
-    return <CheckCircle2 size={size} color={color} />;
-  if (s === "failed" || s === "error") return <XCircle size={size} color={color} />;
-  if (s === "running" || s === "parked")
-    return <Loader2 size={size} color={color} className="spin" />;
-  return <Circle size={size} color={color} />;
-}
-
-function fmtDateTime(v?: string): string {
-  if (!v) return "—";
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return v;
-  return d.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function duration(a?: string, b?: string): string {
-  if (!a || !b) return "—";
-  const ms = new Date(b).getTime() - new Date(a).getTime();
-  if (!Number.isFinite(ms) || ms < 0) return "—";
-  if (ms < 1000) return `${ms} ms`;
-  return `${(ms / 1000).toFixed(1)} s`;
-}
-
-function cronHint(w: Workflow): string {
-  if (w.trigger_kind === "cron" && w.trigger_spec?.expr) {
-    const tz = w.trigger_spec.tz ? ` · ${w.trigger_spec.tz}` : "";
-    return `cron: ${w.trigger_spec.expr}${tz}`;
-  }
-  return w.trigger_kind ?? "manual";
-}
+import type { Workflow, WorkflowRun } from "../types";
+import { PlanTimeline } from "../workflows/PlanTimeline";
+import { WorkflowDetail, StatusIcon, duration, fmtDateTime } from "../workflows/WorkflowDetail";
+import { WorkflowEditor } from "../workflows/WorkflowEditor";
+import { triggerIcon } from "../workflows/catalog";
+import { describeTrigger } from "../workflows/schedule";
 
 export default function Workflows() {
   const workflows = useWorkflows();
   const runs = useWorkflowRuns();
+  /**
+   * `?id=` names one workflow to show even if it is still a draft — how the
+   * "Open in Workflows" link from an Analyze thread arrives. Without it, a
+   * workflow the assistant just built would be filtered out of the very page
+   * it was sent to, with no way to activate it here.
+   */
+  const [params] = useSearchParams();
+  const focusId = params.get("id");
+
+  const [editing, setEditing] = useState<Workflow | null>(null);
+  const [opened, setOpened] = useState<Workflow | null>(null);
+
+  // Opened on arrival, once. Closing it must not immediately reopen it, and
+  // returning to the page later should not either — hence the ref rather than
+  // keying off `opened` being null.
+  const autoOpened = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusId || autoOpened.current === focusId) return;
+    const found = workflows.data?.workflows?.find((w) => w._id === focusId);
+    if (!found) return;
+    autoOpened.current = focusId;
+    setOpened(found);
+  }, [focusId, workflows.data]);
 
   if (workflows.isLoading) return <Spinner />;
   if (workflows.isError)
@@ -107,10 +61,29 @@ export default function Workflows() {
       </div>
     );
 
-  const wfList = workflows.data?.workflows ?? [];
+  /**
+   * Drafts are excluded — except one named by `?id=`.
+   *
+   * A workflow arrives `pending_approval` and stays that way until it is
+   * activated, so anything the assistant authored and nobody kept — a re-ask,
+   * a revision, a second create inside one turn — lingers as a draft with the
+   * same name as the real one. Listing those beside the workflow that is
+   * actually running makes the page ambiguous exactly where it needs to be
+   * certain: which of these is the automation my portfolio is relying on?
+   *
+   * The exception is the one you asked for by name. Hiding *that* would break
+   * the link out of Analyze, so it is listed, badged as a draft, and can be
+   * activated here like anything else. Hiding drafts is about not accumulating
+   * a pile; it was never about refusing to show you a workflow you navigated to.
+   */
+  const allWorkflows = workflows.data?.workflows ?? [];
+  const wfList = allWorkflows.filter((w) => !w.pending_approval || w._id === focusId);
   const runList = runs.data?.runs ?? [];
-  const nameById: { [id: string]: string } = {};
-  wfList.forEach((w) => (nameById[w._id] = w.name));
+
+  // The opened workflow is looked up fresh each render so an edit made in the
+  // editor is reflected behind it rather than showing the copy it was opened
+  // with.
+  const openedNow = opened ? wfList.find((w) => w._id === opened._id) ?? opened : null;
 
   return (
     <div className="content">
@@ -118,8 +91,9 @@ export default function Workflows() {
         <div className="titles">
           <h2>Workflows</h2>
           <p>
-            Automations running in InventDB SOAR — scheduled reports, alerts and data
-            actions, with their live execution history.
+            Automations that run against your portfolio — scheduled reports, alerts and data
+            actions — with their live execution history. They run on InventDB SOAR’s engine,
+            and you can edit, rehearse and activate them here.
           </p>
         </div>
         <div className="actions">
@@ -135,218 +109,154 @@ export default function Workflows() {
           <EmptyState
             icon={<Zap size={26} />}
             title="No workflows yet"
-            message="Create workflows in InventDB SOAR to automate reports and alerts; they'll appear here with a run timeline."
+            message="Describe the automation you want in Analyze — “email each owner their statement on the 1st” — then rehearse it there and activate it. Activated workflows appear here."
           />
         </div>
       ) : (
-        <>
-          <RunTimeline runs={runList} nameById={nameById} />
-          <div className="grid-2" style={{ marginTop: 16 }}>
-            {wfList.map((w) => (
-              <WorkflowCard key={w._id} workflow={w} runs={runList.filter((r) => r.workflow_id === w._id)} />
-            ))}
-          </div>
-        </>
+        <div className="grid-2">
+          {wfList.map((w) => (
+            <WorkflowCard
+              key={w._id}
+              workflow={w}
+              runs={runList.filter((r) => r.workflow_id === w._id)}
+              onOpen={() => setOpened(w)}
+              onEdit={() => setEditing(w)}
+            />
+          ))}
+        </div>
+      )}
+
+      {openedNow && (
+        <WorkflowDetail
+          workflow={openedNow}
+          onClose={() => setOpened(null)}
+          onEdit={(w) => {
+            setOpened(null);
+            setEditing(w);
+          }}
+        />
+      )}
+
+      {editing && (
+        <WorkflowEditor
+          workflow={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(saved) => {
+            setEditing(null);
+            // Back into the detail view, so the saved plan can be read and
+            // rehearsed without hunting for the card again.
+            if (saved?._id) setOpened(saved);
+          }}
+        />
       )}
     </div>
   );
 }
 
-// ---- Runs timeline chart --------------------------------------------------
-function RunTimeline({
+// ---- Workflow card --------------------------------------------------------
+function WorkflowCard({
+  workflow,
   runs,
-  nameById,
+  onOpen,
+  onEdit,
 }: {
+  workflow: Workflow;
   runs: WorkflowRun[];
-  nameById: { [id: string]: string };
+  onOpen: () => void;
+  onEdit: () => void;
 }) {
-  const chart = useChartTheme();
-
-  // Assign each workflow a Y row.
-  const ids = Array.from(new Set(runs.map((r) => r.workflow_id)));
-  const rowOf: { [id: string]: number } = {};
-  ids.forEach((id, i) => (rowOf[id] = i + 1));
-
-  const points = runs
-    .filter((r) => r.started_at)
-    .map((r) => ({
-      x: new Date(r.started_at as string).getTime(),
-      y: rowOf[r.workflow_id],
-      z: Math.max(1, new Date(r.ended_at || r.started_at || 0).getTime() - new Date(r.started_at as string).getTime()),
-      status: r.status,
-      name: nameById[r.workflow_id] ?? r.workflow_id,
-      started: r.started_at,
-      ended: r.ended_at,
-    }));
-
-  if (points.length === 0) {
-    return (
-      <div className="card chart-card">
-        <h3>Run Timeline</h3>
-        <div className="chart-sub">No runs recorded yet.</div>
-      </div>
-    );
-  }
-
-  const shortName = (n: string) => (n.length > 22 ? n.slice(0, 21) + "…" : n);
-
-  return (
-    <div className="card chart-card">
-      <h3>Run Timeline</h3>
-      <div className="chart-sub">Each point is a workflow run, coloured by outcome</div>
-      <ResponsiveContainer width="100%" height={80 + ids.length * 56}>
-        <ScatterChart margin={{ top: 10, right: 24, bottom: 20, left: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
-          <XAxis
-            type="number"
-            dataKey="x"
-            domain={["dataMin - 3600000", "dataMax + 3600000"]}
-            scale="time"
-            tickFormatter={(t) => fmtDateTime(new Date(t).toISOString())}
-            stroke={chart.axis}
-            fontSize={11}
-          />
-          <YAxis
-            type="number"
-            dataKey="y"
-            domain={[0, ids.length + 1]}
-            ticks={ids.map((_, i) => i + 1)}
-            tickFormatter={(v) => {
-              const id = ids[(v as number) - 1];
-              return id ? shortName(nameById[id] ?? id) : "";
-            }}
-            width={140}
-            stroke={chart.axis}
-            fontSize={11}
-          />
-          <ZAxis type="number" dataKey="z" range={[70, 320]} />
-          <Tooltip
-            cursor={{ strokeDasharray: "3 3" }}
-            content={({ active, payload }) => {
-              if (!active || !payload || !payload.length) return null;
-              const d = payload[0].payload as (typeof points)[number];
-              return (
-                <div
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--radius)",
-                    padding: "9px 13px",
-                    fontSize: 12.5,
-                    color: "var(--text)",
-                    boxShadow: "var(--shadow)",
-                  }}
-                >
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{d.name}</div>
-                  <div style={{ textTransform: "capitalize" }}>Status: {d.status}</div>
-                  <div>Started: {fmtDateTime(d.started)}</div>
-                  <div>Duration: {duration(d.started, d.ended)}</div>
-                </div>
-              );
-            }}
-          />
-          <Scatter data={points}>
-            {points.map((pt, i) => (
-              <Cell key={i} fill={statusColor(pt.status, chart)} />
-            ))}
-          </Scatter>
-        </ScatterChart>
-      </ResponsiveContainer>
-      <div className="wf-legend">
-        {[
-          { label: "Succeeded", c: chart.status.success },
-          { label: "Failed", c: chart.status.danger },
-          { label: "Running", c: chart.status.warn },
-        ].map((l) => (
-          <span key={l.label}>
-            <span className="dot" style={{ background: l.c }} />
-            {l.label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ---- Workflow card with plan step timeline --------------------------------
-function WorkflowCard({ workflow, runs }: { workflow: Workflow; runs: WorkflowRun[] }) {
+  const toast = useToast();
+  const run = useRunWorkflow();
+  /**
+   * The list does not always carry each workflow's plan — InventDB omits it
+   * from `GET /api/workflows` — so the card reads the definition it renders
+   * from the detail query. That is the same query key the detail modal uses,
+   * so opening a card costs nothing and this costs nothing once it is open.
+   */
   const detail = useWorkflow(workflow._id);
-  const plan: WorkflowStep[] = detail.data?.plan ?? workflow.plan ?? [];
-  const TriggerIcon = TRIGGER_ICONS[workflow.trigger_kind ?? "manual"] ?? Clock;
+  const wf: Workflow = { ...workflow, ...(detail.data ?? {}) };
+  const TriggerIcon = triggerIcon(wf.trigger_kind);
+  // Only a workflow reached by `?id=` can be pending here; the list filters the
+  // rest out. It still has to say so — "Active" on something that has never
+  // run would be a lie, and Activate is the whole reason to arrive here.
+  const pending = !!wf.pending_approval;
+  const active = wf.active ?? !pending;
   const recentRuns = [...runs]
     .sort((a, b) => (b.started_at || "").localeCompare(a.started_at || ""))
     .slice(0, 4);
 
+  /**
+   * The card's Rehearse always forces mocked side effects, whatever the
+   * workflow's own setting. From a list, one click away from a dozen other
+   * cards, "run" should not be able to email owners.
+   */
+  async function rehearse() {
+    try {
+      await run.mutateAsync({ id: workflow._id, sandboxOverride: true });
+      toast.success(`Rehearsing “${workflow.name}” — open it to watch the run.`);
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
+  }
+
   return (
-    <div className="card card-pad">
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+    <div className="card card-pad wf-card">
+      <div className="wf-card-head">
         <div className="stat-ico" style={{ flexShrink: 0 }}>
           <TriggerIcon size={18} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <h3 style={{ fontSize: 15 }}>{workflow.name}</h3>
-            <span className={`badge ${workflow.active ? "success" : "neutral"}`}>
-              {workflow.active ? "Active" : "Paused"}
+          <div className="wf-card-title">
+            <button className="wf-card-name" onClick={onOpen}>
+              <h3>{wf.name}</h3>
+            </button>
+            <span className={`badge ${active ? "success" : "neutral"}`}>
+              {pending ? "Draft" : active ? "Active" : "Paused"}
             </span>
+            {wf.sandbox && <span className="badge warn">Rehearsing</span>}
           </div>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--text-muted)", fontSize: 12, marginTop: 4 }}>
-            <Clock size={13} /> {cronHint(workflow)}
+          <div className="wf-card-trigger">
+            <Clock size={13} /> {describeTrigger(wf.trigger_kind, wf.trigger_spec)}
           </div>
-          {workflow.trigger_intent && (
-            <p style={{ color: "var(--text-muted)", fontSize: 12.5, margin: "8px 0 0" }}>
-              {workflow.trigger_intent}
-            </p>
-          )}
+          {wf.trigger_intent && <p className="wf-card-intent">{wf.trigger_intent}</p>}
         </div>
       </div>
 
-      {/* Plan step timeline */}
-      <div className="wf-steps">
-        {detail.isLoading && plan.length === 0 ? (
-          <div className="report-note" style={{ padding: "10px 0" }}>Loading steps…</div>
-        ) : (
-          plan.map((step, i) => {
-            const Ico = STEP_ICONS[step.kind] ?? Circle;
-            return (
-              <div className="wf-step" key={step.idx ?? i}>
-                <div className="wf-step-rail">
-                  <div className="wf-ico">
-                    <Ico size={15} />
-                  </div>
-                  {i < plan.length - 1 && <div className="wf-line" />}
-                </div>
-                <div className="wf-step-body">
-                  <div className="wf-step-title">
-                    {step.label || step.kind}
-                    <span className="wf-kind">{step.kind}</span>
-                  </div>
-                  {step.narration && <div className="wf-step-desc">{step.narration}</div>}
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+      {/* "No steps" is only true once the definition has actually arrived —
+          claiming it while the plan is still loading reads as a broken
+          workflow rather than a slow one. */}
+      <PlanTimeline
+        workflow={wf}
+        emptyNote={detail.isLoading ? "Loading steps…" : "This workflow has no steps."}
+      />
 
-      {/* Recent runs */}
       {recentRuns.length > 0 && (
-        <div style={{ marginTop: 14, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
-          <div className="report-note" style={{ marginBottom: 8, fontWeight: 600 }}>Recent runs</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div className="wf-card-runs">
+          <div className="report-note wf-card-runs-head">Recent runs</div>
+          <div className="wf-card-run-list">
             {recentRuns.map((r) => (
-              <div key={r._id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+              <div key={r._id} className="wf-card-run">
                 <StatusIcon status={r.status} />
-                <span style={{ textTransform: "capitalize", minWidth: 74 }}>{r.status}</span>
-                <span style={{ color: "var(--text-muted)" }}>{fmtDateTime(r.started_at)}</span>
-                <span style={{ marginLeft: "auto", color: "var(--text-faint)" }}>
-                  {duration(r.started_at, r.ended_at)}
-                </span>
+                <span className="wf-card-run-status">{r.status}</span>
+                <span className="wf-card-run-time">{fmtDateTime(r.started_at)}</span>
+                <span className="wf-card-run-dur">{duration(r.started_at, r.ended_at)}</span>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      <div className="wf-card-actions">
+        <button className="btn btn-sm" onClick={rehearse} disabled={run.isPending}>
+          <Play size={14} /> {run.isPending ? "Queuing…" : "Rehearse"}
+        </button>
+        <button className="btn btn-sm" onClick={onEdit}>
+          <PencilLine size={14} /> Edit
+        </button>
+        <button className="btn btn-ghost btn-sm wf-card-open" onClick={onOpen}>
+          Open
+        </button>
+      </div>
     </div>
   );
 }

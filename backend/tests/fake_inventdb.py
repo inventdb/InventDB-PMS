@@ -68,12 +68,14 @@ class Reply:
     """A canned HTTP response.
 
     Exactly one body style applies: a JSON ``payload`` (the default), ``raw``
-    text that is *not* valid JSON, or ``empty`` for a bodiless 204-style reply.
-    The last two exist because ``InventDBClient._parse`` has explicit branches
-    for both and they would otherwise go untested.
+    text that is *not* valid JSON, ``empty`` for a bodiless 204-style reply, or
+    ``chunks`` for a streamed body delivered piece by piece. The middle two
+    exist because ``InventDBClient._parse`` has explicit branches for both and
+    they would otherwise go untested; ``chunks`` is for the Analyze agent
+    stream, which the app relays rather than parses.
     """
 
-    __slots__ = ("status", "payload", "raw", "empty")
+    __slots__ = ("status", "payload", "raw", "empty", "chunks")
 
     def __init__(
         self,
@@ -82,11 +84,13 @@ class Reply:
         *,
         raw: Optional[str] = None,
         empty: bool = False,
+        chunks: Optional[list[Any]] = None,
     ) -> None:
         self.status = status
         self.payload = payload
         self.raw = raw
         self.empty = empty
+        self.chunks = chunks
 
 
 class _Response:
@@ -114,6 +118,18 @@ class _Response:
             # the exception `_parse` catches.
             raise ValueError("No JSON object could be decoded")
         return self._reply.payload
+
+    # -- streaming ---------------------------------------------------------
+    # The Analyze agent stream is the one response the app does NOT parse: it
+    # forwards the bytes to the browser as they arrive. These two members are
+    # the whole of what the relay touches, so a test can hand it a scripted SSE
+    # body and assert what reached the client.
+    def iter_content(self, chunk_size: Any = None) -> Any:
+        for chunk in self._reply.chunks if self._reply.chunks is not None else [self.content]:
+            yield chunk if isinstance(chunk, bytes) else str(chunk).encode("utf-8")
+
+    def close(self) -> None:
+        self.closed = True
 
 
 Matcher = Union[str, Pattern[str], Callable[[Call], bool]]
@@ -154,6 +170,7 @@ class FakeInventDB:
         status: int = 200,
         raw: Optional[str] = None,
         empty: bool = False,
+        chunks: Optional[list[Any]] = None,
         error: Optional[BaseException] = None,
     ) -> "FakeInventDB":
         """Route ``method path`` to a canned reply (or raise ``error``).
@@ -161,7 +178,9 @@ class FakeInventDB:
         ``path`` may be an exact string, a compiled regex (searched against the
         path), or a predicate over the :class:`Call`.
         """
-        responder: Responder = error or Reply(status, payload, raw=raw, empty=empty)
+        responder: Responder = error or Reply(
+            status, payload, raw=raw, empty=empty, chunks=chunks
+        )
         self._rules.append(_Rule(method.upper(), path, responder))
         return self
 

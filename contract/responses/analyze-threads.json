@@ -1,0 +1,19 @@
+{
+  "threads": [
+    {
+      "_exchanges": [
+        {
+          "answer": "Single-family homes carry $48,200 of the monthly roll.",
+          "artifacts": [],
+          "question": "Rent roll by property type",
+          "steps": [],
+          "ts": "2026-08-01T09:00:04.000Z"
+        }
+      ],
+      "_id": "soar_thread-001",
+      "created": "2026-08-01T09:00:00.000Z",
+      "label": "Rent roll by property type",
+      "user_id": "user-001"
+    }
+  ]
+}

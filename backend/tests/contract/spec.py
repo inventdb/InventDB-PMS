@@ -163,8 +163,110 @@ WORK_ORDERS = {
     "open_cost_estimate": "number",
 }
 
-WORKFLOWS = {"workflows": ["object"]}
+# A workflow definition. `_id` and `name` are the two fields every surface
+# reads, so they are required; the rest is optional because InventDB omits what
+# does not apply — `next_run_at` only exists for a cron trigger, `plan` is
+# absent from a list response on some versions.
+WORKFLOW = {
+    "_id": "string",
+    "name": "string",
+    "trigger_kind?": "string",
+    "trigger_intent?": "string",
+    "trigger_spec?": "object",
+    "plan?": "array",
+    "active?": "bool",
+    "pending_approval?": "bool",
+    "sandbox?": "bool",
+    "version?": "int",
+    "next_run_at?": "string|null",
+}
+
+WORKFLOWS = {"workflows": [WORKFLOW]}
+WORKFLOW_VERSIONS = {"versions": ["object"]}
+# Firing is asynchronous: the engine queues an event and the run appears later,
+# so what comes back identifies the event, not a result.
+WORKFLOW_QUEUED = {"event_id": "string"}
+WORKFLOW_DELETED = {"deleted": "string"}
+
+# ---- Report Studio ---------------------------------------------------------
+# The edit stream is not described here: it is a `text/event-stream` of
+# InventDB's own events, relayed rather than reshaped, so there is no JSON body
+# for this machinery to check (`tests/test_report_studio.py` covers the relay).
+# The snapshot list IS reshaped — two attachments become one report — so it is.
+
+REPORT_SNAPSHOTS = {
+    "snapshots": [
+        {
+            "record_id": "string",
+            "attachment_id": "string",
+            "name": "string",
+            "created_at": "any",
+            "from_template": "bool",
+        }
+    ],
+    "count": "int",
+}
+
+
+# ---- Analyze ---------------------------------------------------------------
+# The agent stream itself is not described here: it is a `text/event-stream` of
+# InventDB's own frames, relayed byte-for-byte rather than reshaped, so there is
+# no JSON body for this machinery to check. `tests/test_analyze.py` covers the
+# relay. What IS described is everything the room needs *around* the stream —
+# the model catalog, the workspace default, the thread history and the
+# web-search gate — because those the app does reshape.
+
+ANALYZE_CONFIG = {
+    "configured": "bool",
+    "model": "string|null",
+    "modelFamily": "string|null",
+}
+
+ANALYZE_MODELS = {"models": ["object"]}
+
+ANALYZE_THREADS = {"threads": ["object"]}
+
+ANALYZE_WEBSEARCH = {"enabled": "bool", "consented": "bool"}
 WORKFLOW_RUNS = {"runs": ["object"]}
+
+# ---- The inbox -------------------------------------------------------------
+# A notification's `actions` are the contract, not decoration: their absence is
+# what distinguishes a bell from a parked run, and the UI's badge, buttons and
+# "needs you" state all read from it. The rest of a notification is relayed as
+# InventDB shapes it.
+NOTIFICATION = {
+    "_id": "string",
+    "title": "string",
+    "body?": "string",
+    "actions?": "array",
+    "workflow_id?": "string",
+    "run_id?": "string",
+    "created_at?": "string",
+    "read_at?": "string|null",
+    "resolved_action?": "string|null",
+}
+NOTIFICATIONS = {"notifications": [NOTIFICATION]}
+
+# ---- Maintenance intake ----------------------------------------------------
+VENDOR_SHORTLIST = {
+    "category": "string",
+    "trades": ["string"],
+    "vendors": ["object"],
+    "total_matched": "int",
+}
+MAINTENANCE_CATEGORIES = {"categories": ["object"], "priorities": ["string"]}
+INTAKE_STATUS = {
+    "installed": "bool",
+    "workflow": "any",
+    "name": "string",
+    "trades_on_file": ["string"],
+    "coverage": ["object"],
+    "uncovered": ["string"],
+}
+# One run with its execution timeline. Relayed as InventDB shapes it — the two
+# keys are the contract; what a step row contains is the engine's business, and
+# pinning it here would break the PMS every time a new step kind was added.
+WORKFLOW_RUN_DETAIL = {"run": "object", "steps": ["object"]}
 
 DELETE_ACK = {"ok": "bool", "id": "string"}
 ERROR = {"ok": "bool", "error": "any"}
@@ -280,6 +382,134 @@ ENDPOINTS: list[dict[str, Any]] = [
     },
     {"key": "workflows", "method": "GET", "path": "/api/workflows", "shape": WORKFLOWS},
     {"key": "workflow-runs", "method": "GET", "path": "/api/workflows/runs", "shape": WORKFLOW_RUNS},
+    {
+        "key": "workflow-run-detail",
+        "method": "GET",
+        "path": "/api/workflows/runs/{run_id}",
+        "shape": WORKFLOW_RUN_DETAIL,
+    },
+    {
+        "key": "notifications",
+        "method": "GET",
+        "path": "/api/notifications",
+        "shape": NOTIFICATIONS,
+    },
+    {
+        "key": "notification-detail",
+        "method": "GET",
+        "path": "/api/notifications/{notification_id}",
+        "shape": NOTIFICATION,
+    },
+    {
+        "key": "maintenance-vendors",
+        "method": "GET",
+        "path": "/api/maintenance/vendors?category=Plumbing",
+        "shape": VENDOR_SHORTLIST,
+    },
+    {
+        "key": "maintenance-categories",
+        "method": "GET",
+        "path": "/api/maintenance/categories",
+        "shape": MAINTENANCE_CATEGORIES,
+    },
+    {
+        "key": "maintenance-intake",
+        "method": "GET",
+        "path": "/api/maintenance/intake",
+        "shape": INTAKE_STATUS,
+    },
+    {
+        "key": "workflow-detail",
+        "method": "GET",
+        "path": "/api/workflows/{workflow_id}",
+        "shape": WORKFLOW,
+    },
+    {
+        "key": "workflow-versions",
+        "method": "GET",
+        "path": "/api/workflows/{workflow_id}/versions",
+        "shape": WORKFLOW_VERSIONS,
+    },
+    {
+        "key": "workflow-create",
+        "method": "POST",
+        "path": "/api/workflows",
+        "body": {
+            "name": "Contract check",
+            "trigger_kind": "cron",
+            "trigger_spec": {"expr": "0 9 * * 1", "tz": "UTC"},
+            "trigger_intent": "Every Monday at 9 AM",
+            "plan": [
+                {
+                    "idx": 0,
+                    "kind": "sql_query",
+                    "label": "Count leases",
+                    "narration": "",
+                    "sql": "SELECT 1",
+                }
+            ],
+        },
+        "shape": WORKFLOW,
+        "status": 201,
+    },
+    {
+        "key": "workflow-update",
+        "method": "PUT",
+        "path": "/api/workflows/{workflow_id}",
+        "body": {"trigger_intent": "Every Monday at 10 AM"},
+        "shape": WORKFLOW,
+    },
+    {
+        "key": "workflow-activate",
+        "method": "POST",
+        "path": "/api/workflows/{workflow_id}/activate",
+        "body": {},
+        "shape": WORKFLOW,
+    },
+    {
+        "key": "workflow-run",
+        "method": "POST",
+        "path": "/api/workflows/{workflow_id}/run",
+        "body": {"sandbox_override": True},
+        "shape": WORKFLOW_QUEUED,
+        "status": 202,
+    },
+    {
+        "key": "workflow-delete",
+        "method": "DELETE",
+        "path": "/api/workflows/{workflow_id}",
+        "shape": WORKFLOW_DELETED,
+    },
+    {
+        "key": "report-snapshots",
+        "method": "GET",
+        "path": "/api/reports/snapshots",
+        "shape": REPORT_SNAPSHOTS,
+    },
+    {
+        "key": "analyze-config",
+        "method": "GET",
+        "path": "/api/analyze/config",
+        "shape": ANALYZE_CONFIG,
+    },
+    {
+        "key": "analyze-models",
+        "method": "GET",
+        "path": "/api/analyze/models",
+        "shape": ANALYZE_MODELS,
+    },
+    {
+        "key": "analyze-threads",
+        "method": "GET",
+        "path": "/api/analyze/threads",
+        "shape": ANALYZE_THREADS,
+    },
+    {
+        "key": "analyze-websearch-status",
+        "method": "GET",
+        "path": "/api/analyze/websearch/status",
+        "shape": ANALYZE_WEBSEARCH,
+    },
     {
         "key": "error-envelope",
         "method": "GET",

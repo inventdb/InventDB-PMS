@@ -1,0 +1,7 @@
+{
+  "_id": "wf-001",
+  "active": true,
+  "name": "Weekly Lease Renewals Due",
+  "trigger_intent": "Every Monday at 10 AM",
+  "version": 3
+}

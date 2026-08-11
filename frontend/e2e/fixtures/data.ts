@@ -61,6 +61,31 @@ export function createStore(): Store {
   return JSON.parse(JSON.stringify(SEED)) as Store;
 }
 
+/**
+ * The report library for one test.
+ *
+ * Authoring mutates it — a rename changes a name, a delete removes a row, an
+ * edit bumps a version — so it has to be per-test like `createStore()`. Sharing
+ * the module constants meant a rename in the studio spec renamed the report the
+ * rendering spec was waiting for, in whichever test happened to run next in the
+ * same worker.
+ */
+export interface ReportStore {
+  templates: Rec[];
+  details: { [id: string]: Record<string, unknown> };
+  snapshots: Rec[];
+}
+
+export function createReportStore(): ReportStore {
+  return JSON.parse(
+    JSON.stringify({
+      templates: REPORT_TEMPLATES,
+      details: REPORT_DETAILS,
+      snapshots: REPORT_SNAPSHOTS,
+    })
+  ) as ReportStore;
+}
+
 const SEED: Store = {
   properties: [
     {
@@ -537,10 +562,31 @@ export const WORKFLOWS = [
     trigger_intent: "Render and email each owner their statement on the 1st.",
     trigger_spec: { expr: "0 6 1 * *", tz: "Asia/Kolkata" },
     active: true,
+    pending_approval: false,
+    // Live: this one really sends. The paused workflow below is the sandboxed
+    // case, so the two axes are covered independently.
+    sandbox: false,
+    version: 2,
+    next_run_at: "2025-12-01T06:00:00Z",
     plan: [
-      { idx: 0, kind: "render_report", label: "Render Owner Statement", narration: "Runs the saved report for each owner." },
-      { idx: 1, kind: "send_email", label: "Email owners", narration: "Attaches the rendered PDF." },
-      { idx: 2, kind: "finish", label: "Done" },
+      {
+        idx: 0,
+        kind: "render_report",
+        label: "Render Owner Statement",
+        narration: "Runs the saved report for each owner.",
+        template_id: "owner-statement",
+        save_as: "statements",
+      },
+      {
+        idx: 1,
+        kind: "send_email",
+        label: "Email owners",
+        narration: "Attaches the rendered PDF.",
+        to: "${statements.email}",
+        subject: "Your monthly statement",
+        body: "Attached.",
+      },
+      { idx: 2, kind: "finish", label: "Done", narration: "", summary: "Statements sent." },
     ],
     created_at: "2025-09-01T00:00:00Z",
   },
@@ -550,13 +596,76 @@ export const WORKFLOWS = [
     trigger_kind: "event",
     trigger_intent: "Notify the on-call manager the moment a work order is filed as Emergency.",
     active: false,
+    pending_approval: false,
+    sandbox: true,
+    version: 1,
     plan: [
-      { idx: 0, kind: "sql_query", label: "Find emergency work orders" },
-      { idx: 1, kind: "notify_user", label: "Page on-call manager" },
+      {
+        idx: 0,
+        kind: "sql_query",
+        label: "Find emergency work orders",
+        narration: "",
+        sql: "SELECT * FROM pms.work_orders WHERE priority = 'Emergency'",
+        save_as: "urgent",
+      },
+      {
+        idx: 1,
+        kind: "notify_user",
+        label: "Page on-call manager",
+        narration: "",
+        title: "Emergency work order",
+        body: "One just came in.",
+        when: "${urgent}",
+      },
     ],
     created_at: "2025-09-14T00:00:00Z",
   },
 ];
+
+/**
+ * A workflow the assistant built and nobody activated yet.
+ *
+ * Hidden from the Workflows page by default — which is why adding it does not
+ * move the "2 workflow(s)" count the other specs assert — and reachable by
+ * `?id=`, the link out of an Analyze thread.
+ */
+export const WORKFLOW_DRAFT = {
+  _id: "wf-3",
+  name: "Monthly payment timing report",
+  trigger_kind: "cron",
+  trigger_intent: "On the 10th of every month at 9:00 AM, email the report.",
+  trigger_spec: { expr: "0 9 10 * *", tz: "Asia/Calcutta" },
+  active: false,
+  pending_approval: true,
+  sandbox: true,
+  version: 1,
+  plan: [
+    {
+      idx: 0,
+      kind: "render_report",
+      label: "Render Payment Timing",
+      narration: "",
+      template_id: "payment-timing",
+    },
+  ],
+  created_at: "2025-11-20T00:00:00Z",
+};
+
+/** Prior definitions, keyed by workflow — what the History tab reads. */
+export const WORKFLOW_VERSIONS: { [workflowId: string]: Rec[] } = {
+  "wf-1": [
+    {
+      // The engine mints synthetic ids for snapshots: "<workflow>.v<version>".
+      _id: "wf-1.v1",
+      version: 1,
+      workflow_id: "wf-1",
+      name: "Monthly owner statements",
+      trigger_intent: "Email each owner their statement on the 1st.",
+      plan: [{ idx: 0, kind: "render_report", label: "Render Owner Statement", narration: "" }],
+      created_at: "2025-09-01T00:00:00Z",
+    },
+  ],
+};
 
 export const WORKFLOW_RUNS = [
   {
@@ -580,6 +689,325 @@ export const WORKFLOW_RUNS = [
     status: "running",
     started_at: "2025-11-09T11:30:00Z",
   },
+];
+
+/**
+ * What each run actually did, keyed by run — the timeline `GET
+ * /api/workflows/runs/<id>` returns alongside the run.
+ *
+ * The engine writes two rows per plan step at the same `idx`: a `tool_call`
+ * carrying the payload it is about to send (with `${…}` already resolved) and a
+ * `tool_result` carrying what came back. The fixtures keep that pairing,
+ * because the UI's whole job here is to show the resolved call next to its
+ * outcome — a flattened list of one row per step would let a regression in that
+ * pairing pass unnoticed.
+ */
+export const WORKFLOW_RUN_STEPS: { [runId: string]: Rec[] } = {
+  "run-1": [
+    {
+      _id: "rs-1",
+      run_id: "run-1",
+      idx: 0,
+      role: "tool_call",
+      created_at: "2025-11-01T06:00:01Z",
+      content: "[Render Owner Statement] Runs the saved report for each owner.",
+      tool_name: "render_report",
+      tool_args: { template_id: "owner-statement" },
+    },
+    {
+      _id: "rs-2",
+      run_id: "run-1",
+      idx: 0,
+      role: "tool_result",
+      created_at: "2025-11-01T06:00:06Z",
+      content: "",
+      tool_name: "render_report",
+      tool_result: [
+        { name: "Meridian Holdings", email: "owner@meridian.test", html: "<h1>Statement</h1>" },
+      ],
+    },
+    {
+      _id: "rs-3",
+      run_id: "run-1",
+      idx: 1,
+      role: "tool_call",
+      created_at: "2025-11-01T06:00:07Z",
+      content: "[Email owners] Attaches the rendered PDF.",
+      tool_name: "send_email",
+      tool_args: {
+        to: "owner@meridian.test",
+        subject: "Your monthly statement",
+        body: "Attached.",
+      },
+    },
+    {
+      _id: "rs-4",
+      run_id: "run-1",
+      idx: 1,
+      role: "tool_result",
+      created_at: "2025-11-01T06:00:11Z",
+      content: "",
+      tool_name: "send_email",
+      tool_result: { ok: true, sent: 1 },
+    },
+  ],
+  "run-2": [
+    {
+      _id: "rs-5",
+      run_id: "run-2",
+      idx: 0,
+      role: "tool_call",
+      created_at: "2025-10-01T06:00:01Z",
+      content: "[Count overdue leases] Finds every lease past its due date.",
+      tool_name: "sql_query",
+      tool_args: { sql: "SELECT _id, rent FROM pms.leases WHERE status = 'overdue'" },
+    },
+    {
+      _id: "rs-6",
+      run_id: "run-2",
+      idx: 0,
+      role: "tool_result",
+      created_at: "2025-10-01T06:00:02Z",
+      content: "",
+      tool_name: "sql_query",
+      tool_result: [{ _id: "L-001", rent: 2400 }],
+    },
+    {
+      _id: "rs-7",
+      run_id: "run-2",
+      idx: 1,
+      role: "tool_result",
+      created_at: "2025-10-01T06:00:04Z",
+      content: "send_email failed",
+      tool_name: "send_email",
+      tool_result: { error: "SMTP timeout" },
+    },
+  ],
+  // Mid-flight: one call written, no result yet. This is what the timeline
+  // looks like the moment someone opens a running rehearsal.
+  "run-3": [
+    {
+      _id: "rs-8",
+      run_id: "run-3",
+      idx: 0,
+      role: "tool_call",
+      created_at: "2025-11-09T11:30:01Z",
+      content: "[Notify the on-call manager] Pages whoever is on call.",
+      tool_name: "notify_user",
+      tool_args: { message: "Emergency work order filed." },
+    },
+  ],
+};
+
+// ---- The inbox -----------------------------------------------------------
+
+/**
+ * What the automations have left for a person.
+ *
+ * The three states the page distinguishes are all here, because they behave
+ * differently and each has been a bug at least once: `n-1` is a run parked on a
+ * decision (actions, unanswered — the only kind that holds a run open), `n-2` is
+ * the same thing after it was answered (actions, resolved — buttons stay
+ * visible but disabled), and `n-3` is a bell (no actions, can never be
+ * answered, must never count toward the badge).
+ *
+ * `n-1`'s body is the shape the real intake produces: light HTML with values
+ * interpolated from an inbound email. The `<img onerror>` in `n-4` is what an
+ * attacker gets to put there, and is what the sanitiser has to survive.
+ */
+export const NOTIFICATIONS: Rec[] = [
+  {
+    _id: "n-1",
+    title: "Assign a contractor: kitchen tap dripping",
+    body:
+      "<p><strong>High priority</strong> — Plumbing</p>" +
+      "<p><strong>Property:</strong> 12 Marine Drive, Mumbai<br>" +
+      "<strong>Tenant:</strong> Meera Iyer (meera.iyer@example.com)<br>" +
+      "<strong>Reported:</strong> Kitchen tap dripping constantly for three days</p>" +
+      "<p><strong>Recommended:</strong> Coastal Plumbing — Plumbing, rated 4.6, Ravi N.</p>",
+    actions: [
+      { id: "approve", label: "Assign the recommended contractor", kind: "approve" },
+      {
+        id: "choose",
+        label: "Assign a different contractor",
+        kind: "form",
+        form_fields: [
+          { name: "vendor", type: "text", required: true, label: "Contractor (company name)" },
+        ],
+      },
+      { id: "decline", label: "Not now", kind: "decline" },
+    ],
+    workflow_id: "wf-intake",
+    run_id: "run-intake",
+    step_idx: 6,
+    created_at: "2026-08-11T06:42:00Z",
+    // Explicit nulls, because that is what InventDB sends for an unanswered,
+    // unread notification — and `contract.spec.ts` compares the key sets.
+    read_at: null,
+    resolved_action: null,
+  },
+  {
+    _id: "n-2",
+    title: "Approve overtime call-out: no hot water",
+    body: "<p>Nimbus Air quoted an out-of-hours call-out.</p>",
+    actions: [
+      { id: "approve", label: "Approve the call-out", kind: "approve" },
+      { id: "decline", label: "Not now", kind: "decline" },
+    ],
+    workflow_id: "wf-intake",
+    run_id: "run-1",
+    created_at: "2026-08-09T18:05:00Z",
+    read_at: "2026-08-09T18:20:00Z",
+    resolved_action: "approve",
+    resolved_at: "2026-08-09T18:22:00Z",
+  },
+  {
+    _id: "n-3",
+    title: "Monthly owner statements sent",
+    body: "12 owners were emailed their statement.",
+    actions: [],
+    workflow_id: "wf-1",
+    run_id: "run-1",
+    created_at: "2026-08-01T06:00:12Z",
+    read_at: "2026-08-01T08:00:00Z",
+  },
+  {
+    _id: "n-4",
+    title: "Assign a contractor: front door lock jammed",
+    // The "issue" here is text a stranger emailed the office, interpolated into
+    // the body by the plan. Rendering it as markup would run it.
+    body:
+      "<p><strong>Reported:</strong> lock jammed " +
+      "<img src=x onerror=\"window.__xss=1\"> " +
+      "<a href=\"javascript:window.__xss=1\">click</a> " +
+      "<script>window.__xss=1</script></p>",
+    actions: [{ id: "approve", label: "Assign the recommended contractor", kind: "approve" }],
+    workflow_id: "wf-intake",
+    run_id: "run-intake",
+    created_at: "2026-08-11T05:00:00Z",
+  },
+];
+
+/** The run behind the parked approval — its trail is shown under the decision. */
+export const INTAKE_RUN = {
+  _id: "run-intake",
+  workflow_id: "wf-intake",
+  status: "parked",
+  started_at: "2026-08-11T06:41:40Z",
+  sandbox: false,
+};
+
+export const INTAKE_RUN_STEPS: Rec[] = [
+  {
+    _id: "irs-1",
+    run_id: "run-intake",
+    idx: 0,
+    role: "tool_call",
+    created_at: "2026-08-11T06:41:41Z",
+    content: "[Read the request] Pulls out what is broken and how urgent it is.",
+    tool_name: "llm_extract",
+  },
+  {
+    _id: "irs-2",
+    run_id: "run-intake",
+    idx: 3,
+    role: "tool_result",
+    created_at: "2026-08-11T06:41:49Z",
+    content: "",
+    tool_name: "insert_record",
+    tool_result: { ok: true, _id: "wo-new", id: "WO-1003" },
+  },
+  {
+    _id: "irs-3",
+    run_id: "run-intake",
+    idx: 4,
+    role: "tool_call",
+    created_at: "2026-08-11T06:41:52Z",
+    content: "[Acknowledge the request] Replies to whoever wrote in.",
+    tool_name: "send_email",
+    tool_args: { to: "meera.iyer@example.com", subject: "Re: dripping tap" },
+  },
+  {
+    _id: "irs-4",
+    run_id: "run-intake",
+    idx: 5,
+    role: "tool_result",
+    created_at: "2026-08-11T06:41:58Z",
+    content: "",
+    tool_name: "sql_query",
+    tool_result: [
+      { company: "Coastal Plumbing", trade: "Plumbing", rating: 4.6, coi_on_file: true },
+    ],
+  },
+];
+
+/** The intake automation, as installed — a rehearsal until someone activates it. */
+export const INTAKE_WORKFLOW: Rec = {
+  _id: "wf-intake",
+  name: "Maintenance request intake",
+  trigger_kind: "inbound_email",
+  trigger_spec: {},
+  trigger_intent:
+    "When a maintenance or repair request arrives by email — sent by a tenant, or by someone writing on a tenant's behalf.",
+  active: false,
+  pending_approval: true,
+  sandbox: true,
+  version: 1,
+  plan: [
+    { idx: 0, kind: "llm_extract", label: "Read the request", narration: "Works out what broke." },
+    { idx: 1, kind: "insert_record", label: "Open a work order", narration: "Unassigned." },
+    { idx: 2, kind: "send_email", label: "Acknowledge the request", narration: "" },
+    { idx: 3, kind: "sql_query", label: "Shortlist a contractor", narration: "" },
+    { idx: 4, kind: "notify_user", label: "Ask before dispatching", narration: "Parks the run." },
+    { idx: 5, kind: "update_record", label: "Assign the recommended contractor", narration: "" },
+    { idx: 6, kind: "finish", label: "Done", narration: "" },
+  ],
+};
+
+/** Ranked candidates, as `/api/maintenance/vendors` returns them. */
+export const VENDOR_SHORTLIST: { [category: string]: Record<string, unknown> } = {
+  Plumbing: {
+    category: "Plumbing",
+    trades: ["Plumbing", "General"],
+    total_matched: 1,
+    vendors: [
+      {
+        _id: "ven-1",
+        company: "Coastal Plumbing",
+        trade: "Plumbing",
+        rating: 4.6,
+        coi_on_file: true,
+        insured: true,
+        why: "Plumbing specialist, certificate of insurance on file, rated 4.6",
+        match_rank: 0,
+      },
+    ],
+  },
+  HVAC: {
+    category: "HVAC",
+    trades: ["HVAC"],
+    total_matched: 1,
+    vendors: [
+      {
+        _id: "ven-2",
+        company: "Nimbus Air",
+        trade: "HVAC",
+        rating: 4.2,
+        coi_on_file: false,
+        insured: false,
+        why: "HVAC specialist, no certificate of insurance on file, rated 4.2",
+        match_rank: 0,
+      },
+    ],
+  },
+};
+
+/** Which categories the seeded vendor roster can and cannot staff. */
+export const INTAKE_COVERAGE = [
+  { category: "Plumbing", trades: ["Plumbing", "General"], covered: true },
+  { category: "HVAC", trades: ["HVAC"], covered: true },
+  { category: "Electrical", trades: ["Electrical"], covered: false },
+  { category: "Roofing", trades: ["Roofing"], covered: false },
 ];
 
 // ---- SQL rollups used by the Reports hooks -------------------------------
@@ -642,3 +1070,186 @@ export const WORK_ORDERS_REPORT = {
   ],
   open_cost_estimate: 570,
 };
+
+// ---- Analyze --------------------------------------------------------------
+// The agent stream is the one response the frontend parses itself, so the
+// fixtures below are shaped exactly like InventDB's own `AgentStep` frames —
+// captured from a live turn on the sandbox instance, then trimmed.
+
+export const ANALYZE_MODELS = [
+  {
+    key: "claude-sonnet-5",
+    family: "Claude",
+    display: "Claude Sonnet 5",
+    is_reasoning: true,
+  },
+  {
+    key: "claude-opus-4-8",
+    family: "Claude",
+    display: "Claude Opus 4.8",
+    is_reasoning: true,
+  },
+];
+
+/** One complete turn: reasoning, a plan, a query with rows, then the answer. */
+export const AGENT_STEPS: Record<string, unknown>[] = [
+  { type: "info", content: "Analyzing your question..." },
+  { type: "reasoning", content: "", executionTimeMs: 214 },
+  { type: "info", content: "Drafting a plan" },
+  {
+    type: "sql",
+    content: "Executing query...",
+    sql: "SELECT city, COUNT(*) AS cnt FROM pms.properties GROUP BY city ORDER BY cnt DESC LIMIT 3",
+  },
+  {
+    type: "result",
+    content: "Query returned 3 rows",
+    sql: "SELECT city, COUNT(*) AS cnt FROM pms.properties GROUP BY city ORDER BY cnt DESC LIMIT 3",
+    data: [
+      { city: "Richmond", cnt: 12 },
+      { city: "Norfolk", cnt: 9 },
+      { city: "Vienna", cnt: 4 },
+    ],
+    executionTimeMs: 3,
+  },
+  {
+    type: "chart",
+    content: "Properties by City",
+    chart: {
+      data: [
+        {
+          type: "bar",
+          x: ["Richmond", "Norfolk", "Vienna"],
+          y: [12, 9, 4],
+          marker: { color: "#3b82f6" },
+        },
+      ],
+      layout: { title: { text: "Properties by City" } },
+    },
+  },
+  {
+    type: "done",
+    content:
+      "Your three largest markets are **Richmond** (12), **Norfolk** (9) and **Vienna** (4).",
+  },
+  {
+    type: "suggestions",
+    content: "",
+    chart: {
+      followups: ["Which city has the highest average rent?"],
+      actions: ["Email this breakdown to the owners"],
+    },
+  },
+];
+
+/** A turn that proposes a record change instead of answering. */
+export const AGENT_PROPOSAL_STEPS: Record<string, unknown>[] = [
+  { type: "info", content: "Building the form" },
+  {
+    type: "form",
+    content: "Create a vendor",
+    chart: {
+      operation: "insert",
+      entities: [
+        {
+          namespace: "pms",
+          typeName: "vendors",
+          existingData: { company: "Blue Ridge Roofing", trade: "Roofing" },
+        },
+      ],
+    },
+  },
+];
+
+/**
+ * A turn that builds an automation.
+ *
+ * `create_workflow` emits a `workflow` step whose `chart.initial` is the saved
+ * record — the whole thing, plan included — plus any `issues` InventDB still
+ * has with the plan it just accepted. `_id` points at a workflow the mock API
+ * knows, because the card refetches the live definition rather than trusting
+ * the snapshot the thread is carrying.
+ */
+export const AGENT_WORKFLOW_STEPS: Record<string, unknown>[] = [
+  { type: "info", content: "Working out what should happen, and when" },
+  {
+    type: "workflow",
+    content: "Created workflow 'Monthly owner statements'",
+    chart: {
+      name: "Monthly owner statements",
+      workflow_id: "wf-1",
+      initial: WORKFLOWS[0],
+      issues: [
+        { step_idx: 1, severity: "warning", message: "No recipients matched the filter yet." },
+      ],
+    },
+  },
+  { type: "done", content: "Built it. It rehearses until you activate it." },
+];
+
+/** Serialise steps as the SSE frames the backend relays. */
+export function sseBody(steps: Record<string, unknown>[]): string {
+  return steps.map((s) => `event: message\ndata: ${JSON.stringify(s)}\n\n`).join("");
+}
+
+export const ANALYZE_THREADS = [
+  {
+    _id: "soar_thread-1",
+    label: "Rent roll by property type",
+    created: "2026-03-01T09:00:00.000Z",
+    _exchanges: [
+      {
+        question: "Rent roll by property type",
+        answer: "Single-family homes carry **$48,200** of the monthly roll.",
+        ts: "2026-03-01T09:00:04.000Z",
+        steps: [
+          {
+            type: "sql",
+            sql: "SELECT type, SUM(market_rent) AS total FROM pms.properties GROUP BY type",
+            ms: 4,
+          },
+        ],
+        artifacts: [],
+      },
+    ],
+  },
+];
+
+// ---- Report Studio --------------------------------------------------------
+
+/** A frozen render the assistant stored — the second kind of report. */
+export const REPORT_SNAPSHOTS = [
+  {
+    record_id: "report_20260811_055342",
+    attachment_id: "att-rentroll-1",
+    name: "Rent Roll — All Properties",
+    created_at: "2026-08-11T05:53:42Z",
+    from_template: false,
+  },
+];
+
+/** The report agent's edit stream, shaped exactly as InventDB emits it. */
+export function reportEditSse(templateId: string, version: number): string {
+  return [
+    `event: start
+data: ${JSON.stringify({ template_id: templateId, current_version: version - 1 })}
+
+`,
+    `event: reasoning
+data: ${JSON.stringify({ content: "", tokens: 406 })}
+
+`,
+    `event: html
+data: ${JSON.stringify({ html: "<h1>Edited</h1>" })}
+
+`,
+    `event: saved
+data: ${JSON.stringify({ template_id: templateId, version })}
+
+`,
+    `event: done
+data: {}
+
+`,
+  ].join("");
+}

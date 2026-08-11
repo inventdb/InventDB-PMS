@@ -1,0 +1,21 @@
+{
+  "_id": "wf-002",
+  "active": false,
+  "name": "Contract check",
+  "pending_approval": true,
+  "plan": [
+    {
+      "idx": 0,
+      "kind": "sql_query",
+      "label": "Count leases"
+    }
+  ],
+  "sandbox": true,
+  "trigger_intent": "Every Monday at 9 AM",
+  "trigger_kind": "cron",
+  "trigger_spec": {
+    "expr": "0 9 * * 1",
+    "tz": "UTC"
+  },
+  "version": 1
+}

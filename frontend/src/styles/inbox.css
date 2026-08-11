@@ -1,0 +1,402 @@
+/* ============================================================================
+   Inbox — the decisions automations are holding, and the notes they leave.
+
+   A master–detail: the list answers "is anything waiting", the panel answers
+   "what exactly, and what happens if I say yes". Tokens only, so both themes
+   and the responsive rules at the foot come for free.
+   ============================================================================ */
+
+.nb-split {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-top: 16px;
+}
+
+/* ---- The list ----------------------------------------------------------- */
+.nb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  /* Tall inboxes scroll inside the column so the detail panel stays put
+     rather than being pushed off the bottom of a long list. */
+  max-height: calc(100vh - var(--topbar-h) - 220px);
+  overflow-y: auto;
+}
+
+.nb-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.nb-search > svg {
+  position: absolute;
+  left: 10px;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+.nb-search .input {
+  padding-left: 30px;
+}
+
+.nb-no-match {
+  padding: 12px 4px;
+}
+
+.nb-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease);
+}
+.nb-row:hover {
+  background: var(--brand-tint);
+}
+.nb-row.active {
+  background: var(--brand-soft);
+}
+/* Unread is a weight change, not a colour: the colour vocabulary on this page
+   already means "needs you", and an unread note that merely happened must not
+   borrow it. */
+.nb-row.is-unread .nb-row-title {
+  font-weight: 600;
+}
+
+.nb-row-ico {
+  flex: none;
+  margin-top: 2px;
+  line-height: 0;
+  color: var(--text-faint);
+}
+.nb-row-ico.is-waiting {
+  color: var(--warn);
+}
+.nb-row-ico.is-done {
+  color: var(--success);
+}
+
+.nb-row-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.nb-row-title {
+  font-size: 13px;
+  line-height: 1.35;
+  /* Two lines, then ellipsis — enough for a real title, never enough for one
+     item to own the list. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.nb-row-sub,
+.nb-row-when {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- The detail --------------------------------------------------------- */
+.nb-detail {
+  min-width: 0;
+}
+
+.nb-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.nb-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.nb-card-titles {
+  flex: 1;
+  min-width: 0;
+}
+.nb-card-titles h3 {
+  font-size: 16px;
+}
+.nb-when {
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.nb-mark.is-waiting {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.nb-mark.is-done {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+/* The body is authored by the workflow and sanitised before it lands here, so
+   these rules style arbitrary structural markup rather than a known tree. */
+.nb-body {
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.nb-body > :first-child {
+  margin-top: 0;
+}
+.nb-body > :last-child {
+  margin-bottom: 0;
+}
+.nb-body p {
+  margin: 0 0 8px;
+}
+.nb-body strong {
+  color: var(--text);
+}
+.nb-body code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-3);
+}
+.nb-body ul,
+.nb-body ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.nb-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.nb-body th,
+.nb-body td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.nb-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+/* Declining is not destructive — it is a legitimate answer — so it reads as a
+   caution rather than as a delete. */
+.btn-danger-ghost {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+}
+.btn-danger-ghost:hover {
+  background: var(--danger-soft);
+}
+
+/* Says what each button will do before it is pressed. "Approve" alone does not
+   convey that a contractor is about to be emailed. */
+.nb-consequences {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.nb-form {
+  flex-basis: 100%;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+.nb-form-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.nb-card-foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+.nb-clear {
+  margin-left: auto;
+  color: var(--danger);
+}
+
+.nb-empty-detail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+}
+.nb-empty-detail p {
+  margin: 0;
+  font-size: 13px;
+}
+
+/* ============================================================================
+   Maintenance intake — the setup panel above the inbox.
+   ============================================================================ */
+
+.mi-panel,
+.mi-strip {
+  margin-bottom: 4px;
+}
+
+.mi-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.mi-strip-text {
+  flex: 1;
+  min-width: 220px;
+  font-size: 13px;
+}
+
+.mi-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mi-head > svg:first-child {
+  flex: none;
+  color: var(--text-faint);
+}
+.mi-head-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mi-body {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+/* The six steps, numbered, because the order is the reassurance: everything
+   before step five commits nobody. */
+.mi-flow {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.mi-preview {
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+.mi-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.mi-preview-head .select {
+  width: auto;
+  min-width: 160px;
+}
+
+.mi-shortlist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.mi-shortlist li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.mi-rank {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+}
+.mi-vendor {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.mi-actions {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.mi-label-field {
+  min-width: 240px;
+}
+.mi-label-field .report-note {
+  margin: 4px 0 0;
+  max-width: 44ch;
+}
+
+/* ---- Narrow ------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .nb-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .nb-list {
+    max-height: 320px;
+  }
+}

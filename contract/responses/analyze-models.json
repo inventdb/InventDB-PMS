@@ -1,0 +1,24 @@
+{
+  "models": [
+    {
+      "display": "Claude Sonnet 5",
+      "family": "Claude",
+      "id": "claude-sonnet-5",
+      "is_active": true,
+      "is_reasoning": true,
+      "key": "claude-sonnet-5",
+      "name": "claude-sonnet-5 (active - current default)",
+      "provider": "anthropic"
+    },
+    {
+      "display": "Claude Opus 4.8",
+      "family": "Claude",
+      "id": "claude-opus-4-8",
+      "is_active": false,
+      "is_reasoning": true,
+      "key": "claude-opus-4-8",
+      "name": "Claude - Claude Opus 4.8",
+      "provider": "anthropic"
+    }
+  ]
+}

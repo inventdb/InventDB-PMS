@@ -17,6 +17,8 @@ const DESTINATIONS = [
   { link: "Compliance", path: "/compliance", title: "Compliance" },
   { link: "Daily Tasks", path: "/daily_tasks", title: "Daily Tasks" },
   { link: "Accounting", path: "/transactions", title: "Accounting" },
+  { link: "Inbox", path: "/inbox", title: "Inbox" },
+  { link: "Analyze", path: "/analyze", title: "Analyze" },
   { link: "Workflows", path: "/workflows", title: "Workflows" },
   { link: "Reports", path: "/reports", title: "Reports" },
   { link: "Settings", path: "/settings", title: "Settings" },

@@ -195,10 +195,20 @@ def test_the_contract_covers_every_response_type_the_frontend_declares():
         "RentRollRow",
         "RenewalRow",
         "WorkflowStep",
-        "Workflow",
         "WorkflowRun",
+        "WorkflowRunStep",
+        "WorkflowVersion",
+        "NotificationAction",
+        "NotificationFormField",
+        "VendorMatch",
+        "CategoryCoverage",
         "ReportParameter",
         "Record",
+        # Not responses at all, so no endpoint can describe them: `WorkflowDraft`
+        # is what the editor *sends* on create, and `PlanIssue` rides inside a
+        # 400 body alongside the error message.
+        "WorkflowDraft",
+        "PlanIssue",
     }
     expected = {
         "LoginResponse",
@@ -211,6 +221,15 @@ def test_the_contract_covers_every_response_type_the_frontend_declares():
         "ReportRender",
         "Pnl",
         "WorkOrdersReport",
+        "Workflow",
+        "WorkflowRunDetail",
+        "AppNotification",
+        "VendorShortlist",
+        "IntakeStatus",
+        # What resolving returns. Not covered by an endpoint entry because the
+        # contract suite only replays reads: resolving one would resume a real
+        # parked run. `tests/test_notifications.py` pins the shape instead.
+        "NotificationResolution",
     }
 
     missing = declared - covered_indirectly - expected

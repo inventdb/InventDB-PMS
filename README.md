@@ -8,7 +8,7 @@ identity provider.
 Everything a property manager works with day‑to‑day lives in one fast, responsive
 workspace — properties, owners, tenants, leases, work orders, vendors, accounting,
 inspections, compliance and daily tasks — plus a live analytics dashboard,
-InventDB‑powered reports, and a workflows view with a run timeline, all with
+InventDB‑powered reports, and a workflow editor with live run history, all with
 full‑text search, light/dark themes and a mobile‑friendly UI.
 
 ---
@@ -34,10 +34,48 @@ the live data directly.
 **Finance, insights & automation**
 - 💰 **Accounting** — full income & expense ledger with categories & GL accounts
 - 📊 **Live dashboard** — occupancy, active leases, open work orders, net cash flow, charts
-- 📈 **Reports** — computed **directly by the InventDB SQL engine**: P&L, monthly cash‑flow,
-  rent roll, lease renewals due, occupancy and work‑order pipeline
-- ⚙️ **Workflows** — surfaces the automations running in **InventDB SOAR** (e.g. scheduled
-  report emails) with a **run timeline chart** and a per‑step plan timeline with icons
+- ✨ **Analyze** — the **AI canvas from InventDB SOAR**, in the PMS. Ask anything in plain
+  language and watch the assistant work: its plan, each query it runs, the answer, a result
+  grid whose rows open the record, and any chart it builds. Every answer carries the SQL
+  behind it, so you can check it. Follow‑ups stay in context within a thread; threads are
+  stored on your instance, so they survive a reload and are shared with SOAR. It **only
+  reads** on its own — anything that would change data arrives as a proposal you approve
+- 📈 **Report Studio** — the **Reports room from InventDB SOAR**, in the PMS. One library
+  holds both kinds of report and says which is which: **live templates** that re‑query your
+  data on every open, and **snapshots** whose figures are frozen at the moment they were
+  taken. A live report can be **renamed in place** and **rewritten by describing the change**
+  ("add a payment‑terms column", "sort by amount") — InventDB's report agent edits the layout
+  and saves a new version, and nothing is overwritten. Snapshots convert to live templates,
+  reports render with their own parameters, print to PDF, and schedule as workflows
+- ⚙️ **Workflows** — the automations that run against your portfolio. Describe one in
+  **Analyze** ("email each owner their statement on the 1st") or author it in **InventDB
+  SOAR**; from then on it is **edited and operated here**. Rewrite the plan step by step —
+  query the data, render a saved report, send an email or SMS, create/update/delete a
+  record, ask for approval, wait, finish — move the schedule, then rehearse, activate or
+  pause it. Each workflow shows a per‑step plan timeline, its full run history and
+  **version history you can roll back to**. A workflow can be **rehearsing** — queries run
+  for real, but emails and writes are mocked — so you can fire one and read the result
+  before it reaches anyone. Whether it fires (active/paused) and whether it sends for real
+  (rehearsing/live) stay separate switches. It runs on **InventDB SOAR's** engine, so
+  these are the same records SOAR's Operate room lists
+- 📥 **Inbox** — what the automations need a person for, mirroring **SOAR's Operate room**.
+  A run does not stop because it failed; it stops because it reached a step that is not the
+  software's decision — which contractor to send, whether to spend — and **parks**. The
+  decision lands here with **action buttons**, each saying what pressing it will do, and
+  answering **resumes that same run** at its next step. Under every decision sits the run's
+  own trail: the acknowledgement it already sent, the query behind its recommendation. A
+  live count rides on the sidebar and a **bell in the topbar**, polled, so an approval that
+  arrives while you are elsewhere still finds you. Notification bodies are **sanitised**
+  before display — the text in them was written by whoever emailed in
+- 🔧 **Maintenance intake** — one setup turns a tenant's "the tap has been dripping for
+  three days" into a handled job. The automation **reads the email** (from the tenant, or
+  from someone writing on their behalf), **acknowledges it**, **opens the work order**
+  against the right property and tenant, and **shortlists a contractor** — right trade,
+  insured before rated, and never a generalist for licensed work. Then it stops and asks
+  you: approve the recommendation, name someone else, or decline. On approval the run
+  assigns the contractor and briefs them; on a decline the work order stays open and
+  unassigned. Nothing before the pause commits anybody, and nothing after it happens
+  without you. It installs as a **rehearsal** and reads no live mail until you activate it
 
 **Platform**
 - 🔎 **Search, sort & filter** on every module
@@ -64,8 +102,14 @@ the live data directly.
 - **All data** is stored in an InventDB **namespace** (default `pms`). InventDB is
   schemaless, so the "tables" (types) are created automatically on first write.
 - **Reports & workflows come straight from InventDB SOAR** — reports are computed by
-  its SQL engine (`GROUP BY`/`SUM`/`JOIN`/date functions) and workflows/runs are read
-  from its automation engine.
+  its SQL engine (`GROUP BY`/`SUM`/`JOIN`/date functions), and workflows live in its
+  automation engine, which owns the scheduling, the step executor and the run history.
+  The PMS reads *and writes* those definitions: it validates the shape of what it sends
+  and leaves the plan's contents for InventDB to judge, so the two can't drift.
+- **Analyze talks to InventDB's agent.** InventDB owns the model, the tool loop, the SQL
+  the agent writes and the row‑level security over all of it. The Python layer is an
+  allow‑listed seam that forwards the signed‑in user's own token and relays the agent's
+  Server‑Sent Events to the browser untouched, so the room shows the work as it happens.
 - The **Python layer** adds validation, search and dashboard aggregation — it holds
   no credentials of its own.
 
@@ -166,6 +210,7 @@ adding records — types are created automatically on first write.
 | `INVENTDB_NAMESPACE` | `pms` | Namespace (database) for all PMS data |
 | `INVENTDB_APP` | `pms` | App label sent to `/api/auth/me` |
 | `INVENTDB_TIMEOUT` | `30` | Outbound request timeout (seconds) |
+| `INVENTDB_STREAM_TIMEOUT` | `600` | Idle gap allowed between chunks of an Analyze agent stream. Not a total budget — a long reasoning turn can legitimately go minutes without emitting anything |
 | `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma‑separated allowed front‑end origins |
 | `API_HOST` / `API_PORT` | `0.0.0.0` / `8000` | Where the API listens |
 | `FRONTEND_DIST` | *(auto)* | Path to a built front end to serve (defaults to `../frontend/dist`) |
@@ -263,7 +308,27 @@ InventDB via the login proxy.
 | `GET/PUT/DELETE` | `/api/<entity>/<id>` | Read / update / delete |
 | `GET`  | `/api/dashboard/summary` · `/api/dashboard/charts` | Aggregated metrics |
 | `GET`  | `/api/reports/{pnl,cashflow,rent-roll,renewals,occupancy,work-orders}` | Reports computed by InventDB SQL |
-| `GET`  | `/api/workflows` · `/api/workflows/runs` · `/api/workflows/<id>` | InventDB workflows & run history |
+| `GET/PUT/DELETE` | `/api/reports/templates/<id>` | Read, rename or delete a saved report |
+| `POST` | `/api/reports/templates/<id>/edit/stream` | Edit a report by instruction (SSE) |
+| `GET`  | `/api/reports/snapshots` · `/api/reports/snapshots/<rec>/<att>` | Stored AI snapshots |
+| `POST` | `/api/reports/snapshots/<rec>/<att>/promote` | Convert a snapshot to a live template |
+| `GET`  | `/api/workflows` · `/api/workflows/runs` · `/api/workflows/<id>` · `.../runs` · `.../versions` | InventDB workflows, run history & version history |
+| `PUT/DELETE` | `/api/workflows/<id>` | Edit and delete a workflow |
+| `POST` | `/api/workflows` | Create a workflow. Supported by the API; the UI does not offer it — workflows are authored in Analyze or SOAR |
+| `POST` | `/api/workflows/<id>/{activate,pause,resume,run}` | Lifecycle, and fire one now |
+| `POST` | `/api/workflows/<id>/versions/<n>/rollback` | Restore an earlier definition |
+| `GET`  | `/api/notifications` · `/api/notifications/<id>` | The inbox — what parked runs are waiting on |
+| `POST` | `/api/notifications/<id>/resolve` | Answer a decision. **Resumes the parked run** |
+| `POST` | `/api/notifications/<id>/read` · `DELETE /api/notifications/<id>` | Mark seen; clear from the inbox (the run is untouched) |
+| `GET`  | `/api/maintenance/vendors?category=…` | Contractors who could take a job, ranked — right trade, insured, then rated |
+| `GET`  | `/api/maintenance/categories` | Work-order categories and the trades that service each |
+| `GET/POST` | `/api/maintenance/intake` | The maintenance-intake automation: its state, or install it as a rehearsal |
+| `POST` | `/api/analyze/chat/stream` | One agent turn, relayed as Server‑Sent Events |
+| `GET`  | `/api/analyze/config` · `/api/analyze/models` | Workspace default model & enabled catalog |
+| `GET/PUT` | `/api/analyze/threads` · `DELETE /api/analyze/threads/<id>` | Per‑user analysis history |
+| `GET`  | `/api/analyze/websearch/status` · `POST .../enable\|disable` | The web‑search gate |
+| `POST` | `/api/analyze/sql` | Read‑only `SELECT`, for the canvas's own lookups |
+| `POST` | `/api/analyze/change-set/apply` · `/api/analyze/records/<type>` | Applying a **reviewed** proposal |
 | `GET`  | `/api/meta/entities` · `/api/meta/types` · `/api/meta/relationships` | Metadata |
 | `POST` | `/api/meta/sql` | Read‑only `SELECT` passthrough |
 
@@ -284,17 +349,23 @@ InventDB PMS/
 │   │   ├── context.py        # Bearer-token → client
 │   │   ├── entities.py       # PMS entity registry (matches live schema)
 │   │   ├── errors.py sqlutil.py
-│   │   └── routers/          # auth · resources · dashboard · reports · workflows · meta
+│   │   └── routers/          # auth · resources · dashboard · reports · workflows ·
+│   │                         #   notifications · maintenance · analyze · meta
 │   ├── check_inventdb.py     # Connectivity / credential checker
 │   ├── wsgi.py               # Production entrypoint
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/            # Dashboard · Reports · Workflows · Settings · Login · EntityListPage
+│   │   ├── pages/            # Dashboard · Inbox · Analyze · Reports · Workflows ·
+│   │   │                     #   Settings · Login · EntityListPage
+│   │   ├── reports/          # Report Studio: edit-by-instruction stream, inline rename, tabs
+│   │   ├── analyze/          # The AI canvas: agent stream, thread store, timeline, cards
+│   │   ├── workflows/        # Editor, detail view, plan timeline, run timeline, catalogue
+│   │   ├── inbox/            # Approval card, action buttons, body sanitiser, intake setup
 │   │   ├── components/       # Layout · Modal · EntityForm · Toast · Icon · ui
 │   │   ├── config/entities.ts# Field schema driving all tables & forms
 │   │   ├── api/ auth/ theme/ utils/
-│   │   └── styles/global.css # Design tokens + light/dark themes
+│   │   └── styles/           # global.css design tokens + analyze · inbox · reports · workflows
 │   ├── index.html vite.config.ts tsconfig*.json
 │   └── package.json
 └── README.md

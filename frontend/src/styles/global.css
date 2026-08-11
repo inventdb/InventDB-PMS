@@ -1086,6 +1086,59 @@ table.data tbody tr:hover {
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
 }
+/* A count that means "something is held up on you" has to read differently
+   from one that is only tallying rows. */
+.count-pill.is-warn {
+  background: var(--warn-soft);
+  border-color: transparent;
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* ---- Waiting-on-you counts ---------------------------------------------- */
+/* The nav badge and the topbar bell show the same number from the same poll.
+   Two places because they answer different questions: the bell is "is anything
+   waiting, from wherever I am", the nav badge is "how many, on that page". */
+.nav-badge {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+.nav-item.active .nav-badge {
+  background: var(--warn);
+  color: var(--surface);
+}
+
+.topbar-bell {
+  position: relative;
+}
+.topbar-bell.has-waiting {
+  color: var(--warn);
+}
+.bell-count {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  min-width: 15px;
+  padding: 0 3px;
+  border-radius: var(--radius-pill);
+  background: var(--warn);
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  /* Rings the button's own background so the badge reads as sitting on top of
+     the icon rather than merging into it on either theme. */
+  box-shadow: 0 0 0 2px var(--surface);
+}
 
 /* ---- Modal -------------------------------------------------------------- */
 .modal-backdrop {
@@ -1209,6 +1262,10 @@ table.data tbody tr:hover {
 .alert.info {
   background: var(--info-soft);
   color: var(--info);
+}
+.alert.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
 }
 
 /* ---- Toasts ------------------------------------------------------------- */
@@ -1675,25 +1732,6 @@ table.data tbody tr:hover {
   font-weight: 300;
   margin-top: 2px;
 }
-.wf-legend {
-  display: flex;
-  gap: 16px;
-  margin-top: 8px;
-  flex-wrap: wrap;
-}
-.wf-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.wf-legend .dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
 /* ---- Responsive --------------------------------------------------------- */
 /* ---- Login on narrow screens: form first, story below ---------------------
    The hero can't sit beside the form here, and the previous fix — hiding it —

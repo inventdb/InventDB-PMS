@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { api, errorMessage, getToken, setToken, setUnauthorizedHandler } from "../api/client";
+import { resetAnalyzeState } from "../analyze/store";
 import type { AuthUser, LoginResponse } from "../types";
 
 const USER_KEY = "pms.user";
@@ -42,6 +43,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(USER_KEY);
     setUser(null);
     setTokenState(null);
+    // Analyze holds its threads at module scope so a running analysis survives
+    // navigation — which means signing out has to clear them explicitly, or the
+    // next person to sign in on this tab would find the last one's questions
+    // (and any stream still in flight) waiting for them.
+    resetAnalyzeState();
   }, []);
 
   // Any 401 from the API layer forces a logout.

@@ -41,7 +41,9 @@ export function Alert({
   kind = "info",
   children,
 }: {
-  kind?: "error" | "success" | "info";
+  /** `warn` is for a result that stands but deserves a second look — an
+   *  accepted workflow plan the engine still has reservations about. */
+  kind?: "error" | "success" | "info" | "warn";
   children: ReactNode;
 }) {
   return <div className={`alert ${kind}`}>{children}</div>;

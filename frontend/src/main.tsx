@@ -8,6 +8,10 @@ import { AuthProvider } from "./auth/AuthContext";
 import { ThemeProvider } from "./theme/ThemeContext";
 import { ToastProvider } from "./components/Toast";
 import "./styles/global.css";
+import "./styles/analyze.css";
+import "./styles/inbox.css";
+import "./styles/reports.css";
+import "./styles/workflows.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
