@@ -183,6 +183,15 @@ WORKFLOW = {
 
 WORKFLOWS = {"workflows": [WORKFLOW]}
 WORKFLOW_VERSIONS = {"versions": ["object"]}
+# One frozen definition, read in full so an old plan can be reviewed before a
+# rollback. Same shape as a workflow plus its version number.
+WORKFLOW_VERSION = {
+    "version": "int",
+    "name": "string",
+    "plan?": "array",
+    "trigger_intent?": "string",
+    "created_at?": "string",
+}
 # Firing is asynchronous: the engine queues an event and the run appears later,
 # so what comes back identifies the event, not a result.
 WORKFLOW_QUEUED = {"event_id": "string"}
@@ -228,6 +237,10 @@ ANALYZE_THREADS = {"threads": ["object"]}
 
 ANALYZE_WEBSEARCH = {"enabled": "bool", "consented": "bool"}
 WORKFLOW_RUNS = {"runs": ["object"]}
+# One run with its execution timeline. Relayed as InventDB shapes it — the two
+# keys are the contract; what a step row contains is the engine's business, and
+# pinning it here would break the PMS every time a new step kind was added.
+WORKFLOW_RUN_DETAIL = {"run": "object", "steps": ["object"]}
 
 # ---- The inbox -------------------------------------------------------------
 # A notification's `actions` are the contract, not decoration: their absence is
@@ -247,26 +260,41 @@ NOTIFICATION = {
 }
 NOTIFICATIONS = {"notifications": [NOTIFICATION]}
 
-# ---- Maintenance intake ----------------------------------------------------
-VENDOR_SHORTLIST = {
-    "category": "string",
-    "trades": ["string"],
-    "vendors": ["object"],
-    "total_matched": "int",
+# ---- Files -----------------------------------------------------------------
+# One search answers both halves of the drive, so all three keys are required
+# even when a leg is empty: the grid maps over `results` and the tree over
+# `folders`, and an absent key would be a crash rather than an empty drive.
+#
+# A file row is left loose on purpose. InventDB's search flattens several item
+# shapes together, so the same value arrives under more than one spelling
+# (`_id`/`attachment_id`, `size`/`size_bytes`) depending on which leg matched —
+# pinning one spelling here would fail against a response that is correct.
+FILE_SEARCH = {
+    "results": ["object"],
+    "total_matches": "int",
+    "folders": [
+        {
+            "namespace?": "string",
+            # A folder always belongs to a type: "2026" under leases and "2026"
+            # under inspections are different folders, and the tree groups by
+            # type first for exactly that reason.
+            "type": "string",
+            # "" means the files sitting at the type's root.
+            "path": "string",
+            "count": "int",
+        }
+    ],
 }
-MAINTENANCE_CATEGORIES = {"categories": ["object"], "priorities": ["string"]}
-INTAKE_STATUS = {
-    "installed": "bool",
-    "workflow": "any",
-    "name": "string",
-    "trades_on_file": ["string"],
-    "coverage": ["object"],
-    "uncovered": ["string"],
-}
-# One run with its execution timeline. Relayed as InventDB shapes it — the two
-# keys are the contract; what a step row contains is the engine's business, and
-# pinning it here would break the PMS every time a new step kind was added.
-WORKFLOW_RUN_DETAIL = {"run": "object", "steps": ["object"]}
+
+FILE_LIST = {"files": ["object"]}
+FILE_VERSIONS = {"versions": ["object"]}
+FILE_TEXT = {"text?": "string"}
+# Deliberately one batch: the caller loops so it can show a real count and stop
+# between passes. `remaining` is absent unless InventDB reports it.
+FILE_BULK_DELETE = {"deleted": "int", "skipped": "int", "remaining?": "int|null"}
+# `parents` is every record the file is now reachable from; `[0]` is its
+# primary home. A `copy` leaves more than one.
+FILE_ATTACH = {"mode": "string", "parents": ["object"]}
 
 DELETE_ACK = {"ok": "bool", "id": "string"}
 ERROR = {"ok": "bool", "error": "any"}
@@ -401,22 +429,43 @@ ENDPOINTS: list[dict[str, Any]] = [
         "shape": NOTIFICATION,
     },
     {
-        "key": "maintenance-vendors",
-        "method": "GET",
-        "path": "/api/maintenance/vendors?category=Plumbing",
-        "shape": VENDOR_SHORTLIST,
+        "key": "file-search",
+        "method": "POST",
+        "path": "/api/files/search",
+        "body": {"query": "*", "search_type": "keyword", "limit": 25},
+        "shape": FILE_SEARCH,
     },
     {
-        "key": "maintenance-categories",
+        "key": "file-list",
         "method": "GET",
-        "path": "/api/maintenance/categories",
-        "shape": MAINTENANCE_CATEGORIES,
+        "path": "/api/files/{file_type}/{file_record}",
+        "shape": FILE_LIST,
     },
     {
-        "key": "maintenance-intake",
+        "key": "file-text",
         "method": "GET",
-        "path": "/api/maintenance/intake",
-        "shape": INTAKE_STATUS,
+        "path": "/api/files/{file_type}/{file_record}/{attachment_id}/text",
+        "shape": FILE_TEXT,
+    },
+    {
+        "key": "file-versions",
+        "method": "GET",
+        "path": "/api/files/{file_type}/{file_record}/{attachment_id}/versions",
+        "shape": FILE_VERSIONS,
+    },
+    {
+        "key": "file-bulk-delete",
+        "method": "POST",
+        "path": "/api/files/bulk-delete",
+        "body": {"type": "leases", "folder": "2026", "limit": 15},
+        "shape": FILE_BULK_DELETE,
+    },
+    {
+        "key": "file-attach",
+        "method": "POST",
+        "path": "/api/files/attach",
+        "body": {"attachment_id": "att-001", "type": "leases", "record_id": "lea-001"},
+        "shape": FILE_ATTACH,
     },
     {
         "key": "workflow-detail",
@@ -429,6 +478,12 @@ ENDPOINTS: list[dict[str, Any]] = [
         "method": "GET",
         "path": "/api/workflows/{workflow_id}/versions",
         "shape": WORKFLOW_VERSIONS,
+    },
+    {
+        "key": "workflow-version",
+        "method": "GET",
+        "path": "/api/workflows/{workflow_id}/versions/1",
+        "shape": WORKFLOW_VERSION,
     },
     {
         "key": "workflow-create",

@@ -269,6 +269,107 @@ _SYNTHETIC_HTTP: dict[str, dict[str, Any]] = {
             },
         },
     },
+    # ---- Files -----------------------------------------------------------
+    # One search serves both halves of the drive: the grid reads `results`,
+    # the tree reads `folders`. A `path` of "" is the type's own root — the
+    # files on a lease that were never put in a folder.
+    "POST /attach/_search": {
+        "status": 200,
+        "payload": {
+            "ok": True,
+            "data": {
+                "results": [
+                    {
+                        "_id": "att-001",
+                        "attachment_id": "att-001",
+                        "namespace": "pms",
+                        "record_type": "leases",
+                        "record_id": "lea-001",
+                        "filename": "signed-lease.pdf",
+                        "content_type": "application/pdf",
+                        "size_bytes": 284_113,
+                        "version": 2,
+                        "folder_path": "2026",
+                        "created_at": "2026-01-04T09:12:00Z",
+                        "processing_state": "indexed",
+                        "matched_sources": ["keyword"],
+                    }
+                ],
+                "total_matches": 5,
+                "folders": [
+                    {"namespace": "pms", "type": "leases", "path": "", "count": 3},
+                    {"namespace": "pms", "type": "leases", "path": "2026", "count": 2},
+                    {"namespace": "pms", "type": "inspections", "path": "photos", "count": 4},
+                ],
+            },
+        },
+    },
+    "POST /attach/_bulk_delete": {
+        "status": 200,
+        "payload": {"ok": True, "data": {"deleted": 15, "skipped": 1, "remaining": 26}},
+    },
+    # Attaching a vault file to a record. `parents[0]` is the primary home; a
+    # `copy` would leave the previous one alongside it.
+    "POST /attach/pms/_relink": {
+        "status": 200,
+        "payload": {
+            "ok": True,
+            "data": {
+                "mode": "move",
+                "parents": [
+                    {"namespace": "pms", "typeName": "leases", "recordId": "lea-001"}
+                ],
+            },
+        },
+    },
+    "GET /attach/pms/leases/lea-001": {
+        "status": 200,
+        "payload": {
+            "ok": True,
+            "data": {
+                "attachments": [
+                    {
+                        "attachment_id": "att-001",
+                        "filename": "signed-lease.pdf",
+                        "content_type": "application/pdf",
+                        "size": 284_113,
+                        "version": 2,
+                    }
+                ]
+            },
+        },
+    },
+    "GET /attach/pms/leases/lea-001/att-001/text": {
+        "status": 200,
+        "payload": {
+            "ok": True,
+            "data": {"text": "RESIDENTIAL LEASE AGREEMENT — 12 Marine Drive, Mumbai…"},
+        },
+    },
+    "GET /attach/pms/leases/lea-001/att-001/versions": {
+        "status": 200,
+        "payload": {
+            "ok": True,
+            "data": {
+                "versions": [
+                    {
+                        "version": 2,
+                        "filename": "signed-lease.pdf",
+                        "size": 284_113,
+                        "created_at": "2026-01-04T09:12:00Z",
+                        "is_current": True,
+                    },
+                    {
+                        "version": 1,
+                        "filename": "draft-lease.pdf",
+                        "size": 210_004,
+                        "created_at": "2025-12-19T14:02:00Z",
+                        "is_current": False,
+                    },
+                ]
+            },
+        },
+    },
     "GET /api/workflows/wf-001/versions": {
         "status": 200,
         "payload": {
@@ -285,6 +386,21 @@ _SYNTHETIC_HTTP: dict[str, dict[str, Any]] = {
                         "created_at": "2026-07-01T00:00:00Z",
                     }
                 ]
+            },
+        },
+    },
+    "GET /api/workflows/wf-001/versions/1": {
+        "status": 200,
+        "payload": {
+            "ok": True,
+            "data": {
+                "_id": "wf-001.v1",
+                "workflow_id": "wf-001",
+                "version": 1,
+                "name": "Weekly Lease Renewals Due",
+                "trigger_intent": "Every Monday at 8 AM",
+                "plan": [{"idx": 0, "kind": "sql_query", "label": "Query renewals", "narration": ""}],
+                "created_at": "2026-07-01T00:00:00Z",
             },
         },
     },
@@ -583,36 +699,6 @@ _SYNTHETIC_SQL: dict[str, list[dict[str, Any]]] = {
         {"_id": "ten-001", "tenant_id": "T-001", "first": "Asha", "last": "Rao"}
     ],
     "SELECT * FROM pms.leases LIMIT 5000": _LEASE_ROWS,
-    # The vendor roster the maintenance shortlist ranks. One insured specialist
-    # and one uninsured generalist, so the ordering rule the endpoint promises
-    # has something to demonstrate itself on.
-    "SELECT _id, vendor_id, company, trade, contact, phone, email, rating, "
-    "coi_on_file, w_9_on_file FROM pms.vendors LIMIT 500": [
-        {
-            "_id": "ven-001",
-            "vendor_id": "V-001",
-            "company": "Coastal Plumbing",
-            "trade": "Plumbing",
-            "contact": "Ravi N.",
-            "phone": "+91 22 5550 7788",
-            "email": "ops@coastalplumbing.example",
-            "rating": 4.6,
-            "coi_on_file": True,
-            "w_9_on_file": True,
-        },
-        {
-            "_id": "ven-002",
-            "vendor_id": "V-002",
-            "company": "Handy Helpers",
-            "trade": "General",
-            "contact": "Priya K.",
-            "phone": "+91 80 5550 9911",
-            "email": "team@handyhelpers.example",
-            "rating": 4.1,
-            "coi_on_file": False,
-            "w_9_on_file": False,
-        },
-    ],
     "SELECT * FROM pms.work_orders LIMIT 5000": [
         {
             "_id": "wo-001",
@@ -721,6 +807,10 @@ _SYNTHETIC_BINDINGS = {
     "workflow_id": "wf-001",
     "run_id": "run-001",
     "notification_id": "notif-001",
+    # A file is addressed by where it lives — its type, its record, then itself.
+    "file_type": "leases",
+    "file_record": "lea-001",
+    "attachment_id": "att-001",
 }
 
 

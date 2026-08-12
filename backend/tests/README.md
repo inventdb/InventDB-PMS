@@ -53,6 +53,8 @@ Playwright mock, so the two suites read alike.
 | `test_workflows.py` | Every envelope shape InventDB might return, and the authoring boundary: what the router forwards on create/edit, what it refuses to forward (engine-owned state like `active`), and that lifecycle and sandbox stay independent. |
 | `test_report_studio.py` | Report authoring: what a rename may change, the relayed edit stream, and collapsing a snapshot's two files into one report. |
 | `test_analyze.py` | The AI seam: the relayed agent stream, the pinned namespace, the read-only SQL guard, and forcing a change-set into this app's namespace. |
+| `test_files.py` | The drive over attachments: that the namespace is pinned and a request body cannot widen it, that page/batch/upload ceilings are real, and that binary passes through unchanged. |
+| `test_settings.py` | Repointing the app at another InventDB: who may, what counts as a safe URL, and the probe that stops a typo stranding everyone. |
 | `test_app.py` | Error handlers, CORS, SPA hosting. |
 | `contract/` | The shape agreement with the frontend — see below. |
 

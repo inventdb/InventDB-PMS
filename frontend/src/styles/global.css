@@ -581,6 +581,15 @@ h4 {
   font-weight: 500;
   color: var(--text-muted);
 }
+/* Explanatory text under a control — what the setting does, or what saving it
+   will cost. Sits inside `.field` so it inherits the column gap. */
+.field-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
 .field .req {
   color: var(--danger);
   margin-left: 2px;
@@ -1095,10 +1104,9 @@ table.data tbody tr:hover {
   font-weight: 600;
 }
 
-/* ---- Waiting-on-you counts ---------------------------------------------- */
-/* The nav badge and the topbar bell show the same number from the same poll.
-   Two places because they answer different questions: the bell is "is anything
-   waiting, from wherever I am", the nav badge is "how many, on that page". */
+/* ---- Waiting-on-you count ------------------------------------------------ */
+/* Rides the Workflows nav entry: a parked run is answered on that page, so the
+   count and the thing it refers to are one click apart. */
 .nav-badge {
   margin-left: auto;
   min-width: 20px;
@@ -1114,30 +1122,6 @@ table.data tbody tr:hover {
 .nav-item.active .nav-badge {
   background: var(--warn);
   color: var(--surface);
-}
-
-.topbar-bell {
-  position: relative;
-}
-.topbar-bell.has-waiting {
-  color: var(--warn);
-}
-.bell-count {
-  position: absolute;
-  top: 2px;
-  right: 0;
-  min-width: 15px;
-  padding: 0 3px;
-  border-radius: var(--radius-pill);
-  background: var(--warn);
-  color: #ffffff;
-  font-size: 9.5px;
-  font-weight: 700;
-  line-height: 15px;
-  text-align: center;
-  /* Rings the button's own background so the badge reads as sitting on top of
-     the icon rather than merging into it on either theme. */
-  box-shadow: 0 0 0 2px var(--surface);
 }
 
 /* ---- Modal -------------------------------------------------------------- */
@@ -1688,10 +1672,12 @@ table.data tbody tr:hover {
   flex-direction: column;
   align-items: center;
 }
+/* 26px, not 32px: the icon has to read as centred against the title beside it,
+   and a 32px tile against a 13.5px line sat 5.5px low on every step in the app. */
 .wf-ico {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
   background: var(--brand-soft);
@@ -1714,7 +1700,12 @@ table.data tbody tr:hover {
   font-size: 13.5px;
   display: flex;
   align-items: center;
+  /* Matches the icon so a one-line title centres against it exactly. */
+  min-height: 26px;
   gap: 8px;
+  /* Tighter than the column gap: a pill that wraps under its label belongs to
+     that label, and 8px of air made it read as a row of its own. */
+  row-gap: 4px;
   flex-wrap: wrap;
 }
 .wf-kind {

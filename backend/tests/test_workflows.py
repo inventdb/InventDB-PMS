@@ -471,3 +471,138 @@ def test_a_non_numeric_version_is_not_a_route(api, fake):
     """`<int:version>` keeps a crafted segment out of the upstream URL."""
     assert api.post("/api/workflows/wf-1/versions/x/rollback", json={}).status_code == 404
     assert fake.calls == []
+
+
+# ===========================================================================
+# Version history: read one, delete one, clear the lot
+# ===========================================================================
+
+
+def test_one_version_comes_back_in_full(api, fake):
+    snapshot = {"version": 2, "name": "Renewals due", "plan": PLAN}
+    fake.on("GET", "/api/workflows/wf-1/versions/2", {"ok": True, "data": snapshot})
+
+    assert api.get("/api/workflows/wf-1/versions/2").get_json() == snapshot
+
+
+def test_deleting_one_version_targets_that_version(api, fake):
+    fake.on("DELETE", "/api/workflows/wf-1/versions/3", {"ok": True, "data": {"deleted": "3"}})
+
+    body = api.delete("/api/workflows/wf-1/versions/3").get_json()
+
+    assert body == {"deleted": "3"}
+    assert fake.calls[-1].path == "/api/workflows/wf-1/versions/3"
+
+
+def test_clearing_history_targets_the_collection(api, fake):
+    fake.on("DELETE", "/api/workflows/wf-1/versions", {"ok": True, "data": {"cleared": "wf-1"}})
+
+    api.delete("/api/workflows/wf-1/versions")
+
+    # No version segment: the collection, not a member. Getting this wrong
+    # deletes one arbitrary version and reports the history as cleared.
+    assert fake.calls[-1].path == "/api/workflows/wf-1/versions"
+    assert fake.calls[-1].method == "DELETE"
+
+
+@pytest.mark.parametrize("bad", ["0", "-1", "abc", "1.5"])
+def test_a_non_positive_version_is_not_a_route(api, fake, bad):
+    # `<int:version>` refuses these at the router, so nothing reaches InventDB.
+    assert api.delete(f"/api/workflows/wf-1/versions/{bad}").status_code in (400, 404)
+    assert not any("/versions/" in call.path for call in fake.calls)
+
+
+def test_refusing_to_delete_the_current_version_rides_back(api, fake):
+    fake.on(
+        "DELETE",
+        "/api/workflows/wf-1/versions/4",
+        {"ok": False, "error": "cannot delete the current version"},
+        status=400,
+    )
+
+    response = api.delete("/api/workflows/wf-1/versions/4")
+
+    assert response.status_code == 400
+    assert "current version" in response.get_json()["error"]
+
+
+# ===========================================================================
+# Runs in flight
+# ===========================================================================
+
+
+def test_cancelling_a_run_posts_to_the_run(api, fake):
+    fake.on("POST", "/api/workflows/runs/run-1/cancel", {"ok": True, "data": {"cancelled": "run-1"}})
+
+    body = api.post("/api/workflows/runs/run-1/cancel").get_json()
+
+    assert body == {"cancelled": "run-1"}
+    assert fake.calls[-1].path == "/api/workflows/runs/run-1/cancel"
+
+
+def test_cancelling_a_finished_run_reports_the_refusal(api, fake):
+    # A run that already ended cannot be cancelled, and saying "cancelled"
+    # about one that succeeded would be a lie about what happened.
+    fake.on(
+        "POST",
+        "/api/workflows/runs/run-1/cancel",
+        {"ok": False, "error": "run is not cancellable in its current state"},
+        status=400,
+    )
+
+    response = api.post("/api/workflows/runs/run-1/cancel")
+
+    assert response.status_code == 400
+    assert "not cancellable" in response.get_json()["error"]
+
+
+def test_cancelling_requires_a_token(api):
+    assert api.post("/api/workflows/runs/run-1/cancel", token=None).status_code == 401
+
+
+# ===========================================================================
+# Fixing a failed run with AI
+# ===========================================================================
+
+
+def test_a_fix_returns_the_proposal_and_saves_nothing(api, fake):
+    revised = {"name": "Renewals due", "plan": PLAN}
+    fake.on(
+        "POST",
+        "/api/workflows/wf-1/fix-from-run/run-2",
+        {"ok": True, "data": {"revised": revised, "diagnostics": {"error": "SMTP timeout"}}},
+    )
+
+    body = api.post("/api/workflows/wf-1/fix-from-run/run-2").get_json()
+
+    assert body["revised"] == revised
+    assert body["diagnostics"] == {"error": "SMTP timeout"}
+    # A proposal, not a deployment: nothing was written back to the workflow.
+    assert not any(call.method in ("PUT", "POST") and call.path == "/api/workflows/wf-1" for call in fake.calls)
+
+
+def test_a_fix_that_produced_nothing_usable_says_so_rather_than_inventing_one(api, fake):
+    fake.on("POST", "/api/workflows/wf-1/fix-from-run/run-2", {"ok": True, "data": {}})
+
+    body = api.post("/api/workflows/wf-1/fix-from-run/run-2").get_json()
+
+    assert body == {"revised": None, "diagnostics": None}
+
+
+def test_a_model_outage_during_a_fix_rides_back(api, fake):
+    fake.on(
+        "POST",
+        "/api/workflows/wf-1/fix-from-run/run-2",
+        {"ok": False, "error": "AI error: credits exhausted"},
+        status=500,
+    )
+
+    assert api.post("/api/workflows/wf-1/fix-from-run/run-2").status_code == 500
+
+
+@pytest.mark.parametrize("bad", ["../wf-2", "run 1", "run%2f..%2fx"])
+def test_a_malformed_run_id_never_reaches_inventdb_on_a_fix(api, fake, bad):
+    response = api.post(f"/api/workflows/wf-1/fix-from-run/{bad}")
+
+    assert response.status_code in (400, 404)
+    assert not any("fix-from-run" in call.path for call in fake.calls)

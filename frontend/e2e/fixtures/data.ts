@@ -623,6 +623,42 @@ export const WORKFLOWS = [
 ];
 
 /**
+ * A long plan, for the card grid.
+ *
+ * Deliberately NOT in `WORKFLOWS`: real automations run to a dozen steps, but
+ * adding one to the shared seed moved every count assertion in three other
+ * specs. The one spec that needs it routes it in.
+ */
+export const WORKFLOW_LONG =
+  {
+    _id: "wf-long",
+    name: "Maintenance email intake & dispatch",
+    trigger_kind: "inbound_email",
+    trigger_spec: {},
+    trigger_intent:
+      "When a maintenance request arrives by email — from a tenant, or from someone writing on their behalf.",
+    active: true,
+    pending_approval: false,
+    sandbox: false,
+    version: 4,
+    plan: [
+      { idx: 0, kind: "llm_extract", label: "Read the request", narration: "Pulls out the issue, urgency and trade.", save_as: "req" },
+      { idx: 1, kind: "sql_query", label: "Identify the tenant", narration: "Matches the sender against the tenant roll.", save_as: "tenant" },
+      { idx: 2, kind: "sql_query", label: "Find the property", narration: "", save_as: "prop" },
+      { idx: 3, kind: "insert_record", label: "Open a work order", narration: "Unassigned, before anyone is contacted.", save_as: "wo" },
+      { idx: 4, kind: "send_email", label: "Acknowledge the request", narration: "" },
+      { idx: 5, kind: "sql_query", label: "Shortlist a contractor", narration: "", save_as: "vendors" },
+      { idx: 6, kind: "notify_user", label: "Ask before dispatching", narration: "Parks the run.", save_as: "decision" },
+      { idx: 7, kind: "update_record", label: "Assign the contractor", narration: "", when: "${decision.approved}" },
+      { idx: 8, kind: "create_calendar_event", label: "Book the visit", narration: "", when: "${decision.approved}" },
+      { idx: 9, kind: "send_email", label: "Brief the contractor", narration: "", when: "${decision.approved}" },
+      { idx: 10, kind: "send_email", label: "Confirm with the tenant", narration: "", when: "${decision.approved}" },
+      { idx: 11, kind: "finish", label: "Done", narration: "", summary: "Request handled." },
+    ],
+    created_at: "2025-08-01T00:00:00Z",
+  };
+
+/**
  * A workflow the assistant built and nobody activated yet.
  *
  * Hidden from the Workflows page by default — which is why adding it does not
@@ -939,75 +975,20 @@ export const INTAKE_RUN_STEPS: Rec[] = [
       { company: "Coastal Plumbing", trade: "Plumbing", rating: 4.6, coi_on_file: true },
     ],
   },
-];
-
-/** The intake automation, as installed — a rehearsal until someone activates it. */
-export const INTAKE_WORKFLOW: Rec = {
-  _id: "wf-intake",
-  name: "Maintenance request intake",
-  trigger_kind: "inbound_email",
-  trigger_spec: {},
-  trigger_intent:
-    "When a maintenance or repair request arrives by email — sent by a tenant, or by someone writing on a tenant's behalf.",
-  active: false,
-  pending_approval: true,
-  sandbox: true,
-  version: 1,
-  plan: [
-    { idx: 0, kind: "llm_extract", label: "Read the request", narration: "Works out what broke." },
-    { idx: 1, kind: "insert_record", label: "Open a work order", narration: "Unassigned." },
-    { idx: 2, kind: "send_email", label: "Acknowledge the request", narration: "" },
-    { idx: 3, kind: "sql_query", label: "Shortlist a contractor", narration: "" },
-    { idx: 4, kind: "notify_user", label: "Ask before dispatching", narration: "Parks the run." },
-    { idx: 5, kind: "update_record", label: "Assign the recommended contractor", narration: "" },
-    { idx: 6, kind: "finish", label: "Done", narration: "" },
-  ],
-};
-
-/** Ranked candidates, as `/api/maintenance/vendors` returns them. */
-export const VENDOR_SHORTLIST: { [category: string]: Record<string, unknown> } = {
-  Plumbing: {
-    category: "Plumbing",
-    trades: ["Plumbing", "General"],
-    total_matched: 1,
-    vendors: [
-      {
-        _id: "ven-1",
-        company: "Coastal Plumbing",
-        trade: "Plumbing",
-        rating: 4.6,
-        coi_on_file: true,
-        insured: true,
-        why: "Plumbing specialist, certificate of insurance on file, rated 4.6",
-        match_rank: 0,
-      },
-    ],
+  // Out of order on purpose, and sharing idx 0 with the call above it. The
+  // engine orders run steps `BY idx ASC` and nothing more, so the rows it
+  // writes at one idx — the call, any recovery it needed, then the result —
+  // come back in whatever order storage returns them.
+  {
+    _id: "irs-0-result",
+    run_id: "run-intake",
+    idx: 0,
+    role: "tool_result",
+    created_at: "2026-08-11T06:41:45Z",
+    content: "",
+    tool_name: "llm_extract",
+    tool_result: { issue: "Kitchen tap dripping", trade: "Plumbing" },
   },
-  HVAC: {
-    category: "HVAC",
-    trades: ["HVAC"],
-    total_matched: 1,
-    vendors: [
-      {
-        _id: "ven-2",
-        company: "Nimbus Air",
-        trade: "HVAC",
-        rating: 4.2,
-        coi_on_file: false,
-        insured: false,
-        why: "HVAC specialist, no certificate of insurance on file, rated 4.2",
-        match_rank: 0,
-      },
-    ],
-  },
-};
-
-/** Which categories the seeded vendor roster can and cannot staff. */
-export const INTAKE_COVERAGE = [
-  { category: "Plumbing", trades: ["Plumbing", "General"], covered: true },
-  { category: "HVAC", trades: ["HVAC"], covered: true },
-  { category: "Electrical", trades: ["Electrical"], covered: false },
-  { category: "Roofing", trades: ["Roofing"], covered: false },
 ];
 
 // ---- SQL rollups used by the Reports hooks -------------------------------
@@ -1186,6 +1167,95 @@ export const AGENT_WORKFLOW_STEPS: Record<string, unknown>[] = [
   },
   { type: "done", content: "Built it. It rehearses until you activate it." },
 ];
+
+// ---- Files ---------------------------------------------------------------
+/**
+ * The drive.
+ *
+ * `folder_path: ""` is a file at its type's root — one that was never put in a
+ * folder — which the tree counts on the type node rather than under any folder.
+ * The set spans two types on purpose: the tree groups by type first, and a
+ * same-named folder in two types must not merge.
+ */
+export const FILES: Rec[] = [
+  {
+    _id: "att-1",
+    attachment_id: "att-1",
+    namespace: "pms",
+    record_type: "leases",
+    record_id: "lea-1",
+    filename: "signed-lease.pdf",
+    content_type: "application/pdf",
+    size_bytes: 284113,
+    version: 2,
+    folder_path: "2026",
+    created_at: "2026-01-04T09:12:00Z",
+    processing_state: "indexed",
+  },
+  {
+    _id: "att-2",
+    attachment_id: "att-2",
+    namespace: "pms",
+    record_type: "leases",
+    // `_vault` is InventDB's "no parent record yet" — what a drive-level
+    // upload produces, here or in SOAR's Files room. Attaching is what gives
+    // it a home, so one fixture file has to be in this state.
+    record_id: "_vault",
+    filename: "rent-schedule.xlsx",
+    content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    size_bytes: 18442,
+    version: 1,
+    folder_path: "",
+    created_at: "2025-11-02T10:00:00Z",
+    processing_state: "indexed",
+  },
+  {
+    _id: "att-3",
+    attachment_id: "att-3",
+    namespace: "pms",
+    record_type: "inspections",
+    record_id: "ins-1",
+    filename: "kitchen.jpg",
+    content_type: "image/jpeg",
+    size_bytes: 903221,
+    version: 1,
+    folder_path: "2026/photos",
+    created_at: "2026-02-11T08:30:00Z",
+    processing_state: "indexed",
+  },
+];
+
+/** What the tree is built from — counts per (type, folder), never from results. */
+export const FILE_FOLDERS = [
+  { namespace: "pms", type: "leases", path: "", count: 1 },
+  { namespace: "pms", type: "leases", path: "2026", count: 1 },
+  { namespace: "pms", type: "inspections", path: "2026/photos", count: 1 },
+];
+
+export const FILE_VERSIONS: { [attachmentId: string]: Rec[] } = {
+  "att-1": [
+    {
+      _id: "att-1.v2",
+      version: 2,
+      filename: "signed-lease.pdf",
+      size: 284113,
+      created_at: "2026-01-04T09:12:00Z",
+      is_current: true,
+    },
+    {
+      _id: "att-1.v1",
+      version: 1,
+      filename: "draft-lease.pdf",
+      size: 210004,
+      created_at: "2025-12-19T14:02:00Z",
+      is_current: false,
+    },
+  ],
+};
+
+export const FILE_TEXT: { [attachmentId: string]: string } = {
+  "att-1": "RESIDENTIAL LEASE AGREEMENT — 12 Marine Drive, Mumbai. Term 36 months.",
+};
 
 /** Serialise steps as the SSE frames the backend relays. */
 export function sseBody(steps: Record<string, unknown>[]): string {

@@ -1,17 +1,63 @@
 /* ============================================================================
-   Inbox — the decisions automations are holding, and the notes they leave.
+   Notifications — the decisions automations are holding, and the notes they
+   leave. A section at the head of the Workflows page, mirroring the way SOAR's
+   Operate room keeps notifications beside the workflow list.
 
    A master–detail: the list answers "is anything waiting", the panel answers
    "what exactly, and what happens if I say yes". Tokens only, so both themes
    and the responsive rules at the foot come for free.
    ============================================================================ */
 
+.nb-panel {
+  margin-bottom: 18px;
+}
+
+.nb-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.nb-panel-head > svg {
+  flex: none;
+  color: var(--text-faint);
+}
+.nb-panel-head h3 {
+  font-size: 14px;
+}
+/* Plain muted text, deliberately not a pill — see the note in the component. */
+.nb-panel-count {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+/* Drops out first when the row runs out of room — it is context, not state. */
+.nb-panel-blurb {
+  margin: 0 0 0 auto;
+  text-align: right;
+}
+.nb-panel-clear {
+  margin-left: auto;
+  color: var(--danger);
+}
+/* Nothing has ever parked. The heading alone says what will land here; a full
+   empty-state card would put a large box about a thing that has not happened
+   above the workflows that have. */
+.nb-panel.is-empty .nb-panel-head {
+  margin-bottom: 0;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.nb-panel.is-empty .nb-panel-blurb {
+  margin-left: 0;
+  text-align: left;
+}
+
 .nb-split {
   display: grid;
   grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
-  margin-top: 16px;
 }
 
 /* ---- The list ----------------------------------------------------------- */
@@ -24,9 +70,9 @@
   border: 1px solid var(--card-border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
-  /* Tall inboxes scroll inside the column so the detail panel stays put
-     rather than being pushed off the bottom of a long list. */
-  max-height: calc(100vh - var(--topbar-h) - 220px);
+  /* A long list scrolls inside its own column so the workflow cards below
+     stay reachable rather than being pushed off the bottom of the page. */
+  max-height: 420px;
   overflow-y: auto;
 }
 
@@ -250,145 +296,6 @@
 .nb-clear {
   margin-left: auto;
   color: var(--danger);
-}
-
-.nb-empty-detail {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--text-muted);
-}
-.nb-empty-detail p {
-  margin: 0;
-  font-size: 13px;
-}
-
-/* ============================================================================
-   Maintenance intake — the setup panel above the inbox.
-   ============================================================================ */
-
-.mi-panel,
-.mi-strip {
-  margin-bottom: 4px;
-}
-
-.mi-strip {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.mi-strip-text {
-  flex: 1;
-  min-width: 220px;
-  font-size: 13px;
-}
-
-.mi-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.mi-head > svg:first-child {
-  flex: none;
-  color: var(--text-faint);
-}
-.mi-head-text {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.mi-body {
-  display: grid;
-  gap: 14px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
-
-/* The six steps, numbered, because the order is the reassurance: everything
-   before step five commits nobody. */
-.mi-flow {
-  margin: 0;
-  padding-left: 20px;
-  display: grid;
-  gap: 6px;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--text-muted);
-}
-
-.mi-preview {
-  padding: 12px 14px;
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
-}
-.mi-preview-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-  font-size: 13px;
-  font-weight: 500;
-}
-.mi-preview-head .select {
-  width: auto;
-  min-width: 160px;
-}
-
-.mi-shortlist {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 8px;
-}
-.mi-shortlist li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-}
-.mi-rank {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--brand-soft);
-  color: var(--brand);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 20px;
-  text-align: center;
-}
-.mi-vendor {
-  display: grid;
-  gap: 1px;
-  min-width: 0;
-}
-
-.mi-actions {
-  display: flex;
-  gap: 12px;
-  align-items: flex-end;
-  flex-wrap: wrap;
-}
-.mi-label-field {
-  min-width: 240px;
-}
-.mi-label-field .report-note {
-  margin: 4px 0 0;
-  max-width: 44ch;
 }
 
 /* ---- Narrow ------------------------------------------------------------- */

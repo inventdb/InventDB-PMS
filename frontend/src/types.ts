@@ -201,8 +201,27 @@ export interface WorkflowVersion {
   version: number;
   name: string;
   trigger_intent?: string;
+  trigger_kind?: string;
+  trigger_spec?: { expr?: string; tz?: string; [key: string]: unknown };
   plan?: WorkflowStep[];
   created_at?: string;
+  /** Short human name for the version, when the author gave one. */
+  label?: string;
+  /** Set when this version was minted by rolling back to another. */
+  source_version?: number;
+}
+
+/**
+ * A revised definition the assistant proposes after a run failed.
+ *
+ * Nothing is saved when this is produced — it is a draft to review. Saving it
+ * from the editor is what mints a version, which is deliberately a separate
+ * act: an AI edit applied straight to a live automation is the change nobody
+ * reviewed.
+ */
+export interface WorkflowFix {
+  revised?: Partial<Workflow> | null;
+  diagnostics?: unknown;
 }
 
 /** A plan step InventDB refused, and why. */
@@ -312,46 +331,76 @@ export interface NotificationResolution {
   resumed?: boolean;
 }
 
-// ---- Maintenance intake ---------------------------------------------------
-
-/** A vendor who could take a job, with the reason they were ranked there. */
-export interface VendorMatch {
+// ---- Files (InventDB attachments, presented as a drive) -------------------
+/**
+ * One file.
+ *
+ * Every file is an attachment on a record, so `record_type`/`record_id` are its
+ * home and `folder_path` is where it sits within that home. The search response
+ * flattens InventDB's own item shape, which is why several fields carry two
+ * spellings — `_id`/`attachment_id`, `size`/`size_bytes`. Readers should go
+ * through the helpers in `files/model.ts` rather than picking one.
+ */
+export interface FileRow {
+  attachment_id?: string;
   _id?: string;
-  vendor_id?: string;
-  company: string;
-  trade?: string;
-  contact?: string;
-  phone?: string;
-  email?: string;
-  rating?: number;
-  coi_on_file?: boolean;
-  /** True when a certificate of insurance is on file. */
-  insured?: boolean;
-  /** Plain-language account of why this vendor ranked here. */
-  why?: string;
-  match_rank?: number;
+  filename?: string;
+  record_type?: string;
+  record_id?: string;
+  namespace?: string;
+  folder_path?: string | null;
+  content_type?: string;
+  size?: number;
+  size_bytes?: number;
+  version?: number;
+  created_at?: string;
+  updated_at?: string;
+  /** Where the extraction pipeline has got to — an unindexed file is not searchable yet. */
+  processing_state?: string;
+  /** Relevance, on a ranked search only. */
+  score?: number;
+  /** The matching passage, on a text or meaning search. */
+  snippet?: string | null;
+  text_snippet?: string | null;
+  /** Which search legs matched: keyword / fulltext / semantic. */
+  matched_sources?: string[];
 }
 
-export interface VendorShortlist {
-  category: string;
-  trades: string[];
-  vendors: VendorMatch[];
-  total_matched: number;
+/**
+ * One folder, counted.
+ *
+ * A folder always belongs to a specific type — `path` alone is ambiguous, since
+ * "2026" under leases and "2026" under inspections are different folders. The
+ * tree groups by type first for exactly that reason. `path: ""` means files
+ * sitting at the type's root.
+ */
+export interface FolderAgg {
+  namespace?: string;
+  type: string;
+  path: string;
+  count: number;
 }
 
-/** Whether a category has anyone on file who can service it. */
-export interface CategoryCoverage {
-  category: string;
-  trades: string[];
-  covered: boolean;
+export interface FileSearchResponse {
+  results: FileRow[];
+  total_matches: number;
+  folders: FolderAgg[];
 }
 
-export interface IntakeStatus {
-  installed: boolean;
-  workflow: Workflow | null;
-  name: string;
-  trades_on_file: string[];
-  coverage: CategoryCoverage[];
-  /** Categories with nobody on file — the intake would park with an empty shortlist. */
-  uncovered: string[];
+/** One earlier revision of a file. Uploading again adds to this, never replaces. */
+export interface FileVersion {
+  version: number;
+  filename?: string;
+  size?: number;
+  content_type?: string;
+  created_at?: string;
+  created_by?: string;
+  is_current?: boolean;
+}
+
+/** What a bulk delete did on one batch. */
+export interface BulkDeleteResult {
+  deleted: number;
+  skipped: number;
+  remaining?: number | null;
 }

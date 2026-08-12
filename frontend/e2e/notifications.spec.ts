@@ -1,12 +1,14 @@
 import { expect, test } from "./fixtures";
 
 /**
- * Inbox — the decisions automations are holding.
+ * Notifications — the decisions automations are holding.
  *
- * Every item here was posted by a workflow run, and the ones with actions are
- * runs that are still going: they stopped at a step that is not the software's
- * decision. So the promises worth protecting are about *consequence*, not
- * layout:
+ * They live at the head of the Workflows page, the way SOAR's Operate room
+ * keeps notifications beside the workflow list: a parked run is a workflow,
+ * mid-flight. Every item was posted by a run, and the ones with actions are
+ * runs that are still going — they stopped at a step that is not the
+ * software's decision. So the promises worth protecting are about
+ * *consequence*, not layout:
  *
  *   - a decision that has not been answered is visibly holding something up;
  *   - answering it says what it did, and cannot be taken back by clicking the
@@ -18,9 +20,9 @@ import { expect, test } from "./fixtures";
 const list = (page: import("@playwright/test").Page) => page.locator(".nb-row");
 const detail = (page: import("@playwright/test").Page) => page.locator(".nb-card");
 
-test.describe("Inbox", () => {
+test.describe("Notifications", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/inbox");
+    await page.goto("/workflows");
   });
 
   // =========================================================================
@@ -31,7 +33,7 @@ test.describe("Inbox", () => {
     // Four notifications are seeded: two waiting, one already answered, one
     // purely informational. Only the first two are holding a run open.
     await expect(list(page)).toHaveCount(4);
-    await expect(page.locator(".count-pill")).toContainText("2 waiting on you");
+    await expect(page.locator(".nb-panel-head .badge")).toHaveText("2 waiting on you");
   });
 
   test("waiting items sort above everything else, however old", async ({ page }) => {
@@ -113,9 +115,9 @@ test.describe("Inbox", () => {
     await detail(page).getByRole("button", { name: "Assign the recommended contractor" }).click();
     await expect(page.locator(".toast")).toBeVisible();
 
-    await expect(page.locator(".count-pill")).toContainText("1 waiting on you");
+    await expect(page.locator(".nb-panel-head .badge")).toHaveText("1 waiting on you");
+    // The badge rides the Workflows nav entry now — same count, same poll.
     await expect(page.locator(".nav-badge")).toHaveText("1");
-    await expect(page.locator(".bell-count")).toHaveText("1");
   });
 
   test("naming a different contractor sends what was typed", async ({ page }) => {
@@ -228,7 +230,7 @@ test.describe("Inbox", () => {
   // Empty and error states
   // =========================================================================
 
-  test("an empty inbox explains what will land here", async ({ page }) => {
+  test("an empty list explains what will land here, without a big empty box", async ({ page }) => {
     await page.route("**/api/notifications", (route) =>
       route.fulfill({
         status: 200,
@@ -238,12 +240,18 @@ test.describe("Inbox", () => {
     );
     await page.reload();
 
-    await expect(page.getByRole("heading", { name: "Nothing here yet" })).toBeVisible();
-    await expect(page.locator(".count-pill")).toContainText("Nothing waiting on you");
+    // A full empty-state card would put a large box about a thing that has not
+    // happened above the workflows that have.
+    await expect(page.locator(".nb-panel.is-empty")).toContainText(
+      "When a workflow needs a decision it pauses and posts it here."
+    );
+    await expect(page.locator(".nb-split")).toHaveCount(0);
     await expect(page.locator(".nav-badge")).toHaveCount(0);
+    // The workflows themselves are untouched by an empty notification list.
+    await expect(page.locator(".wf-card")).toHaveCount(2);
   });
 
-  test("a failed load says so rather than showing an empty inbox", async ({ page }) => {
+  test("a failed load says so rather than showing an empty list", async ({ page }) => {
     await page.route("**/api/notifications", (route) =>
       route.fulfill({
         status: 500,
@@ -254,9 +262,11 @@ test.describe("Inbox", () => {
     await page.reload();
 
     await expect(page.locator(".alert.error")).toContainText("InventDB is unreachable");
+    // A broken notification fetch must not take the workflows down with it.
+    await expect(page.locator(".wf-card")).toHaveCount(2);
   });
 
-  test("the inbox can be searched", async ({ page }) => {
+  test("the list can be searched", async ({ page }) => {
     await page.locator(".nb-search input").fill("statements");
 
     await expect(list(page)).toHaveCount(1);
@@ -264,25 +274,18 @@ test.describe("Inbox", () => {
   });
 });
 
-test.describe("The bell", () => {
+test.describe("The waiting badge", () => {
   test("shows the count from anywhere in the app", async ({ page }) => {
+    // A run parks while you are on another page entirely. The shell polls, so
+    // the count finds you without your having to go and look for it.
     await page.goto("/properties");
 
-    await expect(page.locator(".bell-count")).toHaveText("2");
-    await expect(page.locator(".topbar-bell")).toHaveAttribute(
-      "aria-label",
-      "Inbox — 2 waiting on you"
-    );
+    const badge = page.locator("nav.nav .nav-item", { hasText: "Workflows" }).locator(".nav-badge");
+    await expect(badge).toHaveText("2");
+    await expect(badge).toHaveAttribute("aria-label", "2 waiting on you");
   });
 
-  test("goes to the inbox", async ({ page }) => {
-    await page.goto("/properties");
-    await page.locator(".topbar-bell").click();
-
-    await expect(page).toHaveURL(/\/inbox/);
-  });
-
-  test("carries no count when nothing is waiting", async ({ page }) => {
+  test("is absent when nothing is waiting", async ({ page }) => {
     await page.route("**/api/notifications", (route) =>
       route.fulfill({
         status: 200,
@@ -291,11 +294,46 @@ test.describe("The bell", () => {
       })
     );
     await page.goto("/properties");
+    await expect(page.locator("nav.nav .nav-item", { hasText: "Workflows" })).toBeVisible();
 
-    await expect(page.locator(".bell-count")).toHaveCount(0);
-    await expect(page.locator(".topbar-bell")).toHaveAttribute(
-      "aria-label",
-      "Inbox — nothing waiting"
-    );
+    await expect(page.locator(".nav-badge")).toHaveCount(0);
+  });
+
+  test("counts only outstanding decisions, not answered or informational ones", async ({
+    page,
+  }) => {
+    // Four notifications are seeded and only two hold a run open.
+    await page.goto("/properties");
+    await expect(page.locator(".nav-badge")).toHaveText("2");
+  });
+});
+
+test.describe("Clearing notifications in bulk", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/workflows");
+  });
+
+  test("clears everything already dealt with, and asks first", async ({ page }) => {
+    // Two of the four are dealt with: one answered, one informational.
+    await page.getByRole("button", { name: "Clear 2 answered" }).click();
+
+    const confirm = page.getByRole("dialog");
+    await expect(confirm).toContainText("Only the ones already dealt with");
+    await confirm.getByRole("button", { name: "Clear 2" }).click();
+
+    await expect(page.locator(".toast")).toContainText("Cleared 2 notifications");
+    // The two still waiting on a decision stay exactly where they were.
+    await expect(page.locator(".nb-row")).toHaveCount(2);
+    await expect(page.locator(".nb-panel-head .badge")).toHaveText("2 waiting on you");
+  });
+
+  test("offers nothing to clear when everything is still waiting", async ({ page }) => {
+    await page.getByRole("button", { name: "Clear 2 answered" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Clear 2" }).click();
+    await expect(page.locator(".toast")).toBeVisible();
+
+    // Clearing an outstanding decision would hide a run that is still parked,
+    // with nothing left in the app to say it is stuck.
+    await expect(page.getByRole("button", { name: /Clear \d+ answered/ })).toHaveCount(0);
   });
 });

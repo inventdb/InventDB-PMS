@@ -21,11 +21,13 @@
 import { useState } from "react";
 import {
   AlertTriangle,
+  Ban,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
   Circle,
   Clock,
+  FlaskConical,
   History,
   Loader2,
   Pause,
@@ -33,6 +35,7 @@ import {
   Play,
   Power,
   RotateCcw,
+  Sparkles,
   Trash2,
   XCircle,
 } from "lucide-react";
@@ -43,16 +46,23 @@ import { useToast } from "../components/Toast";
 import { errorMessage } from "../api/client";
 import {
   isLiveRun,
+  useCancelRun,
+  useClearWorkflowVersions,
   useDeleteWorkflow,
+  useDeleteWorkflowVersion,
+  useFixFromRun,
   useRollbackWorkflow,
   useRunWorkflow,
   useWorkflow,
   useWorkflowLifecycle,
+  useUpdateWorkflow,
   useWorkflowRunsFor,
+  useWorkflowVersion,
   useWorkflowVersions,
 } from "../api/hooks";
 import { statusColor, useChartTheme } from "../theme/charts";
-import type { Workflow, WorkflowRun } from "../types";
+import type { Workflow, WorkflowRun, WorkflowVersion } from "../types";
+import { EditableName } from "./EditableName";
 import { PlanTimeline } from "./PlanTimeline";
 import { RunSteps } from "./RunSteps";
 import { describeTrigger } from "./schedule";
@@ -103,8 +113,11 @@ export function WorkflowDetail({
   // keeps the modal's title honest when the workflow is renamed elsewhere.
   const detail = useWorkflow(workflow._id);
 
+  // `hideTitle`: the console leads with the name as an editable heading, so
+  // drawing it in the chrome as well would show it twice — once renameable and
+  // once not. `title` still names the dialog for assistive tech.
   return (
-    <Modal title={detail.data?.name ?? workflow.name} onClose={onClose}>
+    <Modal title={detail.data?.name ?? workflow.name} onClose={onClose} hideTitle>
       <WorkflowConsole workflow={workflow} onEdit={onEdit} onDeleted={onClose} />
     </Modal>
   );
@@ -140,7 +153,10 @@ export function WorkflowConsole({
   const lifecycle = useWorkflowLifecycle();
   const run = useRunWorkflow();
   const remove = useDeleteWorkflow();
-  const busy = lifecycle.isPending || run.isPending || remove.isPending;
+  const update = useUpdateWorkflow();
+  const fix = useFixFromRun();
+  const busy =
+    lifecycle.isPending || run.isPending || remove.isPending || update.isPending;
 
   const pending = !!wf.pending_approval;
   const active = wf.active ?? !pending;
@@ -173,6 +189,28 @@ export function WorkflowConsole({
     }
   }
 
+  /**
+   * Flip the rehearsal flag on its own.
+   *
+   * Sent as an ordinary field update rather than through activate, because the
+   * two axes are independent: a paused workflow can be taken live, and an
+   * active one can be put back to rehearsing without pausing it first. Routing
+   * this through `activate` would silently un-pause a paused workflow.
+   */
+  async function setSandbox(next: boolean) {
+    setError(null);
+    try {
+      await update.mutateAsync({ id: wf._id, patch: { sandbox: next } });
+      toast.success(
+        next
+          ? "Rehearsing again — emails, texts and record changes are mocked."
+          : "Live — this workflow can now send for real."
+      );
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
   async function confirmDelete() {
     try {
       await remove.mutateAsync(wf._id);
@@ -182,6 +220,38 @@ export function WorkflowConsole({
       setConfirmingDelete(false);
       setError(errorMessage(err));
     }
+  }
+
+  /**
+   * Ask the assistant to revise the plan after a run failed.
+   *
+   * The result is a *proposal*, so it goes straight into the editor rather than
+   * being saved: the model is reading its own workflow's error output, and an
+   * unreviewed AI edit to a live automation is the change nobody agreed to.
+   * Saving from the editor is what mints the version.
+   */
+  async function fixFromRun(runId: string) {
+    setError(null);
+    try {
+      const result = await fix.mutateAsync({ id: wf._id, runId });
+      const revised = result?.revised;
+      if (!revised || (!revised.plan && !revised.trigger_intent && !revised.name)) {
+        setError("The assistant couldn’t turn that failure into a usable fix. Try again, or edit it by hand.");
+        return;
+      }
+      onEdit({ ...wf, ...revised, _id: wf._id });
+      toast.success("Opened the proposed fix — review it, then save to keep it.");
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
+  /** Rename in place. Throws so the inline editor can keep the draft on error. */
+  async function rename(next: string) {
+    // Only the name — omitting the plan is what keeps a rename from minting a
+    // version, so the history stays a record of definition changes.
+    await update.mutateAsync({ id: wf._id, patch: { name: next } });
+    toast.success("Renamed.");
   }
 
   // Deleted out from under us — from the Workflows page, from SOAR, or in an
@@ -204,7 +274,16 @@ export function WorkflowConsole({
       <div className="wf-detail">
         {error && <Alert kind="error">{error}</Alert>}
 
-        {/* ---- State ------------------------------------------------------ */}
+        {/* ---- Name and state ---------------------------------------------- */}
+        <div className="wf-name-row">
+          <EditableName
+            value={wf.name}
+            ariaLabel="Rename workflow"
+            disabled={busy}
+            onCommit={rename}
+          />
+        </div>
+
         <div className="wf-state">
           <span className={`badge ${active ? "success" : "neutral"}`}>
             {pending ? "Never activated" : active ? "Active" : "Paused"}
@@ -260,14 +339,26 @@ export function WorkflowConsole({
               <Play size={14} /> Resume
             </button>
           )}
-          {sandboxed && (
+          {/* Rehearsing is a switch, not a door. Going live is the deliberate
+              step, but a workflow that has just misfired has to be able to go
+              back to mocking without being paused, edited or re-created. */}
+          {sandboxed ? (
             <button
               className="btn btn-sm wf-golive"
-              onClick={() => act("activate", false)}
+              onClick={() => setSandbox(false)}
               disabled={busy}
               title="Stop mocking side effects — from now on this workflow really sends."
             >
               <AlertTriangle size={14} /> Take it live
+            </button>
+          ) : (
+            <button
+              className="btn btn-sm"
+              onClick={() => setSandbox(true)}
+              disabled={busy}
+              title="Go back to mocking emails, texts and record changes. It keeps firing on its trigger."
+            >
+              <FlaskConical size={14} /> Back to rehearsing
             </button>
           )}
           <button className="btn btn-sm" onClick={() => onEdit(wf)} disabled={busy}>
@@ -310,10 +401,15 @@ export function WorkflowConsole({
             <PlanTimeline workflow={wf} showTrigger emptyNote="This workflow has no steps yet." />
           ))}
 
-        {tab === "runs" && <RunList query={runs} />}
+        {tab === "runs" && <RunList query={runs} onFix={fixFromRun} fixing={fix.isPending} />}
 
         {tab === "history" && (
-          <VersionList workflowId={wf._id} currentVersion={wf.version} onError={setError} />
+          <VersionList
+            workflowId={wf._id}
+            currentVersion={wf.version}
+            onError={setError}
+            onRan={() => setTab("runs")}
+          />
         )}
       </div>
 
@@ -333,7 +429,15 @@ export function WorkflowConsole({
 
 // ---- Runs -----------------------------------------------------------------
 
-function RunList({ query }: { query: ReturnType<typeof useWorkflowRunsFor> }) {
+function RunList({
+  query,
+  onFix,
+  fixing,
+}: {
+  query: ReturnType<typeof useWorkflowRunsFor>;
+  onFix?: (runId: string) => void;
+  fixing?: boolean;
+}) {
   if (query.isLoading) return <Spinner />;
   if (query.isError) return <Alert kind="error">{errorMessage(query.error)}</Alert>;
 
@@ -354,7 +458,7 @@ function RunList({ query }: { query: ReturnType<typeof useWorkflowRunsFor> }) {
   return (
     <div className="wf-runs">
       {runs.map((r) => (
-        <RunRow key={r._id} run={r} />
+        <RunRow key={r._id} run={r} onFix={onFix} fixing={fixing} />
       ))}
     </div>
   );
@@ -368,37 +472,95 @@ function RunList({ query }: { query: ReturnType<typeof useWorkflowRunsFor> }) {
  * own cannot answer "so did the owners get their statements or not", which is
  * the only question anyone actually opens a run to settle.
  */
-function RunRow({ run }: { run: WorkflowRun }) {
+function RunRow({
+  run,
+  onFix,
+  fixing,
+}: {
+  run: WorkflowRun;
+  /** Absent when there is no workflow to revise — e.g. a deleted one. */
+  onFix?: (runId: string) => void;
+  fixing?: boolean;
+}) {
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const cancel = useCancelRun();
+  const toast = useToast();
   const live = isLiveRun(run.status);
+  const failed = /fail|timed|error/i.test(run.status) || !!run.error;
+
+  async function stop() {
+    setError(null);
+    try {
+      await cancel.mutateAsync(run._id);
+      toast.success("Run cancelled.");
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
   return (
     <div className={`wf-run-item ${open ? "is-open" : ""}`}>
-      <button
-        type="button"
-        className="wf-run"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        <StatusIcon status={run.status} />
-        <span className="wf-run-status">
-          {run.status}
-          {live ? "…" : ""}
-        </span>
-        <span className="wf-run-time">{fmtDateTime(run.started_at)}</span>
-        {run.sandbox && (
-          <span className="wf-run-tag" title="Queries were real; side effects were mocked.">
-            rehearsal
+      <div className="wf-run-line">
+        <button
+          type="button"
+          className="wf-run"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <StatusIcon status={run.status} />
+          <span className="wf-run-status">
+            {run.status}
+            {live ? "…" : ""}
           </span>
+          <span className="wf-run-time">{fmtDateTime(run.started_at)}</span>
+          {run.sandbox && (
+            <span className="wf-run-tag" title="Queries were real; side effects were mocked.">
+              rehearsal
+            </span>
+          )}
+          {run.error && (
+            <span className="wf-run-error" title={run.error}>
+              {run.error}
+            </span>
+          )}
+          <span className="wf-run-dur">{duration(run.started_at, run.ended_at)}</span>
+        </button>
+        {/* A parked run waits indefinitely. If the decision it needs is never
+            going to be made, cancelling is the only thing that closes it. */}
+        {live && (
+          <button
+            className="btn btn-ghost btn-sm wf-run-cancel"
+            disabled={cancel.isPending}
+            title={
+              /park/i.test(run.status)
+                ? "Stop waiting for a decision and end this run"
+                : "Stop this run"
+            }
+            onClick={stop}
+          >
+            <Ban size={13} /> {cancel.isPending ? "Cancelling…" : "Cancel"}
+          </button>
         )}
-        {run.error && (
-          <span className="wf-run-error" title={run.error}>
-            {run.error}
-          </span>
-        )}
-        <span className="wf-run-dur">{duration(run.started_at, run.ended_at)}</span>
-      </button>
-      {open && <RunSteps runId={run._id} live={live} sandbox={run.sandbox} />}
+      </div>
+      {error && <Alert kind="error">{error}</Alert>}
+      {open && (
+        <>
+          <RunSteps runId={run._id} live={live} sandbox={run.sandbox} />
+          {failed && onFix && (
+            <div className="wf-run-fix">
+              <button className="btn btn-sm" disabled={fixing} onClick={() => onFix(run._id)}>
+                <Sparkles size={13} /> {fixing ? "Working…" : "Fix with AI"}
+              </button>
+              <span className="report-note">
+                Replays the workflow’s original intent plus this run’s errors, then opens the
+                editor with a proposed fix. Nothing is saved until you save it.
+              </span>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -410,6 +572,107 @@ function isMissing(error: unknown): boolean {
 
 // ---- Versions -------------------------------------------------------------
 
+/** One historical definition, openable — its plan read step by step. */
+function VersionRow({
+  workflowId,
+  version,
+  current,
+  busy,
+  onRestore,
+  onRun,
+  onDelete,
+}: {
+  workflowId: string;
+  version: WorkflowVersion;
+  current: boolean;
+  busy: string | null;
+  onRestore: (n: number) => void;
+  onRun: (n: number) => void;
+  onDelete: (n: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const n = version.version;
+  // Only fetched once opened: the list can be long and every entry carries a
+  // whole plan.
+  const snapshot = useWorkflowVersion(workflowId, open ? n : null);
+  const steps = version.plan?.length ?? 0;
+
+  return (
+    <div className={`wf-version-item ${open ? "is-open" : ""}`}>
+      <div className="wf-version">
+        <button
+          type="button"
+          className="wf-version-open"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          <span className="wf-version-no">v{n}</span>
+          <span className="wf-version-name">
+            {version.name}
+            {version.trigger_intent && (
+              <span className="wf-version-intent">{version.trigger_intent}</span>
+            )}
+          </span>
+        </button>
+        <span className="wf-version-meta">
+          {steps} step{steps === 1 ? "" : "s"} · {fmtDateTime(version.created_at)}
+          {version.source_version ? ` · from v${version.source_version}` : ""}
+        </span>
+        {current && <span className="badge success">Current</span>}
+        <span className="wf-version-actions">
+          {/* Firing an old definition always rehearses. Running a superseded
+              plan for real, from a history list, is not something to make one
+              click away — restore it first if that is genuinely the intent. */}
+          <button
+            className="btn btn-ghost btn-sm"
+            disabled={!!busy}
+            title="Rehearse this version — queries run, side effects are mocked"
+            onClick={() => onRun(n)}
+          >
+            <Play size={13} /> {busy === `run-${n}` ? "…" : "Rehearse"}
+          </button>
+          {!current && (
+            <>
+              <button
+                className="btn btn-ghost btn-sm"
+                disabled={!!busy}
+                onClick={() => onRestore(n)}
+              >
+                <RotateCcw size={13} /> {busy === `restore-${n}` ? "Restoring…" : "Restore"}
+              </button>
+              <button
+                className="btn-icon danger"
+                disabled={!!busy}
+                aria-label={`Delete version ${n}`}
+                title={`Delete v${n} from the history`}
+                onClick={() => onDelete(n)}
+              >
+                <Trash2 size={13} />
+              </button>
+            </>
+          )}
+        </span>
+      </div>
+      {open && (
+        <div className="wf-version-plan">
+          {snapshot.isLoading ? (
+            <Spinner />
+          ) : snapshot.isError ? (
+            <Alert kind="error">{errorMessage(snapshot.error)}</Alert>
+          ) : (
+            <PlanTimeline
+              workflow={{ ...(snapshot.data ?? version), _id: workflowId } as Workflow}
+              showTrigger
+              emptyNote="This version had no steps."
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Every definition edit mints a version, so this is the way back from a change
  * that turned out wrong. Restoring saves the old definition as a *new* latest
@@ -420,20 +683,42 @@ function VersionList({
   workflowId,
   currentVersion,
   onError,
+  onRan,
 }: {
   workflowId: string;
   currentVersion?: number;
   onError: (message: string) => void;
+  onRan: () => void;
 }) {
   const toast = useToast();
   const versions = useWorkflowVersions(workflowId);
   const rollback = useRollbackWorkflow();
-  const [restoring, setRestoring] = useState<number | null>(null);
+  const run = useRunWorkflow();
+  const removeVersion = useDeleteWorkflowVersion();
+  const clearHistory = useClearWorkflowVersions();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<{ kind: "one"; version: number } | { kind: "all" } | null>(
+    null
+  );
+
+  const rows = [...(versions.data?.versions ?? [])].sort((a, b) => b.version - a.version);
+
+  async function act(key: string, run: () => Promise<unknown>, done: string) {
+    setBusy(key);
+    try {
+      await run();
+      toast.success(done);
+    } catch (err) {
+      onError(errorMessage(err));
+    } finally {
+      setBusy(null);
+      setConfirming(null);
+    }
+  }
 
   if (versions.isLoading) return <Spinner />;
   if (versions.isError) return <Alert kind="error">{errorMessage(versions.error)}</Alert>;
 
-  const rows = [...(versions.data?.versions ?? [])].sort((a, b) => b.version - a.version);
   if (!rows.length) {
     return (
       <EmptyState
@@ -444,47 +729,82 @@ function VersionList({
     );
   }
 
-  async function restore(version: number) {
-    setRestoring(version);
-    try {
-      await rollback.mutateAsync({ id: workflowId, version });
-      toast.success(`Restored version ${version} as the current definition.`);
-    } catch (err) {
-      onError(errorMessage(err));
-    } finally {
-      setRestoring(null);
-    }
-  }
+  const older = rows.filter((v) => v.version !== currentVersion).length;
 
   return (
-    <div className="wf-versions">
-      {rows.map((v) => {
-        const current = v.version === currentVersion;
-        return (
-          <div key={v.version} className="wf-version">
-            <span className="wf-version-no">v{v.version}</span>
-            <span className="wf-version-name">
-              {v.name}
-              {v.trigger_intent && <span className="wf-version-intent">{v.trigger_intent}</span>}
-            </span>
-            <span className="wf-version-meta">
-              {v.plan?.length ?? 0} step{(v.plan?.length ?? 0) === 1 ? "" : "s"} ·{" "}
-              {fmtDateTime(v.created_at)}
-            </span>
-            {current ? (
-              <span className="badge success">Current</span>
-            ) : (
-              <button
-                className="btn btn-ghost btn-sm"
-                disabled={restoring !== null}
-                onClick={() => restore(v.version)}
-              >
-                <RotateCcw size={13} /> {restoring === v.version ? "Restoring…" : "Restore"}
-              </button>
-            )}
-          </div>
-        );
-      })}
-    </div>
+    <>
+      <div className="wf-versions">
+        <div className="wf-versions-head">
+          <span className="report-note">
+            {rows.length} version{rows.length === 1 ? "" : "s"} · only the latest is editable —
+            restore an older one to make it current
+          </span>
+          {older > 0 && (
+            <button
+              className="btn btn-ghost btn-sm wf-versions-clear"
+              disabled={!!busy}
+              onClick={() => setConfirming({ kind: "all" })}
+            >
+              Clear history
+            </button>
+          )}
+        </div>
+
+        {rows.map((v) => (
+          <VersionRow
+            key={v.version}
+            workflowId={workflowId}
+            version={v}
+            current={v.version === currentVersion}
+            busy={busy}
+            onRestore={(n) =>
+              act(
+                `restore-${n}`,
+                () => rollback.mutateAsync({ id: workflowId, version: n }),
+                `Restored v${n} as the current definition.`
+              )
+            }
+            onRun={(n) =>
+              act(
+                `run-${n}`,
+                () => run.mutateAsync({ id: workflowId, version: n, sandboxOverride: true }),
+                `Rehearsing v${n} — watch it under Runs.`
+              ).then(onRan)
+            }
+            onDelete={(n) => setConfirming({ kind: "one", version: n })}
+          />
+        ))}
+      </div>
+
+      {confirming?.kind === "one" && (
+        <ConfirmDialog
+          title={`Delete v${confirming.version}?`}
+          message="It goes from the history for good. The definition in force is unaffected, and past runs keep their own record of what they ran."
+          confirmLabel="Delete version"
+          busy={removeVersion.isPending}
+          onConfirm={() =>
+            void act(
+              `del-${confirming.version}`,
+              () => removeVersion.mutateAsync({ id: workflowId, version: confirming.version }),
+              `Deleted v${confirming.version}.`
+            )
+          }
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+
+      {confirming?.kind === "all" && (
+        <ConfirmDialog
+          title="Clear the version history?"
+          message="Every earlier definition is deleted and there is nothing left to restore. The version in force stays exactly as it is."
+          confirmLabel="Clear history"
+          busy={clearHistory.isPending}
+          onConfirm={() =>
+            void act("clear", () => clearHistory.mutateAsync(workflowId), "Version history cleared.")
+          }
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+    </>
   );
 }

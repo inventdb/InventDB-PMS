@@ -1,0 +1,547 @@
+/* ============================================================================
+   Files — the drive over attachments.
+
+   Two columns: the tree of record types and folders, and the grid of what is
+   in the current scope. Tokens only, so both themes and the responsive rules
+   at the foot come for free.
+   ========================================================================== */
+
+.fx-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+/* ---- The tree ------------------------------------------------------------ */
+.fx-tree {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  /* head · body. The body is the row allowed to flex, so a long tree scrolls
+     inside the card instead of pushing past its bottom edge. */
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  max-height: calc(100vh - var(--topbar-h) - 40px);
+}
+
+.fx-tree-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fx-tree-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.fx-tree-body {
+  overflow-y: auto;
+  min-height: 0;
+  margin: 0 -8px;
+}
+.fx-tree-empty {
+  padding: 4px 12px;
+}
+
+.fx-node {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-1) var(--ease);
+}
+.fx-node:hover {
+  background: var(--surface-2);
+}
+.fx-node.is-active {
+  background: var(--brand-soft);
+}
+.fx-node--root,
+.fx-node--type {
+  padding: 6px 8px;
+}
+.fx-node--root .fx-node-name {
+  font-weight: 700;
+}
+.fx-node--type .fx-node-name {
+  font-weight: 600;
+}
+
+.fx-node-tog {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 0;
+}
+.fx-node-tog.is-empty {
+  cursor: default;
+}
+.fx-node-ico {
+  flex: none;
+  color: var(--text-faint);
+}
+.fx-node.is-active .fx-node-ico {
+  color: var(--brand);
+}
+.fx-node-name {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fx-node.is-active .fx-node-name {
+  color: var(--brand);
+}
+.fx-node-count {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  flex: none;
+}
+/* Revealed on hover: deleting a whole folder should take intent, not sit
+   permanently under the cursor. */
+.fx-node-del {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.fx-node:hover .fx-node-del,
+.fx-node-del:focus-visible {
+  opacity: 1;
+}
+.fx-node-del:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+/* ---- Toolbar ------------------------------------------------------------- */
+.fx-grid-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.fx-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.fx-search {
+  flex: 1;
+  min-width: 200px;
+}
+
+.fx-modes {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  padding: 2px;
+  gap: 2px;
+}
+.fx-mode {
+  border: none;
+  background: none;
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-transform: capitalize;
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.fx-mode:hover {
+  color: var(--brand);
+}
+.fx-mode.active {
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 500;
+}
+
+.fx-hidden-input {
+  display: none;
+}
+
+/* ---- The grid ------------------------------------------------------------ */
+.fx-drop {
+  border: 1px dashed transparent;
+  border-radius: var(--radius);
+  transition: border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
+}
+/* Only while something is over it — a permanently dashed panel reads as
+   unfinished rather than as a target. */
+.fx-drop.is-over {
+  border-color: var(--brand);
+  background: var(--brand-tint);
+}
+
+.fx-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.fx-table th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.fx-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.fx-row {
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease);
+}
+.fx-row:hover {
+  background: var(--surface-2);
+}
+
+.fx-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.fx-ext {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--brand);
+  background: var(--brand-soft);
+  padding: 2px 5px;
+  border-radius: 4px;
+  flex: none;
+}
+.fx-filename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fx-score {
+  font-size: 11px;
+  color: var(--text-faint);
+  flex: none;
+}
+/* The matching passage, on a text or meaning search — two lines is enough to
+   recognise the file without the row becoming a paragraph. */
+.fx-snippet {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.fx-where {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.fx-num {
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.fx-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* ---- Upload target prompt ------------------------------------------------ */
+.fx-target {
+  border: 1px solid var(--brand-line);
+}
+.fx-target-head {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+.fx-target-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ---- Bulk-delete progress ------------------------------------------------ */
+.fx-progress {
+  margin-bottom: 14px;
+}
+.fx-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.fx-progress-bar {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.fx-progress-fill {
+  height: 100%;
+  background: var(--brand);
+  border-radius: var(--radius-pill);
+  transition: width var(--dur-2) var(--ease);
+}
+
+/* ---- Detail -------------------------------------------------------------- */
+.fx-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.fx-detail-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.fx-detail-end {
+  margin-left: auto;
+}
+
+.fx-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.fx-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+.fx-tab:hover {
+  color: var(--brand);
+}
+.fx-tab.active {
+  color: var(--brand);
+  border-bottom-color: var(--brand);
+}
+
+.fx-preview {
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.fx-preview-img {
+  max-width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+}
+.fx-preview-frame {
+  width: 100%;
+  height: 60vh;
+  border: none;
+  background: var(--surface);
+}
+
+.fx-info {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+}
+.fx-info-row {
+  display: grid;
+  grid-template-columns: minmax(0, 140px) minmax(0, 1fr);
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.fx-info-row dt {
+  color: var(--text-muted);
+}
+.fx-info-row dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.fx-text {
+  margin: 0;
+  max-height: 55vh;
+  overflow: auto;
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.fx-versions {
+  display: flex;
+  flex-direction: column;
+}
+.fx-version {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.fx-version-no {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--brand);
+  background: var(--brand-soft);
+  padding: 2px 7px;
+  border-radius: 5px;
+  flex: none;
+}
+.fx-version-meta {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+/* ---- Narrow screens ------------------------------------------------------
+   The tree stops being a column and becomes a band above the grid: at this
+   width a 260px rail leaves the file names with nowhere to go. */
+@media (max-width: 900px) {
+  .fx-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fx-tree {
+    position: static;
+    max-height: 300px;
+  }
+  .fx-toolbar {
+    gap: 8px;
+  }
+  .fx-search {
+    order: -1;
+    flex-basis: 100%;
+  }
+  .fx-detail-end {
+    margin-left: 0;
+  }
+  .fx-preview-frame {
+    height: 50vh;
+  }
+}
+
+/* ---- Giving a file a home ------------------------------------------------ */
+.fx-attach {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--brand-line);
+  border-radius: var(--radius);
+  background: var(--brand-tint);
+}
+.fx-attach-lead {
+  margin: 0;
+}
+.fx-attach-lead code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  background: var(--surface);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.fx-attach-modes {
+  display: inline-flex;
+  align-self: flex-start;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  padding: 2px;
+  gap: 2px;
+}
+.fx-attach-modes .fx-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;
+}
+.fx-attach-form {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+/* Where a file lives, once it has somewhere to live. */
+.fx-attached {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 13px;
+}
+.fx-attached-ico {
+  color: var(--brand);
+  flex: none;
+}
+.fx-attached-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--brand);
+  cursor: pointer;
+}
+.fx-attached-link:hover {
+  text-decoration: underline;
+}

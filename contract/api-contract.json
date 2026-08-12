@@ -511,58 +511,100 @@
       }
     },
     {
-      "key": "maintenance-vendors",
-      "method": "GET",
-      "path": "/api/maintenance/vendors?category=Plumbing",
+      "key": "file-search",
+      "method": "POST",
+      "path": "/api/files/search",
       "status": 200,
       "auth": true,
-      "body": null,
+      "body": {
+        "query": "*",
+        "search_type": "keyword",
+        "limit": 25
+      },
       "shape": {
-        "category": "string",
-        "trades": [
-          "string"
-        ],
-        "vendors": [
+        "results": [
           "object"
         ],
-        "total_matched": "int"
-      }
-    },
-    {
-      "key": "maintenance-categories",
-      "method": "GET",
-      "path": "/api/maintenance/categories",
-      "status": 200,
-      "auth": true,
-      "body": null,
-      "shape": {
-        "categories": [
-          "object"
-        ],
-        "priorities": [
-          "string"
+        "total_matches": "int",
+        "folders": [
+          {
+            "namespace?": "string",
+            "type": "string",
+            "path": "string",
+            "count": "int"
+          }
         ]
       }
     },
     {
-      "key": "maintenance-intake",
+      "key": "file-list",
       "method": "GET",
-      "path": "/api/maintenance/intake",
+      "path": "/api/files/{file_type}/{file_record}",
       "status": 200,
       "auth": true,
       "body": null,
       "shape": {
-        "installed": "bool",
-        "workflow": "any",
-        "name": "string",
-        "trades_on_file": [
-          "string"
-        ],
-        "coverage": [
+        "files": [
           "object"
-        ],
-        "uncovered": [
-          "string"
+        ]
+      }
+    },
+    {
+      "key": "file-text",
+      "method": "GET",
+      "path": "/api/files/{file_type}/{file_record}/{attachment_id}/text",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "text?": "string"
+      }
+    },
+    {
+      "key": "file-versions",
+      "method": "GET",
+      "path": "/api/files/{file_type}/{file_record}/{attachment_id}/versions",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "versions": [
+          "object"
+        ]
+      }
+    },
+    {
+      "key": "file-bulk-delete",
+      "method": "POST",
+      "path": "/api/files/bulk-delete",
+      "status": 200,
+      "auth": true,
+      "body": {
+        "type": "leases",
+        "folder": "2026",
+        "limit": 15
+      },
+      "shape": {
+        "deleted": "int",
+        "skipped": "int",
+        "remaining?": "int|null"
+      }
+    },
+    {
+      "key": "file-attach",
+      "method": "POST",
+      "path": "/api/files/attach",
+      "status": 200,
+      "auth": true,
+      "body": {
+        "attachment_id": "att-001",
+        "type": "leases",
+        "record_id": "lea-001"
+      },
+      "shape": {
+        "mode": "string",
+        "parents": [
+          "object"
         ]
       }
     },
@@ -598,6 +640,21 @@
         "versions": [
           "object"
         ]
+      }
+    },
+    {
+      "key": "workflow-version",
+      "method": "GET",
+      "path": "/api/workflows/{workflow_id}/versions/1",
+      "status": 200,
+      "auth": true,
+      "body": null,
+      "shape": {
+        "version": "int",
+        "name": "string",
+        "plan?": "array",
+        "trigger_intent?": "string",
+        "created_at?": "string"
       }
     },
     {

@@ -41,9 +41,25 @@ class Call:
 
     method: str
     path: str
+    #: Which instance the request went to. Almost always the configured one —
+    #: the exception is the Settings page probing a host before the app is
+    #: repointed at it.
+    base: str = ""
     params: dict[str, Any] = field(default_factory=dict)
     body: Any = None
     headers: dict[str, str] = field(default_factory=dict)
+    # A multipart upload carries no JSON body, so `body` is None and what was
+    # actually sent lives here: `files` as requests received it — usually
+    # `{"file": (filename, content, content_type)}` — and `data` for the
+    # ordinary form fields alongside it (the folder an upload targets).
+    files: Optional[dict[str, Any]] = None
+    data: Optional[dict[str, Any]] = None
+
+    @property
+    def upload(self) -> Optional[tuple[str, bytes, str]]:
+        """The uploaded ``(filename, content, content_type)``, if this was one."""
+        part = (self.files or {}).get("file")
+        return part if isinstance(part, tuple) else None
 
     @property
     def sql(self) -> Optional[str]:
@@ -75,22 +91,24 @@ class Reply:
     stream, which the app relays rather than parses.
     """
 
-    __slots__ = ("status", "payload", "raw", "empty", "chunks")
+    __slots__ = ("status", "payload", "raw", "empty", "chunks", "headers")
 
     def __init__(
         self,
         status: int = 200,
         payload: Any = None,
         *,
-        raw: Optional[str] = None,
+        raw: Optional[Union[str, bytes]] = None,
         empty: bool = False,
         chunks: Optional[list[Any]] = None,
+        headers: Optional[dict[str, str]] = None,
     ) -> None:
         self.status = status
         self.payload = payload
         self.raw = raw
         self.empty = empty
         self.chunks = chunks
+        self.headers = headers or {}
 
 
 class _Response:
@@ -99,17 +117,26 @@ class _Response:
     def __init__(self, reply: Reply) -> None:
         self._reply = reply
         self.status_code = reply.status
+        # Real responses carry headers, and the file routes read them to relay
+        # a download's content type and length. Without this the fake looks
+        # like a `requests.Response` right up until something touches one.
+        self.headers = dict(reply.headers)
 
     @property
     def text(self) -> str:
         if self._reply.empty:
             return ""
         if self._reply.raw is not None:
-            return self._reply.raw
+            raw = self._reply.raw
+            # A binary body (a PDF, a thumbnail) has no faithful `.text`;
+            # decoding it loosely is what `requests` does too.
+            return raw if isinstance(raw, str) else raw.decode("utf-8", "replace")
         return jsonlib.dumps(self._reply.payload)
 
     @property
     def content(self) -> bytes:
+        if self._reply.raw is not None and isinstance(self._reply.raw, bytes):
+            return self._reply.raw
         return self.text.encode("utf-8")
 
     def json(self) -> Any:
@@ -159,6 +186,15 @@ class FakeInventDB:
         self.base_url = base_url.rstrip("/")
         self.calls: list[Call] = []
         self._rules: list[_Rule] = []
+        #: Additional instances this test expects the app to contact. Empty by
+        #: default, so "the app talked to a host nobody authorised" stays a
+        #: failure rather than something a mock quietly absorbs.
+        self.extra_bases: set[str] = set()
+
+    def allow_base(self, base_url: str) -> "FakeInventDB":
+        """Permit requests to another instance (the settings probe)."""
+        self.extra_bases.add(base_url.rstrip("/"))
+        return self
 
     # -------------------------------------------------------------- registration
     def on(
@@ -168,18 +204,21 @@ class FakeInventDB:
         payload: Any = None,
         *,
         status: int = 200,
-        raw: Optional[str] = None,
+        raw: Optional[Union[str, bytes]] = None,
         empty: bool = False,
         chunks: Optional[list[Any]] = None,
+        headers: Optional[dict[str, str]] = None,
         error: Optional[BaseException] = None,
     ) -> "FakeInventDB":
         """Route ``method path`` to a canned reply (or raise ``error``).
 
         ``path`` may be an exact string, a compiled regex (searched against the
-        path), or a predicate over the :class:`Call`.
+        path), or a predicate over the :class:`Call`. ``raw`` takes bytes for a
+        binary body (a PDF, a thumbnail); ``headers`` is what the file routes
+        relay to the browser.
         """
         responder: Responder = error or Reply(
-            status, payload, raw=raw, empty=empty, chunks=chunks
+            status, payload, raw=raw, empty=empty, chunks=chunks, headers=headers
         )
         self._rules.append(_Rule(method.upper(), path, responder))
         return self
@@ -269,19 +308,27 @@ class FakeInventDB:
         json: Any = None,
         params: Optional[dict[str, Any]] = None,
         timeout: Any = None,
+        files: Optional[dict[str, Any]] = None,
+        data: Optional[dict[str, Any]] = None,
         **_ignored: Any,
     ) -> _Response:
         """Drop-in for ``requests.request``."""
-        assert url.startswith(self.base_url), (
-            f"request escaped the configured instance: {url!r} "
-            f"is not under {self.base_url!r}"
+        base = next(
+            (b for b in (self.base_url, *self.extra_bases) if url.startswith(b)), None
+        )
+        assert base is not None, (
+            f"request escaped the configured instance: {url!r} is not under "
+            f"{self.base_url!r} (allow it with fake.allow_base(...) if intended)"
         )
         call = Call(
             method=method.upper(),
-            path=url[len(self.base_url) :],
+            path=url[len(base) :],
+            base=base,
             params=dict(params or {}),
             body=json,
             headers=dict(headers or {}),
+            files=dict(files) if files else None,
+            data=dict(data) if data else None,
         )
         self.calls.append(call)
 

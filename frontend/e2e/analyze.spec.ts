@@ -239,6 +239,54 @@ test.describe("Analyze", () => {
     await expect(page.locator(".an-thread-row")).toHaveCount(0);
   });
 
+  test("a long thread history scrolls instead of pushing New question out", async ({ page }) => {
+    // The rail is a grid with a max-height. Unless the list's row track is
+    // explicitly flexible, every row sizes to its content: the card clips at
+    // its max-height while the list keeps growing, and the button after it is
+    // carried past the bottom edge. Nine threads is enough to show it.
+    await page.route("**/api/analyze/threads", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          threads: Array.from({ length: 9 }, (_, i) => ({
+            id: `t-${i}`,
+            label: `Thread ${i}`,
+            created: "2026-08-01T00:00:00Z",
+            exchanges: [
+              {
+                question: `A tenant at 3027 Crepe Myrtle Ln asked something long, ${i}`,
+                steps: [{ type: "done", content: "Answer." }],
+                ts: "2026-08-01T00:00:00Z",
+              },
+            ],
+          })),
+        }),
+      })
+    );
+    await page.reload();
+    await page.locator(".an-thread-row").first().waitFor();
+
+    const rail = await page.locator(".an-threads").boundingBox();
+    const button = await page.locator(".an-new-thread").boundingBox();
+    expect(rail).not.toBeNull();
+    expect(button).not.toBeNull();
+
+    // Inside the card, not hanging off the bottom of it.
+    expect(button!.y + button!.height).toBeLessThanOrEqual(rail!.y + rail!.height);
+
+    // And it is the list that absorbs the overflow.
+    const scrolls = await page
+      .locator(".an-thread-list")
+      .evaluate((el) => el.scrollHeight > el.clientHeight);
+    expect(scrolls).toBe(true);
+
+    // Left edges line up with the rest of the rail.
+    const search = await page.locator(".input-icon").boundingBox();
+    expect(Math.round(button!.x)).toBe(Math.round(search!.x));
+    expect(Math.round(button!.width)).toBe(Math.round(search!.width));
+  });
+
   test("a follow-up runs the agent exactly once", async ({ page }) => {
     // A turn is not a read — the agent writes as it goes. Running one twice
     // means two workflows, two report templates, two of whatever it was asked

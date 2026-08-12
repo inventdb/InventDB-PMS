@@ -140,6 +140,16 @@ def workflow_versions(workflow_id: str):
     return jsonify({"versions": _collection(payload, "versions")})
 
 
+@bp.get("/<workflow_id>/versions/<int:version>")
+def workflow_version(workflow_id: str, version: int):
+    """One frozen definition, in full.
+
+    The list carries enough to *name* a version; reading an old plan step by
+    step before rolling back to it needs the whole thing.
+    """
+    return jsonify(_data(authed_client().get_workflow_version(workflow_id, version)))
+
+
 # ===========================================================================
 # Authoring
 # ===========================================================================
@@ -253,3 +263,52 @@ def run_workflow(workflow_id: str):
 def rollback_workflow(workflow_id: str, version: int):
     """Restore an earlier definition as a new latest version."""
     return jsonify(_data(authed_client().rollback_workflow(workflow_id, version)))
+
+
+@bp.delete("/<workflow_id>/versions/<int:version>")
+def delete_workflow_version(workflow_id: str, version: int):
+    """Drop one historical version.
+
+    InventDB refuses to delete the current one — history is what rollback
+    reads, and removing the definition in force would leave nothing to restore.
+    """
+    return jsonify(_data(authed_client().delete_workflow_version(workflow_id, version)))
+
+
+@bp.delete("/<workflow_id>/versions")
+def clear_workflow_versions(workflow_id: str):
+    """Drop every historical version, keeping the current definition."""
+    return jsonify(_data(authed_client().clear_workflow_versions(workflow_id)))
+
+
+# ===========================================================================
+# Runs in flight
+# ===========================================================================
+
+
+@bp.post("/runs/<run_id>/cancel")
+def cancel_run(run_id: str):
+    """Stop a run that is running or parked.
+
+    A parked run is waiting on a person and will wait indefinitely; cancelling
+    is how a decision that is never going to be made stops holding a run open.
+    Upstream refuses a run that has already finished, and that 400 rides back
+    rather than being smoothed into a success.
+    """
+    return jsonify(_data(authed_client().cancel_run(run_id)))
+
+
+@bp.post("/<workflow_id>/fix-from-run/<run_id>")
+def fix_from_run(workflow_id: str, run_id: str):
+    """Ask for a revised definition after a run failed.
+
+    Returns a *proposal*: InventDB replays the workflow's original authoring
+    context plus this run's diagnostics and hands back a revised plan. Nothing
+    is saved here, deliberately — the fix opens in the editor and only saving
+    it mints a version. An AI edit applied straight to a live automation is
+    exactly the change nobody reviewed.
+    """
+    data = _data(authed_client().fix_workflow_from_run(workflow_id, run_id)) or {}
+    if not isinstance(data, dict):
+        data = {}
+    return jsonify({"revised": data.get("revised"), "diagnostics": data.get("diagnostics")})

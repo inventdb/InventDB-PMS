@@ -247,6 +247,14 @@
   position: sticky;
   top: 16px;
   display: grid;
+  /* head · search · list · button. The list is the only row allowed to flex,
+     and `minmax(0, …)` is what lets it shrink below its content so it scrolls.
+     Without explicit tracks every row sizes to max-content: `max-height` then
+     clips the card while the list keeps growing, pushing "New question" out
+     past the bottom edge — which is what it was doing with a full history.
+     `min-height: 0` on the list alone does not fix it; the row track has to be
+     flexible too. */
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 13px;
   max-height: calc(100vh - var(--topbar-h) - 40px);
 }

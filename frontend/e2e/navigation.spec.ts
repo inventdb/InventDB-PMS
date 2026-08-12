@@ -17,10 +17,10 @@ const DESTINATIONS = [
   { link: "Compliance", path: "/compliance", title: "Compliance" },
   { link: "Daily Tasks", path: "/daily_tasks", title: "Daily Tasks" },
   { link: "Accounting", path: "/transactions", title: "Accounting" },
-  { link: "Inbox", path: "/inbox", title: "Inbox" },
   { link: "Analyze", path: "/analyze", title: "Analyze" },
   { link: "Workflows", path: "/workflows", title: "Workflows" },
   { link: "Reports", path: "/reports", title: "Reports" },
+  { link: "Files", path: "/files", title: "Files" },
   { link: "Settings", path: "/settings", title: "Settings" },
 ] as const;
 
@@ -46,7 +46,13 @@ test.describe("Sidebar navigation", () => {
 
   for (const { link, path, title } of DESTINATIONS) {
     test(`navigates to ${link}`, async ({ page }) => {
-      await page.locator("nav.nav").getByRole("link", { name: link, exact: true }).click();
+      // Located by href rather than accessible name. An entry that carries a
+      // count badge — Workflows, when a run is parked — has that count in its
+      // name by design ("Workflows, 2 waiting on you"), which is right for a
+      // screen reader and fatal to an exact-name match.
+      const entry = page.locator("nav.nav").locator(`a[href="${path}"]`);
+      await expect(entry).toContainText(link);
+      await entry.click();
 
       await expect(page).toHaveURL(`http://localhost:5173${path}`);
       // The topbar h1 is the only heading guaranteed on every page; entity

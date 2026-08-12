@@ -18,7 +18,7 @@ test.describe("Workflows", () => {
     // Four runs, not three: the seeded maintenance-intake run counts too. Its
     // workflow is a draft and so is hidden from the list above, which is the
     // real situation a run whose definition was never activated leaves behind.
-    await expect(page.locator(".count-pill")).toContainText("2 workflow(s) · 4 run(s)");
+    await expect(page.locator(".count-pill")).toContainText("2 workflows · 4 runs");
   });
 
   test("renders a card per workflow with its trigger", async ({ page }) => {
@@ -34,7 +34,9 @@ test.describe("Workflows", () => {
 
     const evented = card(page, "Emergency work order alert");
     await expect(evented.locator(".badge").first()).toHaveText("Paused");
-    await expect(evented).toContainText("event");
+    // Read as a sentence, not as the engine's own vocabulary — the card said
+    // "event" before, which is a trigger_kind, not something a manager says.
+    await expect(evented).toContainText("When a record changes");
   });
 
   test("shows which workflows are still rehearsing", async ({ page }) => {
@@ -83,7 +85,7 @@ test.describe("Workflows", () => {
 
     await expect(card(page, "Monthly owner statements")).toBeVisible();
     await expect(page.locator(".wf-card-runs")).toHaveCount(0);
-    await expect(page.locator(".count-pill")).toContainText("0 run(s)");
+    await expect(page.locator(".count-pill")).toContainText("0 runs");
   });
 
   test("shows an empty state when the instance defines no workflows", async ({ page }) => {
@@ -97,7 +99,9 @@ test.describe("Workflows", () => {
     await page.reload();
 
     await expect(page.getByRole("heading", { name: "No workflows yet" })).toBeVisible();
-    await expect(page.locator(".card-pad")).toHaveCount(0);
+    // No workflow cards — but the notifications and intake panels above are
+    // about runs and setup, not about workflows existing, so they stay.
+    await expect(page.locator(".wf-card")).toHaveCount(0);
     // Workflows are authored in Analyze or SOAR, so the empty state points
     // there rather than offering a builder this page does not have.
     await expect(page.locator(".empty")).toContainText("Describe the automation you want in Analyze");
@@ -146,7 +150,7 @@ test.describe("Workflows", () => {
 
     await expect(page.locator(".wf-card")).toHaveCount(1);
     await expect(page.locator(".wf-card .badge").first()).toHaveText("Active");
-    await expect(page.locator(".count-pill")).toContainText("1 workflow(s)");
+    await expect(page.locator(".count-pill")).toContainText("1 workflow ·");
     // No unasked-for draft on the page.
     await expect(page.getByText("Draft")).toHaveCount(0);
   });
@@ -154,7 +158,7 @@ test.describe("Workflows", () => {
   test("an unactivated workflow is hidden until it is asked for by name", async ({ page }) => {
     // wf-3 is in the list the mock serves, but it has never been activated.
     await expect(card(page, "Monthly payment timing report")).toHaveCount(0);
-    await expect(page.locator(".count-pill")).toContainText("2 workflow(s)");
+    await expect(page.locator(".count-pill")).toContainText("2 workflows");
   });
 
   test("a draft asked for by name is shown, opened and can be activated", async ({ page }) => {
@@ -166,9 +170,9 @@ test.describe("Workflows", () => {
     // Opened on arrival — activating is the reason the link exists.
     const modal = page.locator(".modal");
     await expect(modal).toBeVisible();
-    await expect(
-      modal.getByRole("heading", { name: "Monthly payment timing report" })
-    ).toBeVisible();
+    // The name leads the console as the rename control, not as separate chrome:
+    // drawn twice, only one of the two would actually change anything.
+    await expect(modal.locator(".wf-rename")).toHaveText("Monthly payment timing report");
     await expect(modal.locator(".wf-state .badge").first()).toHaveText("Never activated");
 
     await modal.getByRole("button", { name: "Activate" }).click();
@@ -178,7 +182,7 @@ test.describe("Workflows", () => {
     // And it stays on the page once it is real — now on its own merits.
     await page.locator(".modal-head .btn-icon").click();
     await expect(card(page, "Monthly payment timing report")).toBeVisible();
-    await expect(page.locator(".count-pill")).toContainText("3 workflow(s)");
+    await expect(page.locator(".count-pill")).toContainText("3 workflows");
   });
 
   test("only the named draft is un-hidden, not every draft", async ({ page }) => {
@@ -310,7 +314,7 @@ test.describe("Workflows", () => {
     });
   });
 
-  test("a rehearsing workflow offers to go live, and a live one does not", async ({ page }) => {
+  test("going live changes what it sends, not whether it fires", async ({ page }) => {
     await card(page, "Emergency work order alert").getByRole("button", { name: "Open" }).click();
     await expect(dialog(page).locator(".wf-state .badge")).toHaveText(["Paused", "Rehearsing"]);
     await expect(dialog(page).getByRole("button", { name: "Take it live" })).toBeVisible();
@@ -320,7 +324,23 @@ test.describe("Workflows", () => {
     await dialog(page).getByRole("button", { name: "Take it live" }).click();
 
     await expect(page.locator(".toast")).toContainText("can now send for real");
+    // Still paused. The two axes are independent, and quietly un-pausing a
+    // workflow someone had deliberately stopped — as part of a click that says
+    // "take it live" — is the conflation this UI exists to avoid.
+    await expect(dialog(page).locator(".wf-state .badge")).toHaveText(["Paused", "Live"]);
+  });
+
+  test("a live workflow can be put back to rehearsing", async ({ page }) => {
+    // The way out of a misfire. Without it the only route back to mocked side
+    // effects is to pause, edit and re-save the whole definition.
+    await card(page, "Monthly owner statements").getByRole("button", { name: "Open" }).click();
     await expect(dialog(page).locator(".wf-state .badge")).toHaveText(["Active", "Live"]);
+
+    await dialog(page).getByRole("button", { name: "Back to rehearsing" }).click();
+
+    await expect(page.locator(".toast")).toContainText("emails, texts and record changes are mocked");
+    // It keeps firing on its trigger — it just stops sending for real.
+    await expect(dialog(page).locator(".wf-state .badge")).toHaveText(["Active", "Rehearsing"]);
   });
 
   test("rehearsing from the card never sends for real", async ({ page }) => {
@@ -347,7 +367,7 @@ test.describe("Workflows", () => {
 
     await expect(page.locator(".toast")).toContainText("Deleted");
     await expect(card(page, "Emergency work order alert")).toHaveCount(0);
-    await expect(page.locator(".count-pill")).toContainText("1 workflow(s)");
+    await expect(page.locator(".count-pill")).toContainText("1 workflow ·");
   });
 
   // =========================================================================

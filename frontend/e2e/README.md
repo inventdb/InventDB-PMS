@@ -19,7 +19,7 @@ npm run typecheck:e2e     # type-check the suite (not part of `npm run build`)
 | --- | --- |
 | `auth.setup.ts` | Signs in once; every project starts from the saved state |
 | `login.spec.ts` | Login form, validation, error paths, route protection |
-| `navigation.spec.ts` | All 15 sidebar destinations, active state, history, unmatched routes |
+| `navigation.spec.ts` | All 16 sidebar destinations, active state, history, unmatched routes |
 | `dashboard.spec.ts` | Eight stat tiles, four charts, empty and error branches |
 | `entity-list.spec.ts` | All ten modules; table rendering, badges, refs, search, sort |
 | `entity-crud.spec.ts` | Create / edit / delete, payload coercion, modal behaviour |
@@ -27,6 +27,8 @@ npm run typecheck:e2e     # type-check the suite (not part of `npm run build`)
 | `workflows.spec.ts` | Workflow cards, plan steps, empty states; the detail view (runs, versions, activate/pause/run); and the editor — reordering, removing, schedule and trigger-setting edits, validation errors, and preserving step kinds it has no form for |
 | `report-studio.spec.ts` | Renaming in place, edit-by-instruction over a real SSE body, snapshot promotion, delete, history and share. |
 | `analyze.spec.ts` | The AI canvas: a scripted agent stream, the work rail, the query receipt, chart vs grid, a change proposal awaiting approval, thread retention |
+| `files.spec.ts` | The drive: type-then-folder tree, folder subtree scoping, deep links, name/text search, preview, extracted text, version restore, batched folder delete |
+| `connection.spec.ts` | Editing the InventDB base URL: the confirm, the refusals, and the sign-out that follows a reconnect. |
 | `settings.spec.ts` | Account, connection, theme, password change, sign-out |
 | `errors.spec.ts` | 401 auto-logout, 5xx surfaces, network failure, recovery |
 | `mobile.spec.ts` | Drawer, login reflow, horizontal-overflow guard (Pixel 7) |

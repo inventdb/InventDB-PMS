@@ -9,9 +9,10 @@ import { ThemeProvider } from "./theme/ThemeContext";
 import { ToastProvider } from "./components/Toast";
 import "./styles/global.css";
 import "./styles/analyze.css";
-import "./styles/inbox.css";
+import "./styles/notifications.css";
 import "./styles/reports.css";
 import "./styles/workflows.css";
+import "./styles/files.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

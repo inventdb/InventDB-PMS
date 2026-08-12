@@ -39,3 +39,8 @@ frontend/e2e/.auth/
 frontend/playwright-report/
 frontend/test-results/
 frontend/blob-report/
+
+# ---- Runtime settings overrides ----
+# Written when the InventDB base URL is changed in Settings; per-deployment, so
+# it must not travel with the repo.
+backend/instance/

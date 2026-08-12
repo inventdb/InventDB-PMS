@@ -200,15 +200,22 @@ def test_the_contract_covers_every_response_type_the_frontend_declares():
         "WorkflowVersion",
         "NotificationAction",
         "NotificationFormField",
-        "VendorMatch",
-        "CategoryCoverage",
         "ReportParameter",
         "Record",
+        # Element types, validated through the containers that carry them:
+        # `FileRow` inside `results`, `FolderAgg` inside `folders`,
+        # `FileVersion` inside `versions`.
+        "FileRow",
+        "FolderAgg",
+        "FileVersion",
         # Not responses at all, so no endpoint can describe them: `WorkflowDraft`
         # is what the editor *sends* on create, and `PlanIssue` rides inside a
-        # 400 body alongside the error message.
+        # 400 body alongside the error message. `WorkflowFix` is a proposal
+        # produced by a model call, so the contract suite — which only replays
+        # reads — cannot exercise it; `tests/test_workflows.py` pins its shape.
         "WorkflowDraft",
         "PlanIssue",
+        "WorkflowFix",
     }
     expected = {
         "LoginResponse",
@@ -224,12 +231,12 @@ def test_the_contract_covers_every_response_type_the_frontend_declares():
         "Workflow",
         "WorkflowRunDetail",
         "AppNotification",
-        "VendorShortlist",
-        "IntakeStatus",
         # What resolving returns. Not covered by an endpoint entry because the
         # contract suite only replays reads: resolving one would resume a real
         # parked run. `tests/test_notifications.py` pins the shape instead.
         "NotificationResolution",
+        "FileSearchResponse",
+        "BulkDeleteResult",
     }
 
     missing = declared - covered_indirectly - expected

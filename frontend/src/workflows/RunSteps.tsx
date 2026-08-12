@@ -186,7 +186,29 @@ export function RunSteps({
   sandbox?: boolean;
 }) {
   const query = useWorkflowRun(runId, live);
-  const steps = useMemo(() => query.data?.steps ?? [], [query.data]);
+
+  /**
+   * Sorted by step, then by when it happened.
+   *
+   * The engine orders these `BY idx ASC` and nothing else, but it writes
+   * *several* rows at one idx — the `tool_call`, any recovery traces the step
+   * needed, then the `tool_result`. Within an idx the order it hands back is
+   * therefore whatever storage returns, which in practice interleaves them: a
+   * step's result and its retries can appear above the call they belong to,
+   * and the run reads as though it did things in an order it did not.
+   *
+   * `created_at` is the tiebreak because it is what the row means. The `idx`
+   * comparison stays primary so a step whose rows share a timestamp — recovery
+   * turns are written in one burst — still sits with its own step.
+   */
+  const steps = useMemo(() => {
+    const rows = query.data?.steps ?? [];
+    return [...rows].sort(
+      (a, b) =>
+        (a.idx ?? 0) - (b.idx ?? 0) ||
+        String(a.created_at ?? "").localeCompare(String(b.created_at ?? ""))
+    );
+  }, [query.data]);
 
   if (query.isLoading) return <Spinner />;
   if (query.isError) return <div className="wf-rsteps-note">{errorMessage(query.error)}</div>;

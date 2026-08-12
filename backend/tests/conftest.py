@@ -11,6 +11,8 @@ cannot quietly change what the SQL assertions expect.
 from __future__ import annotations
 
 import os
+import tempfile
+from pathlib import Path
 
 BASE_URL = "https://inventdb.test"
 NAMESPACE = "pms"
@@ -21,6 +23,12 @@ os.environ["INVENTDB_NAMESPACE"] = NAMESPACE
 os.environ["INVENTDB_APP"] = "pms"
 os.environ["INVENTDB_TIMEOUT"] = "5"
 os.environ["CORS_ORIGINS"] = "http://localhost:5173"
+# The base URL is overridable at runtime and persisted to a state file. Point
+# that file somewhere disposable so a developer who has repointed their own
+# checkout doesn't change what these tests are asserting against.
+os.environ["PMS_STATE_FILE"] = str(
+    Path(tempfile.gettempdir()) / "pms-test-settings-do-not-create.json"
+)
 
 import pytest  # noqa: E402
 from werkzeug.test import TestResponse  # noqa: E402

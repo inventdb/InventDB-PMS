@@ -17,14 +17,7 @@
  *   decided disappear at the moment it became history.
  */
 import { useState, type FormEvent } from "react";
-import {
-  Bell,
-  Check,
-  CheckCircle2,
-  Clock,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Bell, Check, CheckCircle2, Clock, Trash2 } from "lucide-react";
 
 import { Alert } from "../components/ui";
 import { useToast } from "../components/Toast";
@@ -299,16 +292,6 @@ export function ApprovalCard({ notification }: { notification: AppNotification }
       {showTrail && notification.run_id && (
         <RunSteps runId={notification.run_id} live={state === "waiting"} />
       )}
-    </div>
-  );
-}
-
-/** The neutral panel shown when nothing is selected. */
-export function NothingSelected() {
-  return (
-    <div className="card card-pad nb-empty-detail">
-      <X size={18} aria-hidden />
-      <p>Pick something from the list to read it and, if it needs an answer, give one.</p>
     </div>
   );
 }

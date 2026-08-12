@@ -47,35 +47,45 @@ the live data directly.
   ("add a payment‑terms column", "sort by amount") — InventDB's report agent edits the layout
   and saves a new version, and nothing is overwritten. Snapshots convert to live templates,
   reports render with their own parameters, print to PDF, and schedule as workflows
-- ⚙️ **Workflows** — the automations that run against your portfolio. Describe one in
-  **Analyze** ("email each owner their statement on the 1st") or author it in **InventDB
-  SOAR**; from then on it is **edited and operated here**. Rewrite the plan step by step —
-  query the data, render a saved report, send an email or SMS, create/update/delete a
-  record, ask for approval, wait, finish — move the schedule, then rehearse, activate or
-  pause it. Each workflow shows a per‑step plan timeline, its full run history and
-  **version history you can roll back to**. A workflow can be **rehearsing** — queries run
-  for real, but emails and writes are mocked — so you can fire one and read the result
-  before it reaches anyone. Whether it fires (active/paused) and whether it sends for real
-  (rehearsing/live) stay separate switches. It runs on **InventDB SOAR's** engine, so
-  these are the same records SOAR's Operate room lists
-- 📥 **Inbox** — what the automations need a person for, mirroring **SOAR's Operate room**.
-  A run does not stop because it failed; it stops because it reached a step that is not the
-  software's decision — which contractor to send, whether to spend — and **parks**. The
-  decision lands here with **action buttons**, each saying what pressing it will do, and
-  answering **resumes that same run** at its next step. Under every decision sits the run's
-  own trail: the acknowledgement it already sent, the query behind its recommendation. A
-  live count rides on the sidebar and a **bell in the topbar**, polled, so an approval that
-  arrives while you are elsewhere still finds you. Notification bodies are **sanitised**
-  before display — the text in them was written by whoever emailed in
-- 🔧 **Maintenance intake** — one setup turns a tenant's "the tap has been dripping for
-  three days" into a handled job. The automation **reads the email** (from the tenant, or
-  from someone writing on their behalf), **acknowledges it**, **opens the work order**
-  against the right property and tenant, and **shortlists a contractor** — right trade,
-  insured before rated, and never a generalist for licensed work. Then it stops and asks
-  you: approve the recommendation, name someone else, or decline. On approval the run
-  assigns the contractor and briefs them; on a decline the work order stays open and
-  unassigned. Nothing before the pause commits anybody, and nothing after it happens
-  without you. It installs as a **rehearsal** and reads no live mail until you activate it
+- ⚙️ **Workflows** — the PMS's **Operate room**: the automations that run against your
+  portfolio, and the decisions they are holding. Describe one in **Analyze** ("email each
+  owner their statement on the 1st") or author it in **InventDB SOAR**; from then on it is
+  **edited and operated here**. Search the list, filter to what is actually live, and
+  **delete several at once**. Rewrite the plan step by step — query the data, render a
+  saved report, send an email or SMS, create/update/delete a record, ask for approval,
+  wait, finish — move the schedule, **rename in place**, then rehearse, activate or pause
+  it. Each workflow shows a per‑step plan timeline, its full run history — **open a run to
+  see what it actually did**, cancel one that is going nowhere, or ask the assistant to
+  **fix a failed run** — and a **version history** you can open, rehearse, restore, prune
+  or clear. A workflow can be **rehearsing** — queries run for real, but emails and writes
+  are mocked — and can be put **back to rehearsing** after going live. Whether it fires
+  (active/paused) and whether it sends for real (rehearsing/live) stay separate switches:
+  neither click ever moves the other. It runs on **InventDB SOAR's** engine, so these are
+  the same records SOAR's Operate room lists
+- 🔔 **Notifications** — at the head of **Workflows**, the way **SOAR's Operate room** keeps
+  them beside the workflow list: a parked run *is* a workflow, mid-flight. A run does not
+  stop because it failed; it stops because it reached a step that is not the software's
+  decision — which contractor to send, whether to spend — and **parks**. The decision lands
+  here with **action buttons**, each saying what pressing it will do, and answering
+  **resumes that same run** at its next step. Under every decision sits the run's own trail:
+  the acknowledgement it already sent, the query behind its recommendation. A live count
+  badges the sidebar entry, polled from the shell, so an approval that arrives while you are
+  elsewhere still finds you. Notification bodies are **sanitised** before display — the text
+  in them was written by whoever emailed in
+- 📁 **Files** — the **Files room from InventDB SOAR**, in the PMS. InventDB keeps every file
+  as an attachment on a record — the scanned lease on its lease, the photo on its inspection —
+  which is right for provenance and useless for finding things. So this is a **drive over**
+  those attachments: a tree of record types and the folders inside them on the left, the files
+  in the current scope on the right. Search three ways — by **name**, by the **text inside**
+  files (InventDB OCRs and indexes them), or by **meaning**. Drop files in, and a dropped
+  folder keeps its structure. Open one for a **preview**, its details, the **extracted text**,
+  and its **version history**: uploading again adds a version rather than overwriting, and
+  restoring an older one makes it current without discarding what came after. Delete a single
+  file, or a whole folder or type — **batched, counted and cancellable**, and files whose
+  parent record you cannot see are skipped rather than removed. Every row says where it lives —
+  and a file that arrived with **no** home says so: **attach it to an existing record**, or
+  **raise a work order from it** and have the evidence on the job from the moment the job
+  exists. This is a way to find files, not a second place to keep them
 
 **Platform**
 - 🔎 **Search, sort & filter** on every module
@@ -206,7 +216,7 @@ adding records — types are created automatically on first write.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `INVENTDB_BASE_URL` | `https://your-slug.sandbox.inventdb.com` | Your InventDB base URL (no trailing slash) |
+| `INVENTDB_BASE_URL` | `https://your-slug.sandbox.inventdb.com` | Your InventDB base URL (no trailing slash). Also editable at runtime in **Settings → InventDB Connection**; a change there is saved to `backend/instance/settings.json` and wins over this |
 | `INVENTDB_NAMESPACE` | `pms` | Namespace (database) for all PMS data |
 | `INVENTDB_APP` | `pms` | App label sent to `/api/auth/me` |
 | `INVENTDB_TIMEOUT` | `30` | Outbound request timeout (seconds) |
@@ -214,6 +224,7 @@ adding records — types are created automatically on first write.
 | `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma‑separated allowed front‑end origins |
 | `API_HOST` / `API_PORT` | `0.0.0.0` / `8000` | Where the API listens |
 | `FRONTEND_DIST` | *(auto)* | Path to a built front end to serve (defaults to `../frontend/dist`) |
+| `PMS_STATE_FILE` | `backend/instance/settings.json` | Where a runtime connection change is persisted |
 
 ### Front end (`frontend/.env`)
 
@@ -317,18 +328,28 @@ InventDB via the login proxy.
 | `POST` | `/api/workflows` | Create a workflow. Supported by the API; the UI does not offer it — workflows are authored in Analyze or SOAR |
 | `POST` | `/api/workflows/<id>/{activate,pause,resume,run}` | Lifecycle, and fire one now |
 | `POST` | `/api/workflows/<id>/versions/<n>/rollback` | Restore an earlier definition |
-| `GET`  | `/api/notifications` · `/api/notifications/<id>` | The inbox — what parked runs are waiting on |
+| `GET`  | `/api/workflows/<id>/versions/<n>` | One frozen definition, in full |
+| `DELETE` | `/api/workflows/<id>/versions/<n>` · `/api/workflows/<id>/versions` | Prune one version, or clear the history |
+| `POST` | `/api/workflows/runs/<id>/cancel` | Stop a run that is running or parked |
+| `POST` | `/api/workflows/<id>/fix-from-run/<run>` | Ask for a revised plan after a failure. Returns a **proposal**; saves nothing |
+| `GET`  | `/api/notifications` · `/api/notifications/<id>` | What parked runs are waiting on |
 | `POST` | `/api/notifications/<id>/resolve` | Answer a decision. **Resumes the parked run** |
-| `POST` | `/api/notifications/<id>/read` · `DELETE /api/notifications/<id>` | Mark seen; clear from the inbox (the run is untouched) |
-| `GET`  | `/api/maintenance/vendors?category=…` | Contractors who could take a job, ranked — right trade, insured, then rated |
-| `GET`  | `/api/maintenance/categories` | Work-order categories and the trades that service each |
-| `GET/POST` | `/api/maintenance/intake` | The maintenance-intake automation: its state, or install it as a rehearsal |
+| `POST` | `/api/notifications/<id>/read` · `DELETE /api/notifications/<id>` | Mark seen; clear from the list (the run is untouched) |
+| `POST` | `/api/files/search` | Search + browse the drive. Returns `results`, `total_matches` and the `folders` aggregation the tree is built from. **Namespace pinned server‑side** |
+| `POST` | `/api/files/bulk-delete` | Delete one batch of a folder or type; the caller loops for progress |
+| `GET/POST` | `/api/files/<type>/<record>` | A record's files; upload one (multipart, optional `folder`) |
+| `GET/DELETE` | `/api/files/<type>/<record>/<att>` | One file's metadata; remove it |
+| `POST` | `/api/files/attach` | Give a file a home — `move` re-parents it, `copy` adds a second parent |
+| `GET`  | `.../download` · `.../preview` · `.../thumbnail` | The bytes — **streamed**, never buffered |
+| `GET`  | `.../text` | What OCR/extraction read out of the file |
+| `GET/POST` | `.../versions` · `POST .../versions/<n>/restore` | History; add a version; make an older one current |
 | `POST` | `/api/analyze/chat/stream` | One agent turn, relayed as Server‑Sent Events |
 | `GET`  | `/api/analyze/config` · `/api/analyze/models` | Workspace default model & enabled catalog |
 | `GET/PUT` | `/api/analyze/threads` · `DELETE /api/analyze/threads/<id>` | Per‑user analysis history |
 | `GET`  | `/api/analyze/websearch/status` · `POST .../enable\|disable` | The web‑search gate |
 | `POST` | `/api/analyze/sql` | Read‑only `SELECT`, for the canvas's own lookups |
 | `POST` | `/api/analyze/change-set/apply` · `/api/analyze/records/<type>` | Applying a **reviewed** proposal |
+| `GET/PUT/DELETE` | `/api/settings/connection` | Read, change or reset the InventDB instance |
 | `GET`  | `/api/meta/entities` · `/api/meta/types` · `/api/meta/relationships` | Metadata |
 | `POST` | `/api/meta/sql` | Read‑only `SELECT` passthrough |
 
@@ -350,22 +371,23 @@ InventDB PMS/
 │   │   ├── entities.py       # PMS entity registry (matches live schema)
 │   │   ├── errors.py sqlutil.py
 │   │   └── routers/          # auth · resources · dashboard · reports · workflows ·
-│   │                         #   notifications · maintenance · analyze · meta
+│   │                         #   notifications · maintenance · files · analyze · meta
 │   ├── check_inventdb.py     # Connectivity / credential checker
 │   ├── wsgi.py               # Production entrypoint
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/            # Dashboard · Inbox · Analyze · Reports · Workflows ·
+│   │   ├── pages/            # Dashboard · Analyze · Reports · Workflows · Files ·
 │   │   │                     #   Settings · Login · EntityListPage
 │   │   ├── reports/          # Report Studio: edit-by-instruction stream, inline rename, tabs
 │   │   ├── analyze/          # The AI canvas: agent stream, thread store, timeline, cards
 │   │   ├── workflows/        # Editor, detail view, plan timeline, run timeline, catalogue
-│   │   ├── inbox/            # Approval card, action buttons, body sanitiser, intake setup
+│   │   ├── notifications/    # Approval card, action buttons, body sanitiser, intake setup
+│   │   ├── files/            # Drive tree, file grid, detail panel, row model
 │   │   ├── components/       # Layout · Modal · EntityForm · Toast · Icon · ui
 │   │   ├── config/entities.ts# Field schema driving all tables & forms
 │   │   ├── api/ auth/ theme/ utils/
-│   │   └── styles/           # global.css design tokens + analyze · inbox · reports · workflows
+│   │   └── styles/           # global.css tokens + analyze · notifications · reports · workflows
 │   ├── index.html vite.config.ts tsconfig*.json
 │   └── package.json
 └── README.md

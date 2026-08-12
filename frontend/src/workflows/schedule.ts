@@ -13,6 +13,7 @@
  * so opening such a workflow and saving an unrelated change cannot quietly
  * rewrite its schedule into something simpler.
  */
+import { triggerLabel } from "./catalog";
 
 export type Frequency = "daily" | "weekdays" | "weekly" | "monthly";
 
@@ -129,7 +130,10 @@ export function describeTrigger(
   if (triggerKind === "record_event" && spec?.type) {
     return `When a ${String(spec.type)} record changes`;
   }
-  return triggerKind ?? "manual";
+  // Every other kind reads as its catalogue label — "When an email arrives"
+  // rather than `inbound_email`. Falling through to the raw kind put the
+  // engine's own vocabulary on a card a property manager reads.
+  return triggerLabel(triggerKind);
 }
 
 /**

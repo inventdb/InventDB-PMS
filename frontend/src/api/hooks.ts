@@ -8,10 +8,12 @@ import {
 import { api } from "./client";
 import type {
   AppNotification,
+  BulkDeleteResult,
   CashflowPoint,
   DashboardCharts,
   DashboardSummary,
-  IntakeStatus,
+  FileSearchResponse,
+  FileVersion,
   ListResponse,
   NotificationResolution,
   Pnl,
@@ -21,8 +23,8 @@ import type {
   ReportDetail,
   ReportRender,
   ReportSummary,
-  VendorShortlist,
   Workflow,
+  WorkflowFix,
   WorkflowDraft,
   WorkflowRun,
   WorkflowRunDetail,
@@ -451,6 +453,80 @@ export function useRollbackWorkflow() {
   });
 }
 
+/**
+ * One frozen definition, in full.
+ *
+ * Fetched only when a version is opened — the history list can be long, and
+ * every entry carries a whole plan. `staleTime: Infinity` because a version is
+ * immutable by definition: once minted it never changes, so re-reading it is
+ * always wasted.
+ */
+export function useWorkflowVersion(id: string, version: number | null) {
+  return useQuery<WorkflowVersion>({
+    queryKey: ["workflows", "version", id, version],
+    enabled: !!id && version !== null,
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data } = await api.get<WorkflowVersion>(`/workflows/${id}/versions/${version}`);
+      return data;
+    },
+  });
+}
+
+/** Drop one historical version. Upstream refuses the current one. */
+export function useDeleteWorkflowVersion() {
+  return useWorkflowMutation(async ({ id, version }: { id: string; version: number }) => {
+    const { data } = await api.delete(`/workflows/${id}/versions/${version}`);
+    return data;
+  });
+}
+
+/** Drop every historical version, keeping the definition in force. */
+export function useClearWorkflowVersions() {
+  return useWorkflowMutation(async (id: string) => {
+    const { data } = await api.delete(`/workflows/${id}/versions`);
+    return data;
+  });
+}
+
+/**
+ * Stop a run that is running or parked.
+ *
+ * The parked case is the one that matters: a run waiting on a decision nobody
+ * is ever going to make waits forever, and cancelling is the only thing that
+ * closes it. Invalidates notifications too, because the decision it was
+ * holding goes with it.
+ */
+export function useCancelRun() {
+  const qc = useQueryClient();
+  return useMutation<unknown, unknown, string>({
+    mutationFn: async (runId: string) => {
+      const { data } = await api.post(`/workflows/runs/${runId}/cancel`, {});
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["workflows"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
+/**
+ * Ask for a revised definition after a run failed.
+ *
+ * A read, not a write: it returns a proposal and saves nothing. Kept as a
+ * mutation because it costs a model call and must only happen when asked for —
+ * never on render, never on a refetch.
+ */
+export function useFixFromRun() {
+  return useMutation<WorkflowFix, unknown, { id: string; runId: string }>({
+    mutationFn: async ({ id, runId }) => {
+      const { data } = await api.post<WorkflowFix>(`/workflows/${id}/fix-from-run/${runId}`, {});
+      return data;
+    },
+  });
+}
+
 // ---- The inbox ------------------------------------------------------------
 
 /**
@@ -587,50 +663,248 @@ export function useDismissNotification() {
   });
 }
 
-// ---- Maintenance intake ---------------------------------------------------
-
-/** Is the intake automation installed, and can it actually staff a job today? */
-export function useIntakeStatus() {
-  return useQuery<IntakeStatus>({
-    queryKey: ["maintenance", "intake"],
+// ---- Files (InventDB attachments, presented as a drive) -------------------
+/**
+ * The drive tree.
+ *
+ * A separate, deliberately **unscoped** search whose only job is the `folders`
+ * aggregation. It cannot be derived from the grid's query: that one is scoped
+ * to the selection, so its aggregation shrinks to the selected type and the
+ * tree would collapse to whatever is currently open. `limit: 1` because the
+ * results are not wanted here at all — only the counts.
+ */
+export function useFileTree() {
+  return useQuery<FileSearchResponse>({
+    queryKey: ["files", "tree"],
     queryFn: async () => {
-      const { data } = await api.get<IntakeStatus>("/maintenance/intake");
+      const { data } = await api.post<FileSearchResponse>("/files/search", {
+        query: "*",
+        search_type: "keyword",
+        limit: 1,
+      });
       return data;
     },
   });
 }
 
-export function useInstallIntake() {
-  const qc = useQueryClient();
-  return useMutation<{ created: boolean; workflow: Workflow }, unknown, { gmailLabel?: string }>({
-    mutationFn: async ({ gmailLabel }) => {
-      const { data } = await api.post("/maintenance/intake", {
-        ...(gmailLabel ? { gmail_label: gmailLabel } : {}),
-      });
+export interface FileSearchParams {
+  query?: string;
+  /** keyword browses; fulltext reads inside files; semantic ranks by meaning. */
+  searchType?: "keyword" | "fulltext" | "semantic" | "combined";
+  type?: string;
+  folder?: string;
+  limit?: number;
+  offset?: number;
+}
+
+/** One page of the grid, scoped to the drive selection. */
+export function useFileSearch(params: FileSearchParams) {
+  return useQuery<FileSearchResponse>({
+    queryKey: ["files", "search", params],
+    // A ranked search re-runs embeddings upstream, so the previous page stays
+    // on screen while the next one loads rather than blanking the grid.
+    placeholderData: (previous) => previous,
+    queryFn: async () => {
+      const body: Record<string, unknown> = {
+        query: params.query?.trim() || "*",
+        search_type: params.searchType ?? "keyword",
+        limit: params.limit ?? 25,
+        offset: params.offset ?? 0,
+      };
+      if (params.type) body.types = [params.type];
+      if (params.folder !== undefined) body.folder = params.folder;
+      const { data } = await api.post<FileSearchResponse>("/files/search", body);
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["maintenance"] });
-      qc.invalidateQueries({ queryKey: ["workflows"] });
+  });
+}
+
+/** Where a file lives — the address every per-file call is built from. */
+export interface FileHome {
+  type: string;
+  recordId: string;
+  attachmentId: string;
+}
+
+const filePath = (h: FileHome): string =>
+  `/files/${h.type}/${encodeURIComponent(h.recordId)}/${h.attachmentId}`;
+
+export function useFileVersions(home: FileHome | null) {
+  return useQuery<{ versions: FileVersion[] }>({
+    queryKey: ["files", "versions", home],
+    enabled: !!home,
+    queryFn: async () => {
+      const { data } = await api.get(`${filePath(home!)}/versions`);
+      return data;
     },
+  });
+}
+
+/** The text InventDB extracted — what makes the file findable by its contents. */
+export function useFileText(home: FileHome | null) {
+  return useQuery<{ text?: string; [k: string]: unknown }>({
+    queryKey: ["files", "text", home],
+    enabled: !!home,
+    // Extraction happens once upstream; re-reading it on every panel open is
+    // pure waste.
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data } = await api.get(`${filePath(home!)}/text`);
+      return data;
+    },
+  });
+}
+
+/** Anything that changes the file set stales the grid, the tree and the counts. */
+function useFileMutation<TArgs, TData>(fn: (args: TArgs) => Promise<TData>) {
+  const qc = useQueryClient();
+  return useMutation<TData, unknown, TArgs>({
+    mutationFn: fn,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["files"] });
+    },
+  });
+}
+
+// Left to the browser: it has to write the multipart boundary itself, and
+// setting the header by hand produces a body the server cannot parse.
+const MULTIPART = { headers: { "Content-Type": undefined as unknown as string } };
+
+export function useUploadFile() {
+  return useFileMutation(
+    async ({
+      type,
+      recordId,
+      file,
+      folder,
+    }: {
+      type: string;
+      recordId: string;
+      file: File;
+      folder?: string;
+    }) => {
+      const form = new FormData();
+      form.append("file", file);
+      // A folder is a path stored on the attachment, so uploading into one is
+      // what creates it — there is nothing else to create.
+      if (folder) form.append("folder", folder);
+      const { data } = await api.post(
+        `/files/${type}/${encodeURIComponent(recordId)}`,
+        form,
+        MULTIPART
+      );
+      return data;
+    }
+  );
+}
+
+export function useDeleteFile() {
+  return useFileMutation(async (home: FileHome) => {
+    const { data } = await api.delete(filePath(home));
+    return data;
   });
 }
 
 /**
- * Who the intake would put forward for a category, ranked.
+ * Delete one batch of a folder or type.
  *
- * The same ranking the workflow's own shortlist step uses, so a preview here
- * cannot promise a contractor the automation would not pick.
+ * One batch per call by design: the caller loops so it can show a real count
+ * and stop between batches. A pass that deletes nothing is the terminator —
+ * files whose parent record the caller cannot see are skipped rather than
+ * deleted, so "nothing left that I am allowed to touch" has to end it too.
  */
-export function useSuitableVendors(category: string | null, limit = 3) {
-  return useQuery<VendorShortlist>({
-    queryKey: ["maintenance", "vendors", category, limit],
-    enabled: !!category,
-    queryFn: async () => {
-      const { data } = await api.get<VendorShortlist>("/maintenance/vendors", {
-        params: { category, limit },
+export function useBulkDeleteFiles() {
+  return useFileMutation(
+    async ({ type, folder, limit }: { type: string; folder?: string; limit?: number }) => {
+      const { data } = await api.post<BulkDeleteResult>("/files/bulk-delete", {
+        type,
+        ...(folder ? { folder } : {}),
+        limit: limit ?? 15,
       });
       return data;
-    },
+    }
+  );
+}
+
+/**
+ * Give a file a home, or a second one.
+ *
+ * `move` re-parents it — the ordinary case, where a file that arrived
+ * unattached now belongs to a lease. `copy` adds a parent without removing the
+ * first, for the invoice that really does cover two work orders.
+ */
+export function useAttachFile() {
+  return useFileMutation(
+    async ({
+      attachmentId,
+      type,
+      recordId,
+      mode,
+    }: {
+      attachmentId: string;
+      type: string;
+      recordId: string;
+      mode?: "move" | "copy";
+    }) => {
+      const { data } = await api.post("/files/attach", {
+        attachment_id: attachmentId,
+        type,
+        record_id: recordId,
+        mode: mode ?? "move",
+      });
+      return data;
+    }
+  );
+}
+
+export function useUploadFileVersion() {
+  return useFileMutation(async ({ home, file }: { home: FileHome; file: File }) => {
+    const form = new FormData();
+    form.append("file", file);
+    const { data } = await api.post(`${filePath(home)}/versions`, form, MULTIPART);
+    return data;
   });
+}
+
+export function useRestoreFileVersion() {
+  return useFileMutation(async ({ home, version }: { home: FileHome; version: number }) => {
+    const { data } = await api.post(`${filePath(home)}/versions/${version}/restore`, {});
+    return data;
+  });
+}
+
+/**
+ * Save a file to disk.
+ *
+ * A plain `<a href>` cannot carry the bearer token, so the bytes are fetched
+ * and handed to a synthetic link. The object URL is revoked straight after —
+ * without that, every download leaks its blob for the life of the tab.
+ */
+export async function downloadFile(
+  home: FileHome,
+  filename?: string,
+  version?: number
+): Promise<void> {
+  const base = filePath(home);
+  const path = version === undefined ? `${base}/download` : `${base}/versions/${version}/download`;
+  const { data } = await api.get(path, { responseType: "blob" });
+  const url = URL.createObjectURL(data as Blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename || "download";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** An authed blob URL for inline preview. The caller must revoke it. */
+export async function fileObjectUrl(
+  home: FileHome,
+  { thumbnail }: { thumbnail?: number } = {}
+): Promise<string> {
+  const base = filePath(home);
+  const path = thumbnail ? `${base}/thumbnail?size=${thumbnail}` : `${base}/preview`;
+  const { data } = await api.get(path, { responseType: "blob" });
+  return URL.createObjectURL(data as Blob);
 }

@@ -48,7 +48,7 @@ test.describe("Mobile shell", () => {
   });
 
   test("never scrolls the page horizontally", async ({ page }) => {
-    for (const path of ["/", "/properties", "/inbox", "/reports", "/settings"]) {
+    for (const path of ["/", "/properties", "/workflows", "/reports", "/settings"]) {
       await page.goto(path);
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth

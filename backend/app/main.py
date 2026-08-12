@@ -25,11 +25,12 @@ from .routers import (
     analyze,
     auth,
     dashboard,
-    maintenance,
+    files,
     meta,
     notifications,
     reports,
     resources,
+    settings as settings_routes,
     workflows,
 )
 
@@ -61,12 +62,16 @@ def create_app() -> Flask:
     # --- API health ---
     @app.get("/api/health")
     def health():  # pragma: no cover - trivial
+        # Read live rather than closing over the startup snapshot: the base URL
+        # is editable at runtime, and a stale value here would be the one place
+        # the UI still showed the old instance.
+        current = get_settings()
         return jsonify(
             {
                 "ok": True,
                 "version": __version__,
-                "inventdb_base_url": settings.base_url,
-                "namespace": settings.inventdb_namespace,
+                "inventdb_base_url": current.base_url,
+                "namespace": current.inventdb_namespace,
                 "frontend_bundled": dist is not None,
             }
         )
@@ -77,8 +82,9 @@ def create_app() -> Flask:
     app.register_blueprint(dashboard.bp)
     app.register_blueprint(reports.bp)
     app.register_blueprint(workflows.bp)
+    app.register_blueprint(settings_routes.bp)
     app.register_blueprint(notifications.bp)
-    app.register_blueprint(maintenance.bp)
+    app.register_blueprint(files.bp)
     app.register_blueprint(analyze.bp)
     # Registered last: its routes are `/api/<entity>`, which would otherwise
     # shadow the specific prefixes above.

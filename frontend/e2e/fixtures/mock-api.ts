@@ -10,17 +10,18 @@ import {
   DASHBOARD_CHARTS,
   DASHBOARD_SUMMARY,
   ENTITY_KEYS,
+  FILES,
+  FILE_FOLDERS,
+  FILE_TEXT,
+  FILE_VERSIONS,
   HEALTH,
-  INTAKE_COVERAGE,
   INTAKE_RUN,
   INTAKE_RUN_STEPS,
-  INTAKE_WORKFLOW,
   NOTIFICATIONS,
   OCCUPANCY,
   PNL,
   RENEWALS,
   RENT_ROLL,
-  VENDOR_SHORTLIST,
   createReportStore,
   WORKFLOWS,
   WORKFLOW_DRAFT,
@@ -139,6 +140,16 @@ export async function installMockApi(
   options: MockOptions = {},
   reports: ReportStore = createReportStore()
 ): Promise<void> {
+  // Per-test, like the report library: repointing the app mutates it.
+  // Derived from HEALTH so the two never disagree about which instance this
+  // app is pointed at — they describe the same fact.
+  const connection = {
+    base_url: HEALTH.inventdb_base_url,
+    namespace: HEALTH.namespace,
+    app: "pms",
+    configured_base_url: HEALTH.inventdb_base_url,
+    overridden: false,
+  };
   // index.html pulls Poppins from Google Fonts. Serving an empty stylesheet
   // keeps the suite offline-capable and removes a slow third-party dependency
   // without the console noise an abort leaves behind; the app falls back to
@@ -165,16 +176,19 @@ export async function installMockApi(
   /** Version history for one workflow, created on first use. */
   const versionsOf = (id: string): Rec[] => (versions[id] ??= []);
 
+  // The drive, per test — uploads and deletes mutate it, so it cannot be
+  // shared between specs any more than the entity store can.
+  const files: Rec[] = JSON.parse(JSON.stringify(FILES));
+  const fileFolders = JSON.parse(JSON.stringify(FILE_FOLDERS));
+  const fileVersions: { [id: string]: Rec[] } = JSON.parse(JSON.stringify(FILE_VERSIONS));
+  const fileText: { [id: string]: string } = JSON.parse(JSON.stringify(FILE_TEXT));
+
   // The inbox and the intake are per-test for the same reason as the workflows
   // above: a spec that approves something, or installs the intake, must not
   // leave that state behind for the next one.
   const notifications: Rec[] = JSON.parse(JSON.stringify(NOTIFICATIONS));
   runs.push(JSON.parse(JSON.stringify(INTAKE_RUN)));
   runSteps["run-intake"] = JSON.parse(JSON.stringify(INTAKE_RUN_STEPS));
-  const intake: { installed: boolean; workflow: Rec | null } = {
-    installed: false,
-    workflow: null,
-  };
 
   await page.route(API_ROUTE, async (route) => {
     if (options.latencyMs) {
@@ -313,6 +327,183 @@ export async function installMockApi(
     // answer: the item flips to resolved, the badge drops, and the buttons stay
     // visible but dead. A stub that always returned the seed would show none of
     // that.
+    // ---- /api/files/* -----------------------------------------------------
+    // Stateful, and it really filters: the grid's scope, the search modes and
+    // the delete batching are all mechanics that only show up when the mock
+    // behaves like the drive rather than returning the seed every time.
+    if (head === "files") {
+      const [first, second, third, fourth, fifth] = rest;
+
+      if (first === "search" && method === "POST") {
+        const types = Array.isArray(body.types) ? (body.types as string[]) : null;
+        const folder = typeof body.folder === "string" ? body.folder : null;
+        const query = String(body.query ?? "*");
+        const mode = String(body.search_type ?? "keyword");
+
+        let matched = files.filter((f) => {
+          if (types && !types.includes(String(f.record_type))) return false;
+          if (folder === null) return true;
+          const path = String(f.folder_path ?? "");
+          // A folder selects itself and everything beneath it.
+          return folder === "" ? path === "" : path === folder || path.startsWith(`${folder}/`);
+        });
+
+        if (query && query !== "*") {
+          const needle = query.toLowerCase();
+          matched = matched.filter((f) =>
+            mode === "keyword"
+              ? String(f.filename ?? "").toLowerCase().includes(needle)
+              : String(f.filename ?? "").toLowerCase().includes(needle) ||
+                String(fileText[String(f.attachment_id)] ?? "").toLowerCase().includes(needle)
+          );
+          // A ranked search carries a score and the passage that matched;
+          // a name search carries neither.
+          if (mode !== "keyword") {
+            matched = matched.map((f) => ({
+              ...f,
+              score: 0.82,
+              snippet: (fileText[String(f.attachment_id)] ?? "").slice(0, 90),
+            }));
+          }
+        }
+
+        const limit = Number(body.limit ?? 25);
+        const offset = Number(body.offset ?? 0);
+        return json(route, {
+          results: matched.slice(offset, offset + limit),
+          total_matches: matched.length,
+          // The aggregation describes the whole drive, not the page — that is
+          // why the tree is built from it.
+          folders: fileFolders,
+        });
+      }
+
+      if (first === "attach" && method === "POST") {
+        // Existence is InventDB's to judge, not this layer's — the real
+        // backend forwards the relink and reports whatever comes back. So an
+        // id this mock does not hold still answers in the right shape.
+        const target = files.find((f) => f.attachment_id === body.attachment_id);
+        // `move` re-parents; `copy` leaves the original home in place.
+        if (target && body.mode !== "copy") {
+          target.record_type = String(body.type ?? "");
+          target.record_id = String(body.record_id ?? "");
+        }
+        return json(route, {
+          mode: body.mode ?? "move",
+          parents: [
+            { namespace: "pms", typeName: String(body.type ?? ""), recordId: String(body.record_id ?? "") },
+          ],
+        });
+      }
+
+      if (first === "bulk-delete" && method === "POST") {
+        const type = String(body.type ?? "");
+        const folder = typeof body.folder === "string" ? body.folder : null;
+        const limit = Number(body.limit ?? 15);
+        const doomed = files.filter((f) => {
+          if (String(f.record_type) !== type) return false;
+          if (folder === null) return true;
+          const path = String(f.folder_path ?? "");
+          return path === folder || path.startsWith(`${folder}/`);
+        });
+        const batch = doomed.slice(0, limit);
+        for (const f of batch) files.splice(files.indexOf(f), 1);
+        return json(route, {
+          deleted: batch.length,
+          skipped: 0,
+          remaining: doomed.length - batch.length,
+        });
+      }
+
+      const typeName = first;
+      const recordId = second;
+      const attachmentId = third;
+
+      if (!attachmentId) {
+        if (method === "POST") {
+          const created: Rec = {
+            _id: nextId("att"),
+            attachment_id: nextId("att"),
+            namespace: "pms",
+            record_type: typeName,
+            record_id: recordId,
+            filename: "uploaded.pdf",
+            content_type: "application/pdf",
+            size_bytes: 1024,
+            version: 1,
+            folder_path: "",
+            created_at: new Date().toISOString(),
+          };
+          files.push(created);
+          return json(route, created, 201);
+        }
+        return json(route, {
+          files: files.filter(
+            (f) => f.record_type === typeName && f.record_id === recordId
+          ),
+        });
+      }
+
+      const index = files.findIndex((f) => f.attachment_id === attachmentId);
+      const file = index === -1 ? undefined : files[index];
+
+      if (fourth === "text") {
+        return json(route, { text: fileText[attachmentId] ?? "" });
+      }
+      if (fourth === "download" || fourth === "preview" || fourth === "thumbnail") {
+        // Real bytes, so the detail panel's blob handling runs for real.
+        return route.fulfill({
+          status: 200,
+          contentType: fourth === "thumbnail" ? "image/jpeg" : String(file?.content_type ?? "application/pdf"),
+          body: Buffer.from("%PDF-1.4 mock bytes"),
+        });
+      }
+      if (fourth === "versions") {
+        if (!fifth) {
+          if (method === "POST") {
+            const versions = (fileVersions[attachmentId] ??= []);
+            const next = versions.length + 1;
+            versions.unshift({
+              _id: `${attachmentId}.v${next}`,
+              version: next,
+              filename: "uploaded.pdf",
+              size: 2048,
+              created_at: new Date().toISOString(),
+              is_current: true,
+            });
+            versions.forEach((v) => (v.is_current = v.version === next));
+            if (file) file.version = next;
+            return json(route, { version: next }, 201);
+          }
+          return json(route, { versions: fileVersions[attachmentId] ?? [] });
+        }
+        if (rest[5] === "restore" && method === "POST") {
+          const wanted = Number(fifth);
+          const versions = fileVersions[attachmentId] ?? [];
+          versions.forEach((v) => (v.is_current = v.version === wanted));
+          if (file) file.version = wanted;
+          return json(route, { version: wanted });
+        }
+        if (rest[5] === "download") {
+          return route.fulfill({
+            status: 200,
+            contentType: "application/pdf",
+            body: Buffer.from("%PDF-1.4 old version"),
+          });
+        }
+      }
+
+      if (method === "DELETE") {
+        if (index === -1) return json(route, { error: "Not found" }, 404);
+        files.splice(index, 1);
+        return json(route, { deleted: attachmentId });
+      }
+      if (method === "GET") {
+        return file ? json(route, file) : json(route, { error: "Not found" }, 404);
+      }
+      return json(route, { error: "Not found" }, 404);
+    }
+
     if (head === "notifications") {
       const [id, action] = rest;
 
@@ -368,60 +559,8 @@ export async function installMockApi(
       return json(route, { error: "Not found" }, 404);
     }
 
-    // ---- /api/maintenance/* -----------------------------------------------
-    if (head === "maintenance") {
-      const action = rest[0];
-
-      if (action === "intake") {
-        if (method === "POST") {
-          if (intake.installed) {
-            return json(route, { created: false, workflow: intake.workflow }, 200);
-          }
-          intake.installed = true;
-          intake.workflow = JSON.parse(JSON.stringify(INTAKE_WORKFLOW)) as Rec;
-          if (typeof body.gmail_label === "string" && body.gmail_label.trim()) {
-            intake.workflow.trigger_spec = { gmail_label: body.gmail_label.trim() };
-          }
-          // Appears in the Workflows list too, exactly as the real one would.
-          workflows.push(intake.workflow);
-          return json(route, { created: true, workflow: intake.workflow }, 201);
-        }
-        return json(route, {
-          installed: intake.installed,
-          workflow: intake.workflow,
-          name: "Maintenance request intake",
-          trades_on_file: ["General", "HVAC", "Plumbing"],
-          coverage: INTAKE_COVERAGE,
-          uncovered: INTAKE_COVERAGE.filter((c) => !c.covered).map((c) => c.category),
-        });
-      }
-
-      if (action === "vendors") {
-        const category = url.searchParams.get("category") ?? "";
-        if (!category) return json(route, { error: "category is required" }, 400);
-        return json(
-          route,
-          VENDOR_SHORTLIST[category] ?? {
-            category,
-            trades: [],
-            vendors: [],
-            total_matched: 0,
-          }
-        );
-      }
-
-      if (action === "categories") {
-        return json(route, {
-          categories: INTAKE_COVERAGE.map((c) => ({ category: c.category, trades: c.trades })),
-          priorities: ["Low", "Medium", "High", "Emergency"],
-        });
-      }
-
-      return json(route, { error: "Not found" }, 404);
-    }
-
     if (head === "workflows") {
-      const [first, second, third] = rest;
+      const [first, second, third, fourth] = rest;
 
       if (rest.length === 0) {
         if (method === "POST") {
@@ -455,6 +594,20 @@ export async function installMockApi(
 
       if (first === "runs") {
         if (!second) return json(route, { runs });
+        if (third === "cancel" && method === "POST") {
+          const i = runs.findIndex((r) => r._id === second);
+          if (i === -1) return json(route, { error: "Not found" }, 404);
+          // The engine refuses a run that has already finished.
+          if (!/succeed|success|complete|fail|timed|cancel/i.test(String(runs[i].status ?? ""))) {
+            runs[i] = {
+              ...runs[i],
+              status: "cancelled",
+              ended_at: new Date().toISOString(),
+            };
+            return json(route, { cancelled: second });
+          }
+          return json(route, { error: "run is not cancellable in its current state" }, 400);
+        }
         const found = runs.find((r) => r._id === second);
         // `{run, steps}`, matching InventDB — the run alone would render a
         // timeline with nothing on it.
@@ -477,20 +630,61 @@ export async function installMockApi(
             versions: versionsOf(first).map((v) => ({ ...v, workflow_id: first })),
           });
         }
-        // .../versions/<n>/rollback
-        if (method === "POST" && third) {
+        // .../versions — clear the whole history, keeping what is in force.
+        if (method === "DELETE" && !third) {
+          const kept = versionsOf(first).filter((v) => Number(v.version) === Number(wf.version));
+          versions[first] = kept;
+          return json(route, { cleared: first });
+        }
+        if (third) {
           const snapshot = versionsOf(first).find((v) => String(v.version) === third);
           if (!snapshot) return json(route, { error: "Not found" }, 404);
-          const restored = {
-            ...wf,
-            ...snapshot,
-            _id: first,
-            version: Number(wf.version ?? 1) + 1,
-          } as Rec;
-          workflows[index] = restored;
-          return json(route, restored);
+
+          // .../versions/<n> — the full frozen definition.
+          if (method === "GET") {
+            return json(route, { ...snapshot, workflow_id: first });
+          }
+          // .../versions/<n> — drop one from the history.
+          if (method === "DELETE") {
+            if (Number(snapshot.version) === Number(wf.version)) {
+              return json(route, { error: "cannot delete the current version" }, 400);
+            }
+            versions[first] = versionsOf(first).filter((v) => String(v.version) !== third);
+            return json(route, { deleted: third });
+          }
+          // .../versions/<n>/rollback
+          if (method === "POST" && fourth === "rollback") {
+            const restored = {
+              ...wf,
+              ...snapshot,
+              _id: first,
+              version: Number(wf.version ?? 1) + 1,
+            } as Rec;
+            workflows[index] = restored;
+            return json(route, restored);
+          }
         }
         return json(route, { error: "Not found" }, 404);
+      }
+
+      // .../fix-from-run/<run_id> — a revised plan, saved nowhere.
+      if (second === "fix-from-run" && method === "POST") {
+        return json(route, {
+          revised: {
+            name: wf.name,
+            trigger_intent: wf.trigger_intent,
+            plan: [
+              {
+                idx: 0,
+                kind: "sql_query",
+                label: "Find overdue leases",
+                narration: "Rewritten to filter on status rather than a date string.",
+                sql: "SELECT _id FROM pms.leases WHERE status = 'overdue'",
+              },
+            ],
+          },
+          diagnostics: { error: "SMTP timeout" },
+        });
       }
 
       if (second === "run" && method === "POST") {
@@ -597,6 +791,29 @@ export async function installMockApi(
         return json(route, { ok: true, results: [{ ok: true, recordId: "v-9" }] });
       }
       return json(route, { error: "Not found" }, 404);
+    }
+
+    // ---- /api/settings/* --------------------------------------------------
+    if (head === "settings" && rest[0] === "connection") {
+      if (method === "PUT") {
+        const next = String(body.base_url ?? "");
+        if (!/^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)/.test(next)) {
+          return json(route, { error: "Use https:// — over plain http your InventDB password would cross the network unencrypted" }, 400);
+        }
+        if (next.includes("unreachable")) {
+          return json(route, { error: `Couldn't reach an InventDB instance at ${next}` }, 400);
+        }
+        connection.base_url = next;
+        connection.overridden = next !== connection.configured_base_url;
+        return json(route, { ...connection, changed: true, sign_out_required: true });
+      }
+      if (method === "DELETE") {
+        const changed = connection.overridden;
+        connection.base_url = connection.configured_base_url;
+        connection.overridden = false;
+        return json(route, { ...connection, changed, ...(changed ? { sign_out_required: true } : {}) });
+      }
+      return json(route, connection);
     }
 
     // ---- /api/meta/* ------------------------------------------------------

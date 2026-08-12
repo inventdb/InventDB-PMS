@@ -1,0 +1,10 @@
+{
+  "mode": "move",
+  "parents": [
+    {
+      "namespace": "pms",
+      "recordId": "lea-001",
+      "typeName": "leases"
+    }
+  ]
+}

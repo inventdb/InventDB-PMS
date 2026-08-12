@@ -65,9 +65,14 @@ export function WorkflowCard({
           <WorkflowIcon size={17} />
         </span>
         <div className="an-card-titles">
-          <div className="an-card-title">{wf.name}</div>
+          {/* The console below leads with the name, and renames in place. Two
+              copies of it would leave the editable one looking like a field
+              that changes something other than the heading above it. */}
+          <div className="an-card-label">
+            {deleted ? "Deleted workflow" : "Built by the assistant"}
+          </div>
           <div className="an-note">
-            {deleted ? "Deleted" : "Built by the assistant · runs on InventDB SOAR’s engine"}
+            {deleted ? wf.name : "Runs on InventDB SOAR’s engine"}
           </div>
         </div>
         {/* Naming the workflow in the link matters: the Workflows page hides

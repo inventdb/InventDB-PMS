@@ -8,7 +8,10 @@
     "template_id": "tpl-001",
     "workflow_id": "wf-001",
     "run_id": "run-001",
-    "notification_id": "notif-001"
+    "notification_id": "notif-001",
+    "file_type": "leases",
+    "file_record": "lea-001",
+    "attachment_id": "att-001"
   },
   "http": [
     {
@@ -421,9 +424,89 @@
     },
     {
       "method": "GET",
+      "path": "/api/workflows/wf-001/versions/1",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "data": {
+          "_id": "wf-001.v1",
+          "workflow_id": "wf-001",
+          "version": 1,
+          "name": "Weekly Lease Renewals Due",
+          "trigger_intent": "Every Monday at 8 AM",
+          "plan": [
+            {
+              "idx": 0,
+              "kind": "sql_query",
+              "label": "Query renewals",
+              "narration": ""
+            }
+          ],
+          "created_at": "2026-07-01T00:00:00Z"
+        }
+      }
+    },
+    {
+      "method": "GET",
       "path": "/attach/_System/AIReports/report_1/att-1/download",
       "status": 200,
       "payload": null
+    },
+    {
+      "method": "GET",
+      "path": "/attach/pms/leases/lea-001",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "data": {
+          "attachments": [
+            {
+              "attachment_id": "att-001",
+              "filename": "signed-lease.pdf",
+              "content_type": "application/pdf",
+              "size": 284113,
+              "version": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/attach/pms/leases/lea-001/att-001/text",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "data": {
+          "text": "RESIDENTIAL LEASE AGREEMENT \u2014 12 Marine Drive, Mumbai\u2026"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/attach/pms/leases/lea-001/att-001/versions",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "data": {
+          "versions": [
+            {
+              "version": 2,
+              "filename": "signed-lease.pdf",
+              "size": 284113,
+              "created_at": "2026-01-04T09:12:00Z",
+              "is_current": true
+            },
+            {
+              "version": 1,
+              "filename": "draft-lease.pdf",
+              "size": 210004,
+              "created_at": "2025-12-19T14:02:00Z",
+              "is_current": false
+            }
+          ]
+        }
+      }
     },
     {
       "method": "GET",
@@ -533,6 +616,87 @@
           "event_id": "ev-001",
           "workflow_id": "wf-001",
           "status": "pending"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/attach/_bulk_delete",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "data": {
+          "deleted": 15,
+          "skipped": 1,
+          "remaining": 26
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/attach/_search",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "data": {
+          "results": [
+            {
+              "_id": "att-001",
+              "attachment_id": "att-001",
+              "namespace": "pms",
+              "record_type": "leases",
+              "record_id": "lea-001",
+              "filename": "signed-lease.pdf",
+              "content_type": "application/pdf",
+              "size_bytes": 284113,
+              "version": 2,
+              "folder_path": "2026",
+              "created_at": "2026-01-04T09:12:00Z",
+              "processing_state": "indexed",
+              "matched_sources": [
+                "keyword"
+              ]
+            }
+          ],
+          "total_matches": 5,
+          "folders": [
+            {
+              "namespace": "pms",
+              "type": "leases",
+              "path": "",
+              "count": 3
+            },
+            {
+              "namespace": "pms",
+              "type": "leases",
+              "path": "2026",
+              "count": 2
+            },
+            {
+              "namespace": "pms",
+              "type": "inspections",
+              "path": "photos",
+              "count": 4
+            }
+          ]
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/attach/pms/_relink",
+      "status": 200,
+      "payload": {
+        "ok": true,
+        "data": {
+          "mode": "move",
+          "parents": [
+            {
+              "namespace": "pms",
+              "typeName": "leases",
+              "recordId": "lea-001"
+            }
+          ]
         }
       }
     },
@@ -831,36 +995,6 @@
             "auto-generated"
           ],
           "created_at": "2026-08-11T05:53:42Z"
-        }
-      ]
-    },
-    {
-      "key": "SELECT _id, vendor_id, company, trade, contact, phone, email, rating, coi_on_file, w_9_on_file FROM pms.vendors LIMIT 500",
-      "status": 200,
-      "rows": [
-        {
-          "_id": "ven-001",
-          "vendor_id": "V-001",
-          "company": "Coastal Plumbing",
-          "trade": "Plumbing",
-          "contact": "Ravi N.",
-          "phone": "+91 22 5550 7788",
-          "email": "ops@coastalplumbing.example",
-          "rating": 4.6,
-          "coi_on_file": true,
-          "w_9_on_file": true
-        },
-        {
-          "_id": "ven-002",
-          "vendor_id": "V-002",
-          "company": "Handy Helpers",
-          "trade": "General",
-          "contact": "Priya K.",
-          "phone": "+91 80 5550 9911",
-          "email": "team@handyhelpers.example",
-          "rating": 4.1,
-          "coi_on_file": false,
-          "w_9_on_file": false
         }
       ]
     },

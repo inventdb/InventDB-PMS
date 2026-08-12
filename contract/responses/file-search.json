@@ -1,0 +1,42 @@
+{
+  "folders": [
+    {
+      "count": 3,
+      "namespace": "pms",
+      "path": "",
+      "type": "leases"
+    },
+    {
+      "count": 2,
+      "namespace": "pms",
+      "path": "2026",
+      "type": "leases"
+    },
+    {
+      "count": 4,
+      "namespace": "pms",
+      "path": "photos",
+      "type": "inspections"
+    }
+  ],
+  "results": [
+    {
+      "_id": "att-001",
+      "attachment_id": "att-001",
+      "content_type": "application/pdf",
+      "created_at": "2026-01-04T09:12:00Z",
+      "filename": "signed-lease.pdf",
+      "folder_path": "2026",
+      "matched_sources": [
+        "keyword"
+      ],
+      "namespace": "pms",
+      "processing_state": "indexed",
+      "record_id": "lea-001",
+      "record_type": "leases",
+      "size_bytes": 284113,
+      "version": 2
+    }
+  ],
+  "total_matches": 5
+}

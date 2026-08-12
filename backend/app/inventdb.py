@@ -51,9 +51,14 @@ def _safe_version(value: Any, label: str = "version") -> int:
 class InventDBClient:
     """Client bound to a single InventDB instance and (optionally) a token."""
 
-    def __init__(self, token: Optional[str] = None) -> None:
+    def __init__(
+        self, token: Optional[str] = None, base_url: Optional[str] = None
+    ) -> None:
         settings = get_settings()
-        self.base_url = settings.base_url
+        # `base_url` is only passed when probing an instance the app is not
+        # bound to yet — the Settings page checks a new address answers before
+        # it saves it. Everything else uses the configured instance.
+        self.base_url = (base_url or settings.inventdb_base_url).rstrip("/")
         self.namespace = settings.inventdb_namespace
         self.app = settings.inventdb_app
         self.timeout = settings.inventdb_timeout
@@ -379,6 +384,196 @@ class InventDBClient:
         aid = _safe_id(attachment_id, "attachment id")
         return self._request("DELETE", f"/attach/{ns}/{t}/{rid}/{aid}")
 
+    # ------------------------------------------------------------------ files
+    # The Files drive. InventDB stores every file as an *attachment* on a
+    # record — `pms.leases/lea-1` owns its scanned lease — and exposes a
+    # cross-cutting search over all of them plus a folder aggregation. That
+    # aggregation is what lets a room built on `namespace.type` records present
+    # itself as a drive of folders.
+    #
+    # A file's home never changes: these are a surface over attachments, not a
+    # second place to keep things.
+
+    def _attach_path(self, type_name: str, record_id: str, attachment_id: str = "") -> str:
+        ns = _safe_ident(self.namespace, "namespace")
+        t = _safe_ident(type_name, "type")
+        rid = _safe_id(record_id, "record id")
+        path = f"/attach/{ns}/{t}/{rid}"
+        if attachment_id:
+            path += f"/{_safe_id(attachment_id, 'attachment id')}"
+        return path
+
+    def search_files(self, body: dict[str, Any]) -> Any:
+        """Cross-type file search + folder aggregation.
+
+        The namespace is pinned by the caller (see the files router), never by
+        the request body: this app's window is its own namespace, and a body
+        field would let a question steer at another tenant's files.
+        """
+        return self._request("POST", "/attach/_search", json=body)
+
+    def bulk_delete_files(self, body: dict[str, Any]) -> Any:
+        """Delete a folder subtree, or every file of one type.
+
+        Batched by ``limit``: the response's ``deleted``/``skipped`` let the
+        caller drive a real progress count and stop when a pass deletes nothing.
+        """
+        return self._request("POST", "/attach/_bulk_delete", json=body)
+
+    def relink_attachment(
+        self, attachment_id: str, type_name: str, record_id: str, mode: str = "move"
+    ) -> Any:
+        """Re-parent a file onto a record.
+
+        ``move`` makes the target the file's primary home and drops any
+        copy-links — which is what turns an unattached upload into *this
+        lease's* document. ``copy`` leaves the original parent in place and adds
+        the target alongside it, for a file that genuinely belongs to two
+        records (one invoice, two work orders).
+        """
+        ns = _safe_ident(self.namespace, "namespace")
+        return self._request(
+            "POST",
+            f"/attach/{ns}/_relink",
+            json={
+                "attachment_id": _safe_id(attachment_id, "attachment id"),
+                "target": {
+                    "namespace": ns,
+                    "typeName": _safe_ident(type_name, "type"),
+                    "recordId": _safe_id(record_id, "record id"),
+                },
+                "mode": mode,
+            },
+        )
+
+    def list_attachments(self, type_name: str, record_id: str) -> Any:
+        return self._request("GET", self._attach_path(type_name, record_id))
+
+    def get_attachment(self, type_name: str, record_id: str, attachment_id: str) -> Any:
+        return self._request("GET", self._attach_path(type_name, record_id, attachment_id))
+
+    def attachment_extracted_text(
+        self, type_name: str, record_id: str, attachment_id: str
+    ) -> Any:
+        """What the OCR/extraction pipeline read out of the file."""
+        path = self._attach_path(type_name, record_id, attachment_id)
+        return self._request("GET", f"{path}/text")
+
+    def upload_attachment(
+        self,
+        type_name: str,
+        record_id: str,
+        filename: str,
+        content: bytes,
+        content_type: str,
+        folder: Optional[str] = None,
+    ) -> Any:
+        """Attach one file to a record, optionally into a folder.
+
+        Multipart, so it bypasses ``_request`` (whose headers declare JSON) —
+        ``requests`` writes the boundary itself.
+        """
+        path = self._attach_path(type_name, record_id)
+        data = {"folder_path": folder} if folder else None
+        return self._multipart("POST", path, filename, content, content_type, data)
+
+    def upload_attachment_version(
+        self,
+        type_name: str,
+        record_id: str,
+        attachment_id: str,
+        filename: str,
+        content: bytes,
+        content_type: str,
+    ) -> Any:
+        """Add a new version of an existing file. Earlier versions are kept."""
+        path = self._attach_path(type_name, record_id, attachment_id)
+        return self._multipart("POST", f"{path}/versions", filename, content, content_type)
+
+    def list_attachment_versions(
+        self, type_name: str, record_id: str, attachment_id: str
+    ) -> Any:
+        path = self._attach_path(type_name, record_id, attachment_id)
+        return self._request("GET", f"{path}/versions")
+
+    def restore_attachment_version(
+        self, type_name: str, record_id: str, attachment_id: str, version: int
+    ) -> Any:
+        """Make an earlier version current. Nothing is discarded."""
+        path = self._attach_path(type_name, record_id, attachment_id)
+        return self._request("POST", f"{path}/versions/{_safe_version(version)}/restore", json={})
+
+    def download_attachment(
+        self,
+        type_name: str,
+        record_id: str,
+        attachment_id: str,
+        *,
+        version: Optional[int] = None,
+        thumbnail_size: Optional[int] = None,
+    ) -> "requests.Response":
+        """The file's bytes, as an un-consumed streaming response.
+
+        Returned rather than read so the router can stream it straight to the
+        browser: a 40 MB scan should not be buffered in Python on its way
+        through. The caller owns closing it.
+        """
+        path = self._attach_path(type_name, record_id, attachment_id)
+        if thumbnail_size is not None:
+            url = f"{self.base_url}{path}/thumbnail"
+            params: Optional[dict[str, Any]] = {"size": thumbnail_size}
+        elif version is not None:
+            url = f"{self.base_url}{path}/versions/{_safe_version(version)}/download"
+            params = None
+        else:
+            url = f"{self.base_url}{path}/download"
+            params = None
+        if not self.token:
+            raise ApiError(401, "Not authenticated")
+        try:
+            resp = requests.request(
+                "GET",
+                url,
+                headers={"Authorization": f"Bearer {self.token}"},
+                params=params,
+                timeout=self.timeout,
+                stream=True,
+            )
+        except requests.RequestException as exc:
+            raise ApiError(502, f"Could not reach InventDB: {exc}") from exc
+        if resp.status_code >= 400:
+            detail = resp.text or f"InventDB returned {resp.status_code}"
+            resp.close()
+            raise ApiError(resp.status_code, detail)
+        return resp
+
+    def _multipart(
+        self,
+        method: str,
+        path: str,
+        filename: str,
+        content: bytes,
+        content_type: str,
+        data: Optional[dict[str, Any]] = None,
+    ) -> Any:
+        if not self.token:
+            raise ApiError(401, "Not authenticated")
+        try:
+            resp = requests.request(
+                method,
+                f"{self.base_url}{path}",
+                headers={
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {self.token}",
+                },
+                files={"file": (filename, content, content_type)},
+                data=data or None,
+                timeout=self.timeout,
+            )
+        except requests.RequestException as exc:
+            raise ApiError(502, f"Could not reach InventDB: {exc}") from exc
+        return self._parse(resp)
+
     # --------------------------------------------------------------- analyze
     # The Analyze room talks to InventDB's AI surface: the streaming agent
     # (`/ai/chat/stream`), the model catalog, per-user thread storage, the web
@@ -555,6 +750,38 @@ class InventDBClient:
     def list_workflow_versions(self, workflow_id: str) -> Any:
         wid = _safe_id(workflow_id, "workflow id")
         return self._request("GET", f"/api/workflows/{wid}/versions")
+
+    def get_workflow_version(self, workflow_id: str, version: int) -> Any:
+        """One frozen definition, in full — the plan as it was at that version."""
+        wid = _safe_id(workflow_id, "workflow id")
+        v = _safe_version(version)
+        return self._request("GET", f"/api/workflows/{wid}/versions/{v}")
+
+    def delete_workflow_version(self, workflow_id: str, version: int) -> Any:
+        wid = _safe_id(workflow_id, "workflow id")
+        v = _safe_version(version)
+        return self._request("DELETE", f"/api/workflows/{wid}/versions/{v}")
+
+    def clear_workflow_versions(self, workflow_id: str) -> Any:
+        """Drop every historical version, keeping the current definition."""
+        wid = _safe_id(workflow_id, "workflow id")
+        return self._request("DELETE", f"/api/workflows/{wid}/versions")
+
+    def cancel_run(self, run_id: str) -> Any:
+        """Stop a run that is running or parked. Upstream refuses a finished one."""
+        rid = _safe_id(run_id, "run id")
+        return self._request("POST", f"/api/workflows/runs/{rid}/cancel", json={})
+
+    def fix_workflow_from_run(self, workflow_id: str, run_id: str) -> Any:
+        """Ask InventDB's model for a revised definition after a failed run.
+
+        Returns the proposal only — nothing is saved. The revision is reviewed
+        in the editor and saving it mints a new version, which is the whole
+        point: an AI fix to a live automation is a draft, not a deployment.
+        """
+        wid = _safe_id(workflow_id, "workflow id")
+        rid = _safe_id(run_id, "run id")
+        return self._request("POST", f"/api/workflows/{wid}/fix-from-run/{rid}", json={})
 
     def rollback_workflow(self, workflow_id: str, version: int) -> Any:
         """Restore an earlier definition. This mints a *new* latest version

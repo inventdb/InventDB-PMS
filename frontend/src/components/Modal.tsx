@@ -8,12 +8,21 @@ export function Modal({
   children,
   footer,
   narrow,
+  hideTitle,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
   narrow?: boolean;
+  /**
+   * Keep `title` as the dialog's accessible name but do not draw it.
+   *
+   * For a body that already leads with the same heading — and, in the workflow
+   * console's case, with an *editable* version of it. Printing it twice invites
+   * the question of which one is real.
+   */
+  hideTitle?: boolean;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -40,9 +49,10 @@ export function Modal({
         onMouseDown={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
+        aria-label={title}
       >
         <div className="modal-head">
-          <h3>{title}</h3>
+          {!hideTitle && <h3>{title}</h3>}
           <button className="btn-icon" onClick={onClose} aria-label="Close">
             <X size={18} />
           </button>
