@@ -53,6 +53,17 @@ def create_app() -> Flask:
     dist = _frontend_dist()
 
     app = Flask(__name__, static_folder=None)
+
+    # Keep JSON keys in the order InventDB sent them.
+    #
+    # Flask's JSON provider sorts object keys alphabetically by default. For a
+    # thin proxy that is not cosmetic: a result row's key order IS its column
+    # order, and the Analyze grid renders `Object.keys(row).slice(0, 8)`. Sorted,
+    # a work-order result led with `days_open` and pushed `w.wo` — the work-order
+    # number — out of the visible columns entirely, so the same saved analysis
+    # showed different columns in the PMS than in SOAR's Analyze room.
+    app.json.sort_keys = False
+
     CORS(
         app,
         resources={r"/api/*": {"origins": settings.cors_origin_list}},

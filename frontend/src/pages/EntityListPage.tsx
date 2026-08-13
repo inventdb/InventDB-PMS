@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 import { useCreate, useDelete, useList, useUpdate } from "../api/hooks";
-import { errorMessage } from "../api/client";
+import { api, errorMessage } from "../api/client";
 import {
   ENTITY_BY_NAME,
   recordTitle,
@@ -97,7 +97,22 @@ function EntityModule({ config }: { config: EntityConfig }) {
       setEditing(match);
       setModalOpen(true);
     } else {
-      toast.error("That record is no longer in this list.");
+      // Not on this page is not the same as gone. The list is capped at 1000
+      // rows while Analyze can hand us any record in the module — Accounting
+      // alone holds 2,262 — so a row clicked in a result grid landed here and
+      // was told it no longer existed. Fetch the one record by id instead, and
+      // only call it missing if InventDB agrees it is.
+      void api
+        .get<Rec>(`/${config.name}/${focusId}`)
+        .then(({ data }) => {
+          if (data && data._id != null) {
+            setEditing(data);
+            setModalOpen(true);
+          } else {
+            toast.error("That record is no longer in this list.");
+          }
+        })
+        .catch(() => toast.error("That record is no longer in this list."));
     }
     const next = new URLSearchParams(params);
     next.delete("focus");
