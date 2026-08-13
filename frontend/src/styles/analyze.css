@@ -210,6 +210,22 @@
   overflow: hidden;
 }
 
+/* Filled rather than transparent, and matching the <select> inside it. An open
+   dropdown is drawn by the platform, which paints the control's own box while
+   its menu is up — with nothing to paint it uses the OS field colour, and the
+   pill flashes light on a dark page.
+   Written against `.an-chip.an-model`, and pinned through :hover, because the
+   chip's own background rules sit later in this file and would otherwise win
+   and leave the pill two-tone against the select inside it. */
+.an-chip.an-model,
+.an-chip.an-model:hover {
+  background: var(--surface);
+}
+[data-theme="dark"] .an-chip.an-model,
+[data-theme="dark"] .an-chip.an-model:hover {
+  background: var(--surface-2);
+}
+
 .an-model:hover {
   border-color: var(--brand-line);
 }
@@ -222,7 +238,6 @@
 
 .an-model select {
   border: none;
-  background: transparent;
   font: inherit;
   font-size: 12.5px;
   /* Pinned rather than inherited: an <option> takes the select's computed
@@ -234,12 +249,9 @@
   max-width: 100%;
   text-overflow: ellipsis;
 }
-
-.an-model select option,
-.an-model select optgroup {
-  background: var(--surface);
-  color: var(--text);
-}
+/* Background and the option/optgroup palette come from the global `select`
+   rules in global.css, so this picker is themed by the same floor as every
+   other dropdown rather than by a rule of its own. */
 
 /* ---- threads rail -------------------------------------------------------- */
 

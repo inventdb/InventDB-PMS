@@ -41,6 +41,14 @@ export interface EntityConfig {
   titleFields: string[];
   /** Hide the leading business-key column (for types without a real id). */
   hideKeyColumn?: boolean;
+  /**
+   * The example under "Describe it" on the New <type> form.
+   *
+   * Worth writing per module rather than generating: the example is what tells
+   * someone how much detail is useful, and it only does that if it reads like
+   * something they would actually have typed about *this* kind of record.
+   */
+  describeExample: string;
   fields: FieldDef[];
   defaultSort?: { field: string; dir: "asc" | "desc" };
 }
@@ -54,6 +62,8 @@ export const ENTITIES: EntityConfig[] = [
     icon: "building",
     titleFields: ["street", "city"],
     defaultSort: { field: "street", dir: "asc" },
+    describeExample:
+      "Vacant 3-bed 2-bath townhouse at 44 Cedar Lane, Richmond VA 23220, owned by Harbourline Holdings. 1,650 sq ft, built 1998, market rent $2,100.",
     fields: [
       { name: "street", label: "Street", type: "text", required: true, table: true },
       { name: "city", label: "City", type: "text", table: true },
@@ -100,6 +110,8 @@ export const ENTITIES: EntityConfig[] = [
     icon: "user-round",
     titleFields: ["name"],
     defaultSort: { field: "name", dir: "asc" },
+    describeExample:
+      "Riverbend Trust, a trust owned by Anita Desai — anita@riverbend.example, 555-0148. 8% management fee, paid by ACH, W-9 on file.",
     fields: [
       { name: "name", label: "Name", type: "text", required: true, table: true },
       {
@@ -132,6 +144,8 @@ export const ENTITIES: EntityConfig[] = [
     icon: "users",
     titleFields: ["first", "last"],
     defaultSort: { field: "last", dir: "asc" },
+    describeExample:
+      "Priya Sharma moves into 12 Marine Drive on 1 September. priya.sharma@example.com, 555-0163. Two occupants, one car, one cat. Emergency contact her brother Rohit on 555-0199.",
     fields: [
       { name: "first", label: "First Name", type: "text", required: true, table: true },
       { name: "last", label: "Last Name", type: "text", required: true, table: true },
@@ -154,6 +168,8 @@ export const ENTITIES: EntityConfig[] = [
     icon: "file-text",
     titleFields: ["tenant_name"],
     defaultSort: { field: "lease_start", dir: "desc" },
+    describeExample:
+      "12-month lease on 9 Park Street for Priya Sharma, starting 1 October at $2,400 a month. $2,400 deposit, $50 late fee after a 5-day grace, auto-renewing.",
     fields: [
       { name: "property_id", label: "Property", type: "text", ref: "properties", required: true, table: true },
       { name: "tenant_id", label: "Tenant", type: "text", ref: "tenants" },
@@ -192,6 +208,8 @@ export const ENTITIES: EntityConfig[] = [
     icon: "wrench",
     titleFields: ["issue"],
     defaultSort: { field: "date_opened", dir: "desc" },
+    describeExample:
+      "Tenant at 12 Marine Drive reported the kitchen sink backing up this morning — water on the floor, so treat it as urgent. Estimated $350.",
     fields: [
       { name: "date_opened", label: "Opened", type: "date", table: true },
       { name: "issue", label: "Issue", type: "text", required: true, table: true },
@@ -238,6 +256,8 @@ export const ENTITIES: EntityConfig[] = [
     icon: "hard-hat",
     titleFields: ["company"],
     defaultSort: { field: "company", dir: "asc" },
+    describeExample:
+      "Summit Roofing — roofing contractor, ask for Dan Alvarez on 555-0122 or dan@summitroofing.example. Licence VA-88213, rated 4.8, W-9 and COI on file, COI runs out 30 June 2027.",
     fields: [
       { name: "company", label: "Company", type: "text", required: true, table: true },
       { name: "trade", label: "Trade", type: "text", table: true },
@@ -259,6 +279,8 @@ export const ENTITIES: EntityConfig[] = [
     icon: "wallet",
     titleFields: ["memo"],
     defaultSort: { field: "date", dir: "desc" },
+    describeExample:
+      "Took $2,400 of rent for 9 Park Street from Priya Sharma on the 3rd, paid through the online portal.",
     fields: [
       { name: "date", label: "Date", type: "date", required: true, table: true },
       {
@@ -302,6 +324,8 @@ export const ENTITIES: EntityConfig[] = [
     icon: "clipboard-check",
     titleFields: ["type"],
     defaultSort: { field: "scheduled", dir: "desc" },
+    describeExample:
+      "Move-out inspection at 12 Marine Drive next Tuesday, Ravi Menon walking it. Watch the carpet in the second bedroom.",
     fields: [
       { name: "property_id", label: "Property", type: "text", ref: "properties", required: true, table: true },
       {
@@ -338,6 +362,8 @@ export const ENTITIES: EntityConfig[] = [
     icon: "shield",
     titleFields: ["insurance_carrier", "policy"],
     defaultSort: { field: "policy_expiry", dir: "asc" },
+    describeExample:
+      "9 Park Street is insured with Meridian Mutual, $1,850 a year, policy runs to 14 March 2027. Smoke and CO tested last month, everything compliant.",
     fields: [
       { name: "property_id", label: "Property", type: "text", ref: "properties", required: true, table: true },
       { name: "insurance_carrier", label: "Insurance Carrier", type: "text", table: true },
@@ -367,6 +393,8 @@ export const ENTITIES: EntityConfig[] = [
     titleFields: ["task"],
     hideKeyColumn: true,
     defaultSort: { field: "date", dir: "desc" },
+    describeExample:
+      "Chase the overdue October rent at 9 Park Street tomorrow morning — collections, high priority.",
     fields: [
       { name: "date", label: "Date", type: "date", table: true },
       { name: "time", label: "Time", type: "text", placeholder: "09:15", table: true },

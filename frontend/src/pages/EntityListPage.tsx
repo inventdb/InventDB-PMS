@@ -23,6 +23,7 @@ import { Icon } from "../components/Icon";
 import { EntityForm } from "../components/EntityForm";
 import { ConfirmDialog, Modal } from "../components/Modal";
 import { useReferences } from "../components/references";
+import { ScrollX } from "../components/ScrollX";
 import { useToast } from "../components/Toast";
 import { Alert, Badge, EmptyState, Spinner } from "../components/ui";
 
@@ -167,7 +168,9 @@ function EntityModule({ config }: { config: EntityConfig }) {
   const submitting = create.isPending || update.isPending;
 
   return (
-    <div className="content">
+    // `content-fill` gives the table the height the window has left, so the
+    // column heads can lock to it while the rows scroll underneath.
+    <div className="content content-fill">
       <div className="page-head">
         <div className="stat-ico" style={{ width: 40, height: 40 }}>
           <Icon name={config.icon} size={20} />
@@ -227,7 +230,7 @@ function EntityModule({ config }: { config: EntityConfig }) {
           />
         </div>
       ) : (
-        <div className="table-wrap">
+        <ScrollX className="table-wrap">
           <table className="data">
             <thead>
               <tr>
@@ -283,7 +286,7 @@ function EntityModule({ config }: { config: EntityConfig }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollX>
       )}
 
       {modalOpen && (
@@ -295,6 +298,10 @@ function EntityModule({ config }: { config: EntityConfig }) {
             config={config}
             initial={editing}
             submitting={submitting}
+            // Creating is where a description saves the most work — and where
+            // it is safe, because there is nothing yet for it to overwrite.
+            // Editing keeps the form it has always had.
+            assist={!editing}
             onSubmit={handleSubmit}
             onCancel={() => setModalOpen(false)}
           />

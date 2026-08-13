@@ -26,6 +26,11 @@
 
 :root {
   color-scheme: light;
+  /* Inherited by every native control in the app, so checkboxes and radios
+     take the brand instead of the platform's accent blue. Declared once here
+     rather than per component: `--brand` re-resolves per theme, so this needs
+     no dark-mode counterpart. */
+  accent-color: var(--brand);
 
   /* ---- brand ---- */
   --brand: #48176a; /* Orbital Indigo — links, active nav, icons */
@@ -631,6 +636,50 @@ h4 {
 .select {
   cursor: pointer;
 }
+
+/* ---- Native dropdown menus ----------------------------------------------
+   A <select>'s popup is drawn by the browser, not by this stylesheet, and it
+   follows the app's theme only if the colours are stated on the OPTIONS as
+   well as on the control. `color-scheme: dark` alone is not enough: an
+   <option> with no background of its own falls back to the platform's field
+   colour, which is how a dark page ends up opening a white menu.
+
+   Matched on the bare element rather than on `.select`, deliberately. A
+   dropdown added later shouldn't be able to opt out of the theme by
+   forgetting a class — and one of them already had: every control in the app
+   carried `.select` except the model picker, which is the one that set its
+   option colours. This inverts that, so the floor is global and a component
+   only writes CSS to differ.
+
+   What none of this reaches is the popup's frame — its border, corner radius
+   and drop shadow belong to the operating system. Matching those would mean
+   replacing the native control with a listbox of our own. */
+select,
+select option,
+select optgroup {
+  background-color: var(--surface);
+  color: var(--text);
+}
+[data-theme="dark"] select,
+[data-theme="dark"] select option,
+[data-theme="dark"] select optgroup {
+  /* One step up from the page, the way a menu should read against it. */
+  background-color: var(--surface-2);
+}
+select optgroup {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+/* The chosen row. Opaque on purpose — the popup paints the platform's own
+   field colour behind it, so a translucent brand tint would composite over
+   whatever that happens to be rather than over the menu. `--surface-3` is
+   already the token for one step raised, and reads as lavender in light and a
+   lifted graphite in dark. Where the engine honours this it replaces the
+   platform's accent blue; where it doesn't, nothing is lost. */
+select option:checked {
+  background-color: var(--surface-3);
+  color: var(--text);
+}
 .input-icon {
   position: relative;
 }
@@ -1014,6 +1063,107 @@ h4 {
   stroke-width: 2px;
 }
 
+/* ---- Sideways scrolling -------------------------------------------------- */
+/* A wide table's own scrollbar is under its last row. `ScrollX` puts a second
+   one above the table and pins it below the topbar, so the control stays with
+   the rows you are reading instead of at the end of the page. */
+.hscroll {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+/* The track. `touch-action: none` because a drag on the thumb is a drag, not a
+   pan of the page underneath it. */
+.hscroll-rail {
+  position: sticky;
+  top: calc(var(--topbar-h) + 8px);
+  /* Under the topbar (30), over the rows it floats across. */
+  z-index: 5;
+  height: 12px;
+  /* Where the region is height-bounded, a shrinkable 12px bar beside a
+     thousand pixels of table gets squashed to a hairline. It is a control; it
+     keeps its size. */
+  flex: none;
+  margin-bottom: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  touch-action: none;
+}
+/* Drawn rather than borrowed from the platform: a native bar is an overlay on
+   macOS and on every trackpad, and fades out when idle — which is the one
+   thing a control that exists to be findable cannot do. */
+.hscroll-thumb {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 0;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--brand) 50%, var(--border-strong));
+  cursor: grab;
+  transition: background-color var(--dur-1) var(--ease);
+}
+.hscroll-rail:hover .hscroll-thumb,
+.hscroll-rail:focus-visible .hscroll-thumb {
+  background: var(--brand);
+}
+.hscroll-rail.is-dragging {
+  cursor: grabbing;
+}
+.hscroll-rail.is-dragging .hscroll-thumb {
+  background: var(--brand);
+  cursor: grabbing;
+}
+/* The region keeps its own scrollbars. The rail is an addition, not a
+   replacement: hiding the native bars costs the vertical one too — the browser
+   gives no reliable per-axis control — and that bar is the only sign that
+   there are more rows below. */
+.hscroll-view {
+  overflow-x: auto;
+}
+
+/* ---- A module list fills the window -------------------------------------- */
+/* Locking the column heads is only possible if the table is what scrolls, not
+   the page: a `<thead>` sticks to its nearest scrollport, and `.table-wrap` is
+   already one — it scrolls sideways, which makes `overflow-y` a scrollport too.
+   So a module list takes the height the window has left and the rows scroll
+   inside it. The search box and the record count stay put as a consequence,
+   which is where you want them on a screen whose whole job is finding a row. */
+.content-fill {
+  height: calc(100vh - var(--topbar-h));
+  /* Phone browsers count the collapsing address bar in `vh`; `dvh` does not. */
+  height: calc(100dvh - var(--topbar-h));
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.content-fill > .hscroll {
+  flex: 1;
+  /* A flex item defaults to `min-height: auto`, which refuses to shrink below
+     its content — the table would push the window instead of scrolling inside
+     it. Naming a floor both frees the shrink and keeps a usable pane on a
+     window too short to divide, where the page goes back to scrolling. */
+  min-height: 160px;
+}
+/* Grow no further than the rows, shrink as far as the pane. A three-row list
+   keeps a card that hugs it rather than a stretched box of white space; a long
+   one fills the pane and scrolls inside it. */
+.content-fill .hscroll-view {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+.content-fill table.data thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  /* `border-collapse: collapse` hands the border to the table rather than to
+     the cell, so it would stay behind when the head sticks. The cell paints
+     its own line instead. */
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
 /* ---- Table -------------------------------------------------------------- */
 .table-wrap {
   overflow-x: auto;
@@ -1182,6 +1332,130 @@ table.data tbody tr:hover {
 }
 .form-grid .full {
   grid-column: 1 / -1;
+}
+
+/* ---- Describe it — plain English into a New <type> form ------------------
+   A single tinted block above the fields, styled as a quiet invitation rather
+   than a second form: it produces a draft, and the fields below remain where
+   the record is actually decided. */
+.dsc {
+  display: grid;
+  gap: 10px;
+  padding: 13px 15px 14px;
+  margin-bottom: 20px;
+  border: 1px solid var(--brand-line);
+  border-radius: var(--radius);
+  background: var(--brand-tint);
+}
+.dsc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--brand);
+}
+.dsc-head h4 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--brand);
+}
+.dsc-head-note {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--text-muted);
+}
+.dsc-input.input {
+  min-height: 74px;
+  resize: vertical;
+  line-height: 1.55;
+  background: var(--surface);
+}
+.dsc-input.input:disabled {
+  opacity: 0.7;
+}
+.dsc-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  /* The picker and the Stop/Fill button swap places as the row fills; one
+     shared height keeps the baseline steady while they do. */
+  --an-control-h: 30px;
+}
+.dsc-foot > .an-model {
+  height: var(--an-control-h);
+  flex: none;
+}
+.dsc-step {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.dsc-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.dsc-error,
+.dsc-summary p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.dsc-error {
+  color: var(--danger);
+}
+.dsc-summary {
+  display: grid;
+  gap: 5px;
+}
+.dsc-filled {
+  color: var(--text-muted);
+}
+/* An unmatched value is not an error — the fill worked, one piece of it just
+   needs a human. It reads as a caution, and the field it names is left blank
+   rather than guessed at. */
+.dsc-unresolved {
+  color: var(--warn);
+}
+
+/* A field the assistant wrote and nobody has checked yet. */
+.field.is-ai .input,
+.field.is-ai .select,
+.field.is-ai .textarea {
+  border-color: var(--brand-line);
+  background: var(--brand-tint);
+}
+[data-theme="dark"] .field.is-ai .input,
+[data-theme="dark"] .field.is-ai .select,
+[data-theme="dark"] .field.is-ai .textarea {
+  background: var(--surface-3);
+}
+.field.is-ai .input:focus,
+.field.is-ai .select:focus,
+.field.is-ai .textarea:focus {
+  background: var(--surface);
+}
+.field-ai-mark {
+  margin-left: 5px;
+  color: var(--brand);
+  font-size: 11px;
+}
+
+/* Named by a control, read by assistive tech, drawn nowhere. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ---- States ------------------------------------------------------------- */

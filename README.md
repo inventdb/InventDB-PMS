@@ -88,8 +88,24 @@ the live data directly.
   exists. This is a way to find files, not a second place to keep them
 
 **Platform**
+- 🪄 **Describe it** — on **every** module's `＋ New <type>`, say what the record is in plain
+  English and the assistant fills the form, the way **InventDB SOAR** starts a new record.
+  "Vacant 3‑bed townhouse at 44 Cedar Lane, Harbourline own it, rent $2,100" becomes a filled
+  Property: a lowercase word snapped to the module's own choice list, an owner **named rather
+  than keyed** resolved against the owners on file, `$2,100` landed as a number, a date written
+  out in words turned into one the control accepts. It **proposes, you commit** — the values
+  arrive in the open form, marked as the assistant's, and nothing is written until you press
+  Save. What it filled is listed, what it **could not** place is said out loud rather than
+  dropped, and a second description **refines** the form instead of restarting it. Anything you
+  typed by hand survives a fill that never mentioned it
 - 🔎 **Search, sort & filter** on every module
-- 🌓 **Dark & light modes** (auto‑detects system preference)
+- 🌓 **Dark & light modes** (auto‑detects system preference) — including the **native
+  controls**: a `<select>`'s menu is drawn by the operating system and follows the theme only
+  if the colours are stated on its *options*, not just on the control, so every dropdown,
+  option and group label in the app is painted from the brand tokens rather than left on the
+  OS palette. Checkboxes take the brand accent. Covered by a test that sweeps every dropdown
+  in both themes, because a white menu on a dark page never shows up in a screenshot of the
+  closed control
 - 📱 **Responsive** — works on phones, tablets and desktops
 - 🔐 **Authentication delegated directly to InventDB** (no separate user store)
 
@@ -384,7 +400,8 @@ InventDB PMS/
 │   │   ├── workflows/        # Editor, detail view, plan timeline, run timeline, catalogue
 │   │   ├── notifications/    # Approval card, action buttons, body sanitiser, intake setup
 │   │   ├── files/            # Drive tree, file grid, detail panel, row model
-│   │   ├── components/       # Layout · Modal · EntityForm · Toast · Icon · ui
+│   │   ├── components/       # Layout · Modal · EntityForm · DescribeRecord · ScrollX ·
+│   │   │                     #   Toast · Icon · ui
 │   │   ├── config/entities.ts# Field schema driving all tables & forms
 │   │   ├── api/ auth/ theme/ utils/
 │   │   └── styles/           # global.css tokens + analyze · notifications · reports · workflows

@@ -17,6 +17,7 @@ import { errorMessage } from "../../api/client";
 import { bulkSendEmail, renderReportTemplate, sendEmail } from "../api";
 import { MONEY_HINT, money, titleize } from "../helpers";
 import { ActionProgress } from "../ui";
+import { ScrollX } from "../../components/ScrollX";
 
 /** Gmail isn't wired up on every instance; say so in plain words when it isn't. */
 function connectionAwareError(err: unknown, fallback: string): string {
@@ -379,7 +380,7 @@ export function BulkEmailCard({
         </div>
       )}
 
-      <div className="an-table-wrap">
+      <ScrollX className="an-table-wrap">
         <table className="an-table">
           <thead>
             <tr>
@@ -463,7 +464,7 @@ export function BulkEmailCard({
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollX>
 
       {error && <div className="alert error">{error}</div>}
 

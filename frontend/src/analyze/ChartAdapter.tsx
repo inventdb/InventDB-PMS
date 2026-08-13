@@ -37,6 +37,7 @@ import {
 import ChartTooltip from "../components/ChartTooltip";
 import { useChartTheme } from "../theme/charts";
 import { titleize } from "./helpers";
+import { ScrollX } from "../components/ScrollX";
 
 interface Trace {
   type?: string;
@@ -364,7 +365,7 @@ function FigureTable({ chart, title }: { chart: any; title?: string }) {
         This is a {titleize(kind).toLowerCase()} figure, which this view shows as its
         underlying numbers.
       </p>
-      <div className="an-table-wrap">
+      <ScrollX className="an-table-wrap">
         <table className="an-table">
           <thead>
             <tr>
@@ -386,7 +387,7 @@ function FigureTable({ chart, title }: { chart: any; title?: string }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollX>
     </div>
   );
 }

@@ -1143,6 +1143,62 @@ export const AGENT_PROPOSAL_STEPS: Record<string, unknown>[] = [
 ];
 
 /**
+ * A "Describe it" turn: the form's fields, read back out of a sentence.
+ *
+ * The values are deliberately in the shapes a model actually returns rather
+ * than the ones the form wants — a lowercase choice, an owner named instead of
+ * keyed, "$2,100" with its symbol and separator, a date written out in words,
+ * and a `not_a_field` key the module never declared. Coercion is the whole
+ * feature; a fixture that arrived pre-cleaned would test nothing.
+ */
+export const DESCRIBE_PROPERTY_STEPS: Record<string, unknown>[] = [
+  { type: "info", content: "Reading the description" },
+  {
+    type: "done",
+    content: JSON.stringify({
+      street: "44 Cedar Lane",
+      city: "Richmond",
+      state: "VA",
+      zip: "23220",
+      region: "Mid-Atlantic",
+      type: "townhouse",
+      status: "vacant",
+      owner_id: "Harbourline Holdings",
+      beds: 3,
+      baths: 2,
+      sqft: "1,650",
+      year_built: 1998,
+      market_rent: "$2,100",
+      acq_date: "March 4, 2026",
+      not_a_field: "ignored",
+    }),
+  },
+];
+
+/** The same turn, wrapped in the prose and code fence the prompt asked it not to use. */
+export const DESCRIBE_FENCED_STEPS: Record<string, unknown>[] = [
+  {
+    type: "done",
+    content:
+      "Here are the fields I could read:\n\n```json\n" +
+      JSON.stringify({ street: "3 Beacon Row", city: "Norfolk" }, null, 2) +
+      "\n```\n\nLet me know if you'd like anything changed.",
+  },
+];
+
+/** A turn offering a choice that isn't one, and an owner nobody has on file. */
+export const DESCRIBE_UNRESOLVED_STEPS: Record<string, unknown>[] = [
+  {
+    type: "done",
+    content: JSON.stringify({
+      street: "8 Kestrel Way",
+      status: "Under offer",
+      owner_id: "Wexford Partners",
+    }),
+  },
+];
+
+/**
  * A turn that builds an automation.
  *
  * `create_workflow` emits a `workflow` step whose `chart.initial` is the saved

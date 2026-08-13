@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { ENTITY_BY_NAME } from "../config/entities";
 import { MONEY_HINT, money, titleize } from "./helpers";
 import { runSql } from "./api";
+import { ScrollX } from "../components/ScrollX";
 
 /** Render a value as a SQL literal for an equality match. */
 function sqlLiteral(value: unknown): string {
@@ -100,7 +101,7 @@ export function DataGrid({
   }
 
   return (
-    <div className="an-table-wrap">
+    <ScrollX className="an-table-wrap">
       <table className="an-table">
         <thead>
           <tr>
@@ -127,6 +128,6 @@ export function DataGrid({
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollX>
   );
 }

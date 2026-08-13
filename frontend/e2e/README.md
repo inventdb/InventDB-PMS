@@ -1,6 +1,6 @@
 # End-to-end tests
 
-135 Playwright tests covering the PMS UI. They run against the Vite dev server
+408 Playwright tests covering the PMS UI. They run against the Vite dev server
 with the `/api` surface mocked **in the browser**, so they need neither the
 Flask backend nor a live InventDB instance.
 
@@ -31,6 +31,7 @@ npm run typecheck:e2e     # type-check the suite (not part of `npm run build`)
 | `connection.spec.ts` | Editing the InventDB base URL: the confirm, the refusals, and the sign-out that follows a reconnect. |
 | `settings.spec.ts` | Account, connection, theme, password change, sign-out |
 | `errors.spec.ts` | 401 auto-logout, 5xx surfaces, network failure, recovery |
+| `table-scroll.spec.ts` | The sideways-scroll rail — when it appears, and that the thumb reports and reaches the whole range by drag, click and keyboard — and the locked column heads, including the fill layout that makes them possible |
 | `mobile.spec.ts` | Drawer, login reflow, horizontal-overflow guard (Pixel 7) |
 
 ## How the mocking works

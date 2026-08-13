@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { ChevronLeft, ChevronRight, FileText, Search, Upload } from "lucide-react";
 
 import { Alert, EmptyState, Spinner } from "../components/ui";
+import { ScrollX } from "../components/ScrollX";
 import { useToast } from "../components/Toast";
 import { errorMessage } from "../api/client";
 import { useFileSearch, useUploadFile, type FileSearchParams } from "../api/hooks";
@@ -253,44 +254,48 @@ export function FileGrid({
             }
           />
         ) : (
-          <table className="fx-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Where</th>
-                <th>Size</th>
-                <th>Added</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((f) => {
-                const home = fileHome(f);
-                const snippet = fileSnippet(f);
-                return (
-                  <tr key={fileId(f)} onClick={() => onOpen(f)} className="fx-row">
-                    <td>
-                      <div className="fx-name">
-                        <span className="fx-ext">{ext(f.filename || "")}</span>
-                        <span className="fx-filename">{baseName(f.filename || "Untitled")}</span>
-                        {typeof f.score === "number" && mode !== "name" && (
-                          <span className="fx-score">{Math.round(f.score * 100)}%</span>
-                        )}
-                      </div>
-                      {snippet && <div className="fx-snippet">{snippet}</div>}
-                    </td>
-                    <td>
-                      <span className="fx-where" title={`${home.type}/${home.recordId}`}>
-                        {home.type}
-                        {f.folder_path ? ` › ${f.folder_path}` : ""}
-                      </span>
-                    </td>
-                    <td className="fx-num">{fileSizeLabel(fileSize(f))}</td>
-                    <td className="fx-num">{fmtFileDate(f.created_at)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <ScrollX>
+            <table className="fx-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Where</th>
+                  <th>Size</th>
+                  <th>Added</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((f) => {
+                  const home = fileHome(f);
+                  const snippet = fileSnippet(f);
+                  return (
+                    <tr key={fileId(f)} onClick={() => onOpen(f)} className="fx-row">
+                      <td>
+                        <div className="fx-name">
+                          <span className="fx-ext">{ext(f.filename || "")}</span>
+                          <span className="fx-filename">
+                            {baseName(f.filename || "Untitled")}
+                          </span>
+                          {typeof f.score === "number" && mode !== "name" && (
+                            <span className="fx-score">{Math.round(f.score * 100)}%</span>
+                          )}
+                        </div>
+                        {snippet && <div className="fx-snippet">{snippet}</div>}
+                      </td>
+                      <td>
+                        <span className="fx-where" title={`${home.type}/${home.recordId}`}>
+                          {home.type}
+                          {f.folder_path ? ` › ${f.folder_path}` : ""}
+                        </span>
+                      </td>
+                      <td className="fx-num">{fileSizeLabel(fileSize(f))}</td>
+                      <td className="fx-num">{fmtFileDate(f.created_at)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </ScrollX>
         )}
       </div>
 

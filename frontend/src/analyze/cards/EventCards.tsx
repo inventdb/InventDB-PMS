@@ -13,6 +13,7 @@ import { errorMessage } from "../../api/client";
 import { bulkCreateEvents, createEvent } from "../api";
 import { MONEY_HINT, money, titleize } from "../helpers";
 import { ActionProgress } from "../ui";
+import { ScrollX } from "../../components/ScrollX";
 
 function connectionAwareError(err: unknown, fallback: string): string {
   const message = errorMessage(err) || fallback;
@@ -457,7 +458,7 @@ export function BulkEventsCard({
         </div>
       )}
 
-      <div className="an-table-wrap">
+      <ScrollX className="an-table-wrap">
         <table className="an-table">
           <thead>
             <tr>
@@ -569,7 +570,7 @@ export function BulkEventsCard({
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollX>
 
       {error && <div className="alert error">{error}</div>}
 

@@ -14,6 +14,7 @@ import { Paperclip } from "lucide-react";
 
 import { ENTITY_BY_NAME } from "../../config/entities";
 import { titleize } from "../helpers";
+import { ScrollX } from "../../components/ScrollX";
 
 interface AttachRow {
   _id?: string;
@@ -68,7 +69,7 @@ export function AttachmentsCard({ chart }: { chart: any }) {
             </div>
           </div>
         </div>
-        <div className="an-table-wrap">
+        <ScrollX className="an-table-wrap">
           <table className="an-table">
             <thead>
               <tr>
@@ -92,7 +93,7 @@ export function AttachmentsCard({ chart }: { chart: any }) {
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollX>
       </div>
     );
   }
@@ -115,7 +116,7 @@ export function AttachmentsCard({ chart }: { chart: any }) {
           </div>
         </div>
       </div>
-      <div className="an-table-wrap">
+      <ScrollX className="an-table-wrap">
         <table className="an-table">
           <thead>
             <tr>
@@ -149,7 +150,7 @@ export function AttachmentsCard({ chart }: { chart: any }) {
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollX>
     </div>
   );
 }

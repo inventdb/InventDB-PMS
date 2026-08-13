@@ -173,6 +173,87 @@ export function streamAgent(
   return ac;
 }
 
+/** Marker for a turn the user stopped, so callers can stay quiet about it. */
+function cancelled(): Error {
+  const err = new Error("cancelled");
+  (err as Error & { cancelled?: boolean }).cancelled = true;
+  return err;
+}
+
+/** True when a rejection is a user-initiated Stop rather than a failure. */
+export function isCancel(err: unknown): boolean {
+  return !!err && (err as { cancelled?: boolean }).cancelled === true;
+}
+
+/**
+ * One agent turn, collected into its final text.
+ *
+ * The canvas wants every frame; a feature that just needs an answer — fill this
+ * form from a description — wants the last one. This runs the same stream with
+ * `conversationMode` off, so the turn is judged on its prompt alone rather than
+ * inheriting whatever was asked in Analyze earlier.
+ *
+ * An `error` frame with no answer behind it REJECTS. The agent emits one and
+ * recovers often enough that a mid-stream error is not fatal, but a turn that
+ * errored and produced nothing is an outage, not an empty result — and a caller
+ * that can't tell the two apart reports "nothing matched" when the truth is
+ * "the model service is down".
+ */
+export function agentText(
+  prompt: string,
+  opts: {
+    signal?: AbortSignal;
+    timeoutMs?: number;
+    modelFamily?: string;
+    onProgress?: (label: string) => void;
+  } = {}
+): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    if (opts.signal?.aborted) {
+      reject(cancelled());
+      return;
+    }
+    let text = "";
+    let errored: string | null = null;
+
+    const controller = streamAgent([{ role: "user", content: prompt }], {
+      conversationMode: false,
+      timeoutMs: opts.timeoutMs,
+      modelFamily: opts.modelFamily,
+      onStep: (step) => {
+        opts.onProgress?.(stepLabel(step));
+        if (step.type === "error" && step.content) errored = step.content;
+        if (
+          (step.type === "answer" || step.type === "text" || step.type === "done") &&
+          step.content
+        ) {
+          text += step.content;
+        }
+      },
+      onError: (message) => reject(new Error(message)),
+      // A user Stop routes through streamAgent's catch into onDone, so the
+      // signal — not the callback — is what says it was cancelled.
+      onDone: () => {
+        if (opts.signal?.aborted) reject(cancelled());
+        else if (errored && !text) reject(new Error(errored));
+        else resolve(text);
+      },
+    });
+
+    opts.signal?.addEventListener(
+      "abort",
+      () => {
+        try {
+          controller.abort("user");
+        } catch {
+          /* already closed */
+        }
+      },
+      { once: true }
+    );
+  });
+}
+
 /**
  * A user-facing message for an AI failure, distinguishing a model-service
  * outage (credits, quota, rate limit) from a generic error so the UI can say

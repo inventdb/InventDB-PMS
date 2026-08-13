@@ -10,6 +10,7 @@
  * as an interactive grid, the model's restated copy is pure duplication.
  */
 import type { ReactNode } from "react";
+import { ScrollX } from "../components/ScrollX";
 
 function inline(text: string): ReactNode[] {
   const out: ReactNode[] = [];
@@ -80,7 +81,7 @@ export function Markdown({
         i++;
       }
       blocks.push(
-        <div className="an-table-wrap" key={key++}>
+        <ScrollX className="an-table-wrap" key={key++}>
           <table className="an-table">
             <thead>
               <tr>
@@ -99,7 +100,7 @@ export function Markdown({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollX>
       );
       continue;
     }
