@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
+import { keepPreviousData } from "@tanstack/react-query";
 import {
   ArrowDown,
   ArrowUp,
+  ChevronFirst,
+  ChevronLast,
+  ChevronLeft,
+  ChevronRight,
   Pencil,
   Plus,
   Search,
@@ -26,6 +31,10 @@ import { useReferences } from "../components/references";
 import { ScrollX } from "../components/ScrollX";
 import { useToast } from "../components/Toast";
 import { Alert, Badge, EmptyState, Spinner } from "../components/ui";
+
+/** Rows per page. 50 fills a desktop pane without over-fetching on a phone. */
+const DEFAULT_PAGE_SIZE = 50;
+const PAGE_SIZES = [25, 50, 100, 200];
 
 export default function EntityListPage() {
   const { entity = "" } = useParams();
@@ -52,19 +61,39 @@ function EntityModule({ config }: { config: EntityConfig }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Rec | null>(null);
   const [deleting, setDeleting] = useState<Rec | null>(null);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
-  // Debounce search input.
+  // Debounce search input. The page resets with the term rather than in an
+  // effect watching it: an effect runs *after* the render that already fired a
+  // query, so changing the term while deep in the list sent one request at the
+  // old offset — off the end of the new result — before the reset landed.
   useEffect(() => {
-    const t = setTimeout(() => setQ(rawSearch.trim()), 300);
+    const t = setTimeout(() => {
+      setQ(rawSearch.trim());
+      setPage(0);
+    }, 300);
     return () => clearTimeout(t);
   }, [rawSearch]);
 
-  const list = useList(config.name, {
-    q: q || undefined,
-    order_by: sort.field,
-    order_dir: sort.dir,
-    limit: 1000,
-  });
+  // One page at a time, fetched by the server. The whole table used to arrive
+  // in a single 1000-row request, which both stalled the big modules and put
+  // every record past the thousandth out of reach — Accounting alone holds
+  // 2,262. Search, sort and filters are already applied server-side, so the
+  // page is a page of the *result*, not of a slice we then narrow.
+  const list = useList(
+    config.name,
+    {
+      q: q || undefined,
+      order_by: sort.field,
+      order_dir: sort.dir,
+      limit: pageSize,
+      offset: page * pageSize,
+    },
+    // Hold the previous page on screen while the next one loads, so paging
+    // doesn't flash the empty state and collapse the table's height.
+    { placeholderData: keepPreviousData }
+  );
 
   const create = useCreate(config.name);
   const update = useUpdate(config.name);
@@ -81,6 +110,18 @@ function EntityModule({ config }: { config: EntityConfig }) {
   const { labels } = useReferences(refEntities);
 
   const items = list.data?.items ?? [];
+  const total = list.data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const firstRow = total === 0 ? 0 : page * pageSize + 1;
+  const lastRow = Math.min(total, page * pageSize + items.length);
+
+  // Deleting the last row of the last page, or any change that shortens the
+  // result while paged deep into it, leaves `offset` past the end. Step back to
+  // the last page that still has rows rather than showing "no records".
+  useEffect(() => {
+    if (list.isFetching) return;
+    if (total > 0 && page > 0 && page >= pageCount) setPage(pageCount - 1);
+  }, [total, page, pageCount, list.isFetching]);
 
   // `?focus=<id>` opens one record straight away. Analyze links here when a
   // result row is clicked — this app has no separate record page, so the module
@@ -97,10 +138,9 @@ function EntityModule({ config }: { config: EntityConfig }) {
       setEditing(match);
       setModalOpen(true);
     } else {
-      // Not on this page is not the same as gone. The list is capped at 1000
-      // rows while Analyze can hand us any record in the module — Accounting
-      // alone holds 2,262 — so a row clicked in a result grid landed here and
-      // was told it no longer existed. Fetch the one record by id instead, and
+      // Not on this page is not the same as gone — and now that the table is
+      // paged, a focused record being absent from the current page is the
+      // normal case rather than the exception. Fetch the one record by id, and
       // only call it missing if InventDB agrees it is.
       void api
         .get<Rec>(`/${config.name}/${focusId}`)
@@ -122,12 +162,15 @@ function EntityModule({ config }: { config: EntityConfig }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId, list.isLoading, items.length]);
 
+  // Re-sorting reorders the whole result, not the page, so the row you were
+  // looking at is not on page 4 any more. Go back to the top of the new order.
   const toggleSort = (field: string) => {
     setSort((prev) =>
       prev.field === field
         ? { field, dir: prev.dir === "asc" ? "desc" : "asc" }
         : { field, dir: "asc" }
     );
+    setPage(0);
   };
 
   const openCreate = () => {
@@ -245,7 +288,7 @@ function EntityModule({ config }: { config: EntityConfig }) {
           />
         </div>
       ) : (
-        <ScrollX className="table-wrap">
+        <ScrollX className={`table-wrap ${list.isFetching ? "is-paging" : ""}`}>
           <table className="data">
             <thead>
               <tr>
@@ -302,6 +345,76 @@ function EntityModule({ config }: { config: EntityConfig }) {
             </tbody>
           </table>
         </ScrollX>
+      )}
+
+      {items.length > 0 && (
+        <nav className="pager" aria-label={`${config.labelPlural} pagination`}>
+          <p className="pager-status" aria-live="polite">
+            Showing <b>{firstRow.toLocaleString()}</b>–<b>{lastRow.toLocaleString()}</b> of{" "}
+            <b>{total.toLocaleString()}</b>
+          </p>
+          <div className="pager-controls">
+            <label className="pager-size">
+              <span>Rows</span>
+              <select
+                className="input"
+                value={pageSize}
+                aria-label="Rows per page"
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(0);
+                }}
+              >
+                {PAGE_SIZES.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="pager-nav">
+              <button
+                className="btn-icon"
+                title="First page"
+                aria-label="First page"
+                disabled={page === 0}
+                onClick={() => setPage(0)}
+              >
+                <ChevronFirst size={16} />
+              </button>
+              <button
+                className="btn-icon"
+                title="Previous page"
+                aria-label="Previous page"
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="pager-page">
+                Page {(page + 1).toLocaleString()} of {pageCount.toLocaleString()}
+              </span>
+              <button
+                className="btn-icon"
+                title="Next page"
+                aria-label="Next page"
+                disabled={page >= pageCount - 1}
+                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              >
+                <ChevronRight size={16} />
+              </button>
+              <button
+                className="btn-icon"
+                title="Last page"
+                aria-label="Last page"
+                disabled={page >= pageCount - 1}
+                onClick={() => setPage(pageCount - 1)}
+              >
+                <ChevronLast size={16} />
+              </button>
+            </div>
+          </div>
+        </nav>
       )}
 
       {modalOpen && (

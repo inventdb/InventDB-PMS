@@ -1223,6 +1223,95 @@ table.data tbody tr:hover {
   align-items: center;
   gap: 4px;
 }
+/* The rows for the page being left stay on screen while the next arrives, so
+   the only cue that anything is happening is this. Opacity rather than a
+   spinner: the table keeps its height and the heads keep their position. */
+.table-wrap.is-paging table.data tbody {
+  opacity: 0.55;
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+/* ---- Pager --------------------------------------------------------------
+   Sits under the table, outside the scroll area, so it stays put while the
+   rows scroll. `flex: none` keeps `content-fill` from collapsing it when the
+   table is tall enough to fill the pane. */
+.pager {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.pager-status {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.pager-status b {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.pager-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.pager-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.pager-size select.input {
+  width: auto;
+  padding: 5px 26px 5px 9px;
+  font-size: 12.5px;
+}
+.pager-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.pager-page {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+/* At the first or last page the arrows stay in place rather than disappearing,
+   so the control doesn't reflow as you page through. */
+.pager .btn-icon:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.pager .btn-icon:disabled:hover {
+  background: transparent;
+  color: var(--text-muted);
+}
+/* Too narrow for one row: the status sits above, and the controls stack under
+   it centred — `space-between` would strand each wrapped line on the left. */
+@media (max-width: 560px) {
+  .pager {
+    justify-content: center;
+    text-align: center;
+  }
+  .pager-controls {
+    width: 100%;
+    justify-content: center;
+    gap: 10px 14px;
+  }
+}
 
 /* ---- Toolbar ------------------------------------------------------------ */
 .toolbar {
