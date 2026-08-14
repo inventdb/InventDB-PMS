@@ -69,6 +69,23 @@ def _json_body() -> dict[str, Any]:
     return data
 
 
+def _int_arg(name: str, default: int) -> int:
+    """A whole-number query parameter, or ``default`` when it is absent.
+
+    A malformed value is the caller's mistake, so it has to be refused as one.
+    A bare ``int()`` raises ValueError inside the view instead, which the
+    catch-all handler turns into a 500 carrying the Python exception text --
+    the wrong status, and it tells the caller about our internals.
+    """
+    raw = request.args.get(name)
+    if raw in (None, ""):
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        raise ApiError(400, f"'{name}' must be a whole number") from None
+
+
 def _count(client: InventDBClient, table: str, where: list[str]) -> int:
     where_sql = (" WHERE " + " AND ".join(where)) if where else ""
     try:
@@ -100,8 +117,8 @@ def list_records(entity_name: str):
 
     args = request.args
     q = args.get("q") or None
-    limit = max(1, min(int(args.get("limit", 500) or 500), 5000))
-    offset = max(0, int(args.get("offset", 0) or 0))
+    limit = max(1, min(_int_arg("limit", 500), 5000))
+    offset = max(0, _int_arg("offset", 0))
     order_by = args.get("order_by") or entity.order_by
     order_dir = "DESC" if str(args.get("order_dir", "asc")).lower() == "desc" else "ASC"
 

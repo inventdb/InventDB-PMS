@@ -120,25 +120,31 @@ def test_offset_floors_at_zero_and_is_otherwise_unbounded(api, fake, offset, exp
 
 
 @pytest.mark.parametrize("value", ["abc", "1.5", "10; DROP TABLE x", "1e5"])
-@pytest.mark.xfail(
-    reason=(
-        "KNOWN BUG: non-numeric limit/offset raise ValueError inside the view, "
-        "which the catch-all handler turns into a 500 with the Python error "
-        "text in the body. A malformed query string is a client error and "
-        "should be a 400."
-    ),
-)
-def test_non_numeric_paging_should_be_a_client_error(api, fake, value):
-    resp = api.get("/api/properties", query_string={"limit": value})
+@pytest.mark.parametrize("param", ["limit", "offset"])
+def test_non_numeric_paging_is_a_client_error(api, fake, param, value):
+    resp = api.get("/api/properties", query_string={param: value})
     assert resp.status_code == 400
 
 
-def test_non_numeric_paging_currently_leaks_the_exception_text(api, fake):
-    """Pins the actual behaviour of the bug xfailed above, so the blast radius
-    is visible: the response body carries the raw Python exception message."""
+def test_non_numeric_paging_does_not_leak_the_exception_text(api, fake):
+    """The 400 explains what the caller got wrong and nothing else.
+
+    The earlier behaviour was a 500 whose body carried the raw Python message
+    ("invalid literal for int() with base 10"), which named our internals to
+    anyone who could mistype a query string.
+    """
     resp = api.get("/api/properties", query_string={"limit": "abc"})
-    assert resp.status_code == 500
-    assert "invalid literal for int()" in resp.get_json()["error"]
+    assert resp.status_code == 400
+    error = resp.get_json()["error"]
+    assert "invalid literal" not in error
+    assert "limit" in error
+
+
+def test_a_rejected_page_size_never_reaches_the_database(api, fake):
+    """The guard runs before the query is built, so a malformed value cannot
+    reach InventDB even as a discarded statement."""
+    api.get("/api/properties", query_string={"limit": "10; DROP TABLE x"})
+    assert fake.sql_log == []
 
 
 # ===========================================================================
