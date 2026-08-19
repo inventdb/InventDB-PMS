@@ -30,9 +30,9 @@ in one fast, responsive workspace.
 
 Three things follow from this shape:
 
-- **No database of its own.** All data lives in an InventDB namespace (`pms`), created automatically on first write.
-- **No user store.** Login proxies to InventDB, which issues the JWT. Its row-level security applies to every request.
-- **No credentials on the server.** The API forwards the caller's own token and holds nothing.
+- **InventDB is the database.** All data lives in one namespace (`pms`), created automatically on first write. There is no second datastore to install, migrate or back up.
+- **InventDB is also the identity provider.** Login proxies through to it; it issues the JWT, and its row-level security applies to every request.
+- **The Python layer stores nothing.** No credentials, no session state — it forwards the caller's own token and adds validation, search and dashboard aggregation on top.
 
 ---
 
