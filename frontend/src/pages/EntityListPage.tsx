@@ -31,6 +31,18 @@ import { useReferences } from "../components/references";
 import { ScrollX } from "../components/ScrollX";
 import { useToast } from "../components/Toast";
 import { Alert, Badge, EmptyState, Spinner } from "../components/ui";
+import { ViewSwitcher } from "../views/ViewSwitcher";
+import { ViewDesigner, type DesignedView } from "../views/ViewDesigner";
+import { ReportFrame } from "../components/ReportFrame";
+import {
+  useCreateView,
+  useDeleteViews,
+  useRenderedView,
+  useSetDefaultView,
+  useUpdateView,
+  useViews,
+  type SavedView,
+} from "../views/api";
 
 /** Rows per page. 50 fills a desktop pane without over-fetching on a phone. */
 const DEFAULT_PAGE_SIZE = 50;
@@ -64,6 +76,94 @@ function EntityModule({ config }: { config: EntityConfig }) {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
+  // --- Saved views -------------------------------------------------------
+  // `null` means the unfiltered "All <module>" list. A view is only ever the
+  // *source* of the search and sort below — once applied it stops being
+  // authoritative, so editing the search box leaves the view selected rather
+  // than silently rewriting what was saved.
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const [designing, setDesigning] = useState(false);
+  const [savingView, setSavingView] = useState(false);
+  const [viewName, setViewName] = useState("");
+  const views = useViews(config.name);
+  const createView = useCreateView(config.name);
+  const updateView = useUpdateView(config.name);
+  const deleteViews = useDeleteViews(config.name);
+  const setDefaultView = useSetDefaultView(config.name);
+
+  // A custom view replaces the grid with a layout the designer built, so the
+  // page has to know which surface it is drawing before it draws either.
+  const activeView = (views.data ?? []).find((v) => v.id === activeViewId) ?? null;
+  const customView = activeView?.mode === "custom" ? activeView : null;
+
+  function applyView(view: SavedView) {
+    setDesigning(false);
+    setActiveViewId(view.id);
+    setRawSearch(view.search);
+    setQ(view.search.trim());
+    if (view.sort) setSort({ field: view.sort.col, dir: view.sort.dir });
+    setPage(0);
+  }
+
+  function applyAllView() {
+    setDesigning(false);
+    setActiveViewId(null);
+    setRawSearch("");
+    setQ("");
+    setSort(config.defaultSort ?? { field: config.key, dir: "asc" });
+    setPage(0);
+  }
+
+  // Open the pinned default once, on first load of this module. A `?q=` in the
+  // URL wins: someone following a deep link asked for that specific list, and
+  // replacing it with a saved view would discard the thing they clicked.
+  const defaultApplied = useRef(false);
+  useEffect(() => {
+    if (defaultApplied.current || views.isLoading) return;
+    defaultApplied.current = true;
+    if (params.get("q")) return;
+    const pinned = (views.data ?? []).find((v) => v.is_default);
+    if (pinned) applyView(pinned);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [views.isLoading, views.data]);
+
+  async function saveDesignedView(designed: DesignedView, name: string) {
+    try {
+      const created = await createView.mutateAsync({
+        name,
+        template_id: designed.template_id,
+        base_sql: designed.base_sql ?? undefined,
+      });
+      setDesigning(false);
+      setActiveViewId(created?.id ?? null);
+      setPage(0);
+      toast.success(`Saved “${name}”`);
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
+  }
+
+  async function saveCurrentView() {
+    const name = viewName.trim();
+    if (!name) return;
+    try {
+      const created = await createView.mutateAsync({
+        name,
+        // `rawSearch`, not the debounced `q`: saving straight after typing
+        // should capture what the box says, not the term the list happens to
+        // have caught up with 300ms ago.
+        search: rawSearch.trim(),
+        sort: { col: sort.field, dir: sort.dir },
+      });
+      setActiveViewId(created?.id ?? null);
+      setSavingView(false);
+      setViewName("");
+      toast.success(`Saved “${name}”`);
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
+  }
+
   // Debounce search input. The page resets with the term rather than in an
   // effect watching it: an effect runs *after* the render that already fired a
   // query, so changing the term while deep in the list sent one request at the
@@ -92,8 +192,12 @@ function EntityModule({ config }: { config: EntityConfig }) {
     },
     // Hold the previous page on screen while the next one loads, so paging
     // doesn't flash the empty state and collapse the table's height.
-    { placeholderData: keepPreviousData }
+    // Skipped entirely for a custom view: its rows come from the report engine,
+    // so fetching the grid's page as well would be a wasted round trip.
+    { placeholderData: keepPreviousData, enabled: !customView }
   );
+
+  const rendered = useRenderedView(config.name, customView, page, pageSize);
 
   const create = useCreate(config.name);
   const update = useUpdate(config.name);
@@ -110,10 +214,14 @@ function EntityModule({ config }: { config: EntityConfig }) {
   const { labels } = useReferences(refEntities);
 
   const items = list.data?.items ?? [];
-  const total = list.data?.total ?? 0;
+  // Both surfaces page the same way; only the source of the count differs.
+  const total = customView ? rendered.data?.total ?? 0 : list.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const firstRow = total === 0 ? 0 : page * pageSize + 1;
-  const lastRow = Math.min(total, page * pageSize + items.length);
+  const lastRow = customView
+    ? Math.min(total, (page + 1) * pageSize)
+    : Math.min(total, page * pageSize + items.length);
+  const loading = customView ? rendered.isLoading : list.isLoading;
 
   // Deleting the last row of the last page, or any change that shortens the
   // result while paged deep into it, leaves `offset` past the end. Step back to
@@ -248,6 +356,31 @@ function EntityModule({ config }: { config: EntityConfig }) {
       </div>
 
       <div className="toolbar">
+        <ViewSwitcher
+          views={views.data ?? []}
+          activeViewId={activeViewId}
+          typeLabel={config.labelPlural}
+          onApplyView={applyView}
+          onApplyAll={applyAllView}
+          onNewView={() => setDesigning(true)}
+          onSaveCurrent={() => {
+            setViewName("");
+            setSavingView(true);
+          }}
+          onSetDefault={(view) =>
+            // Clicking the star of the view that already holds it unpins it,
+            // so the module goes back to opening on the full list.
+            setDefaultView.mutate(view.is_default ? null : view.id)
+          }
+          onDeleteViews={async (ids) => {
+            await deleteViews.mutateAsync(ids);
+            if (activeViewId && ids.includes(activeViewId)) applyAllView();
+          }}
+          onRenameView={async (view, name) => {
+            await updateView.mutateAsync({ id: view.id, patch: { name } });
+          }}
+          busy={deleteViews.isPending || setDefaultView.isPending}
+        />
         <div className="search input-icon">
           <Search size={16} />
           <input
@@ -258,15 +391,89 @@ function EntityModule({ config }: { config: EntityConfig }) {
           />
         </div>
         <span className="count-pill">
-          {list.isLoading ? "…" : `${list.data?.total ?? items.length} records`}
+          {loading ? "…" : `${total} records`}
         </span>
       </div>
 
-      {list.isError && (
-        <Alert kind="error">{errorMessage(list.error)}</Alert>
+      {savingView && (
+        <Modal
+          title="Save this view"
+          narrow
+          onClose={() => setSavingView(false)}
+          footer={
+            <>
+              <button className="btn btn-ghost" onClick={() => setSavingView(false)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={saveCurrentView}
+                disabled={!viewName.trim() || createView.isPending}
+              >
+                {createView.isPending ? "Saving…" : "Save view"}
+              </button>
+            </>
+          }
+        >
+          <div className="field">
+            <label htmlFor="view-name">Name</label>
+            <input
+              id="view-name"
+              className="input"
+              autoFocus
+              value={viewName}
+              placeholder={
+                rawSearch.trim()
+                  ? `${config.labelPlural} matching “${rawSearch.trim()}”`
+                  : config.labelPlural
+              }
+              onChange={(e) => setViewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  saveCurrentView();
+                }
+              }}
+            />
+            <p className="field-hint">
+              Saves the current search and sort — not the rows. Opening this view
+              re-runs it against the latest data.
+            </p>
+          </div>
+        </Modal>
       )}
 
-      {list.isLoading ? (
+      {designing && (
+        <ViewDesigner
+          entity={config.name}
+          typeLabel={config.labelPlural}
+          busy={createView.isPending}
+          onCancel={() => setDesigning(false)}
+          onSave={saveDesignedView}
+        />
+      )}
+
+      {list.isError && !customView && (
+        <Alert kind="error">{errorMessage(list.error)}</Alert>
+      )}
+      {rendered.isError && (
+        <Alert kind="error">{errorMessage(rendered.error)}</Alert>
+      )}
+
+      {customView ? (
+        rendered.isLoading ? (
+          <div className="custom-view custom-view--busy">
+            <Spinner />
+          </div>
+        ) : (
+          // The engine's own markup and CSS, so it goes in the same sandboxed
+          // frame a report does — its stylesheet would otherwise fight the
+          // app's, and it is not this app's markup to trust.
+          <div className="custom-view">
+            <ReportFrame html={rendered.data?.html ?? ""} title={customView.name} />
+          </div>
+        )
+      ) : list.isLoading ? (
         <Spinner />
       ) : items.length === 0 ? (
         <div className="card">

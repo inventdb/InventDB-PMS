@@ -1,0 +1,350 @@
+/* ==========================================================================
+   Import — InventDB SOAR's spreadsheet importer, in the PMS.
+
+   The structure follows SOAR's RichImport exactly: drop zone, then a file bar
+   with the sheet / all-sheets switch, the sheet rail, the type and header-row
+   controls, the column list, and a typed preview. What changes here is only the
+   paint — SOAR's `--fg` / `--line` / `--accent` become the PMS's `--text` /
+   `--border` / `--brand`, so the room sits inside this shell rather than
+   looking imported.
+   ========================================================================== */
+
+.import-room {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Small print: the sentence under a control, a row count, a column type. One
+   size and one colour for all of it. */
+.import-sub {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin: 0 0 6px;
+}
+
+/* ---- Drop zone ----------------------------------------------------------
+   Dashed at rest, unlike the Files grid: this panel has nothing else in it, so
+   the outline is the only thing saying "put a file here". */
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 34px 20px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
+}
+.dropzone:hover,
+.dropzone.is-drag {
+  border-color: var(--brand);
+  background: var(--brand-tint);
+}
+.dropzone:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.dz-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-tint);
+  color: var(--brand);
+}
+.dz-mark svg {
+  width: 20px;
+  height: 20px;
+}
+.dz-sub {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+/* ---- File bar ------------------------------------------------------------ */
+.import-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.import-bar .seg {
+  margin-left: auto;
+}
+
+/* ---- Chips: the file name, the sheet rail, the done note ----------------- */
+.chip {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  padding: 4px 11px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease),
+    background var(--dur-1) var(--ease);
+}
+.chip:hover {
+  color: var(--text);
+  border-color: var(--brand);
+}
+.chip.is-active {
+  color: var(--brand);
+  border-color: var(--brand);
+  background: var(--brand-tint);
+  cursor: default;
+}
+.chip-green {
+  align-self: flex-start;
+  cursor: default;
+  color: var(--success);
+  border-color: var(--success);
+  background: var(--success-soft);
+}
+.chip-rail {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+/* ---- Segmented switch ---------------------------------------------------- */
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  width: fit-content;
+}
+.seg-btn {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 3px);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.seg-btn:hover {
+  color: var(--text);
+}
+.seg-btn.is-active {
+  background: var(--surface);
+  color: var(--brand);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---- Type name and header row -------------------------------------------- */
+.import-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  align-items: start;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stepper-value {
+  min-width: 26px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.stepper .import-sub {
+  margin: 0;
+}
+
+/* ---- Panels -------------------------------------------------------------- */
+.import-panel {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.import-panel > .import-sub {
+  margin: 0;
+}
+.import-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.import-panel-head .import-sub {
+  margin: 0;
+  margin-right: auto;
+}
+.import-shape-cta {
+  align-items: flex-start;
+}
+
+/* ---- All sheets → types --------------------------------------------------
+   ONE shared grid rather than a grid per row, so the type inputs line up in a
+   straight column and the counts sit in a single right-aligned one. A per-row
+   grid lets the trailing column's width vary, which zigzags the whole list. */
+.sheet-plan {
+  display: grid;
+  grid-template-columns: auto 1fr minmax(160px, 220px) max-content;
+  column-gap: 10px;
+  row-gap: 8px;
+  align-items: center;
+}
+.sheet-plan-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+}
+.sheet-plan-count {
+  margin: 0;
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.sheet-plan .input {
+  height: 30px;
+  padding: 4px 9px;
+  font-size: 12.5px;
+}
+.is-off {
+  opacity: 0.5;
+}
+
+/* ---- Columns ------------------------------------------------------------- */
+.col-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
+  gap: 8px;
+}
+.col-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.col-row.is-off {
+  opacity: 0.5;
+}
+.col-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.col-row select.input {
+  width: 92px;
+  flex: none;
+  height: 30px;
+  padding: 4px 6px;
+  font-size: 12.5px;
+}
+
+/* ---- The AI-shaped record ------------------------------------------------ */
+.shape-grid {
+  display: grid;
+  gap: 6px;
+}
+.shape-row {
+  display: grid;
+  grid-template-columns: auto minmax(110px, 170px) 1fr 92px;
+  gap: 8px;
+  align-items: center;
+}
+.shape-row.is-off {
+  opacity: 0.5;
+}
+.shape-row .input {
+  height: 32px;
+  padding: 4px 9px;
+  font-size: 13px;
+}
+
+/* ---- Preview ------------------------------------------------------------- */
+.import-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.import-preview .import-sub {
+  margin: 0;
+}
+.import-preview .table-wrap {
+  overflow-x: auto;
+}
+/* The column's inferred type, beside its name in the preview head — the point
+   of the preview is seeing the type, not only the value. */
+.col-type {
+  font-weight: 400;
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.import-preview td.num {
+  font-variant-numeric: tabular-nums;
+}
+.import-preview .muted {
+  color: var(--text-muted);
+}
+
+/* ---- Commit -------------------------------------------------------------- */
+.import-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+}
+.import-actions .import-sub {
+  margin: 0;
+}
+
+.inline-error {
+  font-size: 13px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+}
+
+@media (max-width: 620px) {
+  .sheet-plan {
+    grid-template-columns: auto 1fr;
+    row-gap: 6px;
+  }
+  /* The type input and the count drop under the name rather than squeezing. */
+  .sheet-plan .input,
+  .sheet-plan-count {
+    grid-column: 2;
+    text-align: left;
+  }
+  .shape-row {
+    grid-template-columns: auto 1fr;
+  }
+  .shape-row .input,
+  .shape-row select.input {
+    grid-column: 2;
+    width: 100%;
+  }
+  .import-bar .seg {
+    margin-left: 0;
+  }
+}

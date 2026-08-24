@@ -206,6 +206,9 @@ export function agentText(
     timeoutMs?: number;
     modelFamily?: string;
     onProgress?: (label: string) => void;
+    /** The whole step stream, so a caller can render the live agent trace
+     *  rather than just the latest one-line label. */
+    onStep?: (step: AgentStep) => void;
   } = {}
 ): Promise<string> {
   return new Promise<string>((resolve, reject) => {
@@ -222,6 +225,7 @@ export function agentText(
       modelFamily: opts.modelFamily,
       onStep: (step) => {
         opts.onProgress?.(stepLabel(step));
+        opts.onStep?.(step);
         if (step.type === "error" && step.content) errored = step.content;
         if (
           (step.type === "answer" || step.type === "text" || step.type === "done") &&

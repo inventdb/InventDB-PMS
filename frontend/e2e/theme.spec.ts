@@ -83,14 +83,12 @@ const SURFACES: { name: string; open: (page: Page) => Promise<void> }[] = [
     },
   },
   {
-    name: "the workflow editor",
+    // A second module, because the dropdowns here are a different mix — a
+    // reference picker and two choice lists rather than one model picker.
+    name: "the Accounting form",
     open: async (page) => {
-      await page.goto("/workflows");
-      await page
-        .locator(".wf-card")
-        .first()
-        .getByRole("button", { name: "Edit" })
-        .click();
+      await page.goto("/transactions");
+      await page.getByRole("button", { name: "New Transaction" }).click();
       await expect(dialog(page).locator("select").first()).toBeVisible();
     },
   },

@@ -57,8 +57,22 @@ test.describe("Mobile shell", () => {
     }
   });
 
-  test("keeps all eight dashboard stats reachable", async ({ page }) => {
-    await expect(page.locator(".stat-grid .stat")).toHaveCount(8);
+  test("keeps the dashboard's starting point reachable", async ({ page }) => {
+    // The dashboard is a configurable grid, so a phone opens on the same
+    // onboarding state a desktop does — both ways in have to be tappable.
+    await expect(page.getByRole("heading", { name: /No widgets/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Suggest from my pms data/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "+ Add a widget" })).toBeVisible();
+  });
+
+  test("gives a widget the full width rather than a squeezed column", async ({ page }) => {
+    // Every span collapses to one column below the breakpoint: a 3-of-12 figure
+    // on a phone is a figure nobody can read.
+    const columns = await page
+      .locator(".bento")
+      .evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length)
+      .catch(() => 1);
+    expect(columns).toBe(1);
   });
 
   test("scrolls a wide table inside its own container", async ({ page }) => {

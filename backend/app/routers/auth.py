@@ -47,16 +47,6 @@ def me():
     return jsonify(authed_client().me())
 
 
-@bp.post("/change-password")
-def change_password():
-    body = _body()
-    current = body.get("current_password") or ""
-    new = body.get("new_password") or ""
-    if not current or not new:
-        raise ApiError(400, "current_password and new_password are required")
-    return jsonify(authed_client().change_password(current, new))
-
-
 @bp.post("/forgot-password")
 def forgot_password():
     body = _body()

@@ -28,7 +28,13 @@ function entityEntry(name: string): NavEntry {
 }
 
 const NAV: NavGroup[] = [
-  { section: null, items: [{ to: "/", label: "Dashboard", icon: "dashboard", end: true }] },
+  {
+    section: null,
+    items: [
+      { to: "/", label: "Dashboard", icon: "dashboard", end: true },
+      { to: "/import", label: "Import", icon: "import" },
+    ],
+  },
   {
     section: "Portfolio",
     items: ["properties", "owners"].map(entityEntry),
@@ -70,6 +76,7 @@ function pageTitle(pathname: string): string {
   if (seg === "reports") return "Reports";
   if (seg === "workflows") return "Workflows";
   if (seg === "files") return "Files";
+  if (seg === "import") return "Import";
   if (seg === "settings") return "Settings";
   return ENTITY_BY_NAME[seg]?.labelPlural ?? "InventDB PMS";
 }

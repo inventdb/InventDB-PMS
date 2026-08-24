@@ -21,7 +21,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Clock, PencilLine, Play, Plus, Search, Trash2, Zap } from "lucide-react";
+import { Clock, Play, Plus, Search, Trash2, Zap } from "lucide-react";
 
 import { useToast } from "../components/Toast";
 import { ConfirmDialog } from "../components/Modal";
@@ -38,7 +38,6 @@ import { NotificationsPanel } from "../notifications/NotificationsPanel";
 import type { Workflow, WorkflowRun } from "../types";
 import { PlanTimeline } from "../workflows/PlanTimeline";
 import { WorkflowDetail, StatusIcon, duration, fmtDateTime } from "../workflows/WorkflowDetail";
-import { WorkflowEditor } from "../workflows/WorkflowEditor";
 import { triggerIcon } from "../workflows/catalog";
 import { describeTrigger } from "../workflows/schedule";
 
@@ -78,7 +77,6 @@ export default function Workflows() {
   const [params] = useSearchParams();
   const focusId = params.get("id");
 
-  const [editing, setEditing] = useState<Workflow | null>(null);
   const [opened, setOpened] = useState<Workflow | null>(null);
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<StateFilter>("all");
@@ -296,7 +294,6 @@ export default function Workflows() {
                 })
               }
               onOpen={() => setOpened(w)}
-              onEdit={() => setEditing(w)}
             />
           ))}
         </div>
@@ -317,23 +314,6 @@ export default function Workflows() {
         <WorkflowDetail
           workflow={openedNow}
           onClose={() => setOpened(null)}
-          onEdit={(w) => {
-            setOpened(null);
-            setEditing(w);
-          }}
-        />
-      )}
-
-      {editing && (
-        <WorkflowEditor
-          workflow={editing}
-          onClose={() => setEditing(null)}
-          onSaved={(saved) => {
-            setEditing(null);
-            // Back into the detail view, so the saved plan can be read and
-            // rehearsed without hunting for the card again.
-            if (saved?._id) setOpened(saved);
-          }}
         />
       )}
     </div>
@@ -347,14 +327,12 @@ function WorkflowCard({
   selected,
   onSelect,
   onOpen,
-  onEdit,
 }: {
   workflow: Workflow;
   runs: WorkflowRun[];
   selected: boolean;
   onSelect: (on: boolean) => void;
   onOpen: () => void;
-  onEdit: () => void;
 }) {
   const toast = useToast();
   const run = useRunWorkflow();
@@ -455,9 +433,6 @@ function WorkflowCard({
       <div className="wf-card-actions">
         <button className="btn btn-sm" onClick={rehearse} disabled={run.isPending}>
           <Play size={14} /> {run.isPending ? "Queuing…" : "Rehearse"}
-        </button>
-        <button className="btn btn-sm" onClick={onEdit}>
-          <PencilLine size={14} /> Edit
         </button>
         <button className="btn btn-ghost btn-sm wf-card-open" onClick={onOpen}>
           Open

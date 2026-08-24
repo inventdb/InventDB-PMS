@@ -13,6 +13,9 @@ import "./styles/notifications.css";
 import "./styles/reports.css";
 import "./styles/workflows.css";
 import "./styles/files.css";
+import "./styles/import.css";
+import "./styles/dashboard.css";
+import "./styles/views.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

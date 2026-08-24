@@ -21,7 +21,6 @@ import { Link } from "react-router-dom";
 import { AlertTriangle, Workflow as WorkflowIcon } from "lucide-react";
 
 import { Alert } from "../../components/ui";
-import { WorkflowEditor } from "../../workflows/WorkflowEditor";
 import { WorkflowConsole, StatusIcon, fmtDateTime } from "../../workflows/WorkflowDetail";
 import { RunSteps } from "../../workflows/RunSteps";
 import { isLiveRun } from "../../api/hooks";
@@ -51,7 +50,6 @@ export function WorkflowCard({
   issues?: PlanIssue[];
 }) {
   const wf = asWorkflow(workflow, workflowId);
-  const [editing, setEditing] = useState<Workflow | null>(null);
   const [deleted, setDeleted] = useState(false);
 
   if (!wf) return null;
@@ -107,19 +105,7 @@ export function WorkflowCard({
           This workflow has been deleted. Its past runs are kept in the Workflows section.
         </p>
       ) : (
-        <WorkflowConsole
-          workflow={wf}
-          onEdit={(w) => setEditing(w)}
-          onDeleted={() => setDeleted(true)}
-        />
-      )}
-
-      {editing && (
-        <WorkflowEditor
-          workflow={editing}
-          onClose={() => setEditing(null)}
-          onSaved={() => setEditing(null)}
-        />
+        <WorkflowConsole workflow={wf} onDeleted={() => setDeleted(true)} />
       )}
     </div>
   );

@@ -239,17 +239,14 @@ test.describe("Analyze", () => {
     await expect(page.locator(".an-thread-row")).toHaveCount(0);
   });
 
-  test("a long thread history scrolls instead of pushing New question out", async ({ page }) => {
-    // The rail is a grid with a max-height. Unless the list's row track is
-    // explicitly flexible, every row sizes to its content: the card clips at
-    // its max-height while the list keeps growing, and the button after it is
-    // carried past the bottom edge. Nine threads is enough to show it.
+  /** A history long enough to need more than one page in the rail. */
+  async function withThreads(page: import("@playwright/test").Page, count: number) {
     await page.route("**/api/analyze/threads", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          threads: Array.from({ length: 9 }, (_, i) => ({
+          threads: Array.from({ length: count }, (_, i) => ({
             id: `t-${i}`,
             label: `Thread ${i}`,
             created: "2026-08-01T00:00:00Z",
@@ -266,25 +263,64 @@ test.describe("Analyze", () => {
     );
     await page.reload();
     await page.locator(".an-thread-row").first().waitFor();
+  }
+
+  test("New question stays reachable however long the history is", async ({ page }) => {
+    // It sits above the list rather than after it, so reaching it never means
+    // travelling past the whole history first.
+    await withThreads(page, 20);
 
     const rail = await page.locator(".an-threads").boundingBox();
     const button = await page.locator(".an-new-thread").boundingBox();
+    const list = await page.locator(".an-thread-list").boundingBox();
     expect(rail).not.toBeNull();
     expect(button).not.toBeNull();
 
-    // Inside the card, not hanging off the bottom of it.
+    expect(button!.y).toBeLessThan(list!.y);
+    // And still inside the card, not hanging off its bottom edge.
     expect(button!.y + button!.height).toBeLessThanOrEqual(rail!.y + rail!.height);
-
-    // And it is the list that absorbs the overflow.
-    const scrolls = await page
-      .locator(".an-thread-list")
-      .evaluate((el) => el.scrollHeight > el.clientHeight);
-    expect(scrolls).toBe(true);
 
     // Left edges line up with the rest of the rail.
     const search = await page.locator(".input-icon").boundingBox();
     expect(Math.round(button!.x)).toBe(Math.round(search!.x));
     expect(Math.round(button!.width)).toBe(Math.round(search!.width));
+  });
+
+  test("the rail pages a long history rather than scrolling on", async ({ page }) => {
+    await withThreads(page, 20);
+
+    await expect(page.locator(".an-thread-row")).toHaveCount(8);
+    await expect(page.locator(".an-thread-pager")).toContainText("1 / 3");
+
+    await page.getByLabel("Next page of threads").click();
+    await expect(page.locator(".an-thread-row")).toHaveCount(8);
+    await expect(page.locator(".an-thread-pager")).toContainText("2 / 3");
+
+    await page.getByLabel("Next page of threads").click();
+    await expect(page.locator(".an-thread-row")).toHaveCount(4);
+    await expect(page.getByLabel("Next page of threads")).toBeDisabled();
+
+    await page.getByLabel("Previous page of threads").click();
+    await expect(page.locator(".an-thread-pager")).toContainText("2 / 3");
+  });
+
+  test("a short history needs no pager at all", async ({ page }) => {
+    await withThreads(page, 3);
+
+    await expect(page.locator(".an-thread-row")).toHaveCount(3);
+    await expect(page.locator(".an-thread-pager")).toHaveCount(0);
+  });
+
+  test("searching returns to the first page of its own results", async ({ page }) => {
+    await withThreads(page, 20);
+    await page.getByLabel("Next page of threads").click();
+    await expect(page.locator(".an-thread-pager")).toContainText("2 / 3");
+
+    // A search is a new result set; showing page 2 of it would be showing the
+    // middle of something the reader has not seen the start of.
+    await page.getByPlaceholder("Search threads…").fill("something long, 1");
+
+    await expect(page.locator(".an-thread-pager")).toContainText("1 / ");
   });
 
   test("a follow-up runs the agent exactly once", async ({ page }) => {
@@ -320,5 +356,89 @@ test.describe("Analyze", () => {
     // stream was still on the wire.
     await page.waitForTimeout(600);
     expect(turns).toBe(2);
+  });
+
+  test.describe("naming a thread", () => {
+    const row = (page: import("@playwright/test").Page) =>
+      page.locator(".an-thread-row").first();
+
+    test("renames it in the rail", async ({ page }) => {
+      await row(page).getByRole("button", { name: "Rename this analysis" }).click();
+      const field = page.getByLabel("Thread name");
+      await field.fill("Q2 rent review");
+      await field.press("Enter");
+
+      await expect(row(page).getByText("Q2 rent review")).toBeVisible();
+    });
+
+    test("keeps the name after a reload — it is stored, not held in the tab", async ({ page }) => {
+      await row(page).getByRole("button", { name: "Rename this analysis" }).click();
+      const field = page.getByLabel("Thread name");
+      await field.fill("Q2 rent review");
+      await field.press("Enter");
+      await expect(row(page).getByText("Q2 rent review")).toBeVisible();
+
+      await page.reload();
+      await expect(page.getByText("Q2 rent review")).toBeVisible();
+    });
+
+    test("Escape abandons the edit and keeps the old name", async ({ page }) => {
+      const before = (await row(page).locator(".an-thread-title").textContent()) ?? "";
+      await row(page).getByRole("button", { name: "Rename this analysis" }).click();
+      const field = page.getByLabel("Thread name");
+      await field.fill("Something else entirely");
+      await field.press("Escape");
+
+      await expect(row(page).locator(".an-thread-title")).toHaveText(before);
+    });
+
+    test("an empty name is refused rather than blanking the row", async ({ page }) => {
+      const before = (await row(page).locator(".an-thread-title").textContent()) ?? "";
+      await row(page).getByRole("button", { name: "Rename this analysis" }).click();
+      const field = page.getByLabel("Thread name");
+      await field.fill("   ");
+      await field.press("Enter");
+
+      await expect(row(page).locator(".an-thread-title")).toHaveText(before);
+    });
+
+    test("a renamed thread is findable by its new name", async ({ page }) => {
+      await row(page).getByRole("button", { name: "Rename this analysis" }).click();
+      const field = page.getByLabel("Thread name");
+      await field.fill("Zebra audit");
+      await field.press("Enter");
+      await expect(row(page).getByText("Zebra audit")).toBeVisible();
+
+      await page.getByPlaceholder(/Search/i).first().fill("zebra");
+      await expect(page.locator(".an-thread-row")).toHaveCount(1);
+      await expect(page.getByText("Zebra audit")).toBeVisible();
+    });
+
+    test("double-clicking the name starts a rename", async ({ page }) => {
+      // The habit people bring from every other list of named things.
+      await row(page).locator(".an-thread-open").dblclick();
+      await expect(page.getByLabel("Thread name")).toBeVisible();
+    });
+
+    test("the row keeps its size while being renamed", async ({ page }) => {
+      // A title may run to two lines and the field is one, so the name sits in a
+      // fixed slot — otherwise the row shrinks under the pointer the moment you
+      // start typing, and every row below it jumps.
+      const idle = (await row(page).boundingBox())!.height;
+      await row(page).getByRole("button", { name: "Rename this analysis" }).click();
+      const editing = (await row(page).boundingBox())!.height;
+      expect(Math.abs(idle - editing)).toBeLessThanOrEqual(4);
+    });
+
+    test("renaming does not open or switch the thread", async ({ page }) => {
+      // The pencil sits inside the row, which is itself the way in — pressing it
+      // must not count as pressing the row.
+      const active = page.locator(".an-thread-row.active");
+      const activeTitle = (await active.locator(".an-thread-title").textContent()) ?? "";
+      await page.locator(".an-thread-row").last()
+        .getByRole("button", { name: "Rename this analysis" }).click();
+      await page.getByLabel("Thread name").press("Escape");
+      await expect(active.locator(".an-thread-title")).toHaveText(activeTitle);
+    });
   });
 });

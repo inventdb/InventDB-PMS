@@ -58,33 +58,6 @@ test.describe("Settings", () => {
     await expect(page.getByRole("button", { name: "Switch to light mode" })).toBeVisible();
   });
 
-  test("changes the password and clears the form", async ({ page }) => {
-    await page.getByLabel("Current password", { exact: true }).fill("correct-horse");
-    await page.getByLabel("New password", { exact: true }).fill("new-secret-99");
-
-    const [request] = await Promise.all([
-      page.waitForRequest((r) => r.url().includes("/api/auth/change-password")),
-      page.getByRole("button", { name: "Update password" }).click(),
-    ]);
-    expect(request.postDataJSON()).toEqual({
-      current_password: "correct-horse",
-      new_password: "new-secret-99",
-    });
-
-    await expect(page.locator(".toast.success")).toHaveText("Password changed");
-    await expect(page.getByLabel("Current password", { exact: true })).toHaveValue("");
-    await expect(page.getByLabel("New password", { exact: true })).toHaveValue("");
-  });
-
-  test("reports a rejected password change and keeps the input", async ({ page }) => {
-    await page.getByLabel("Current password", { exact: true }).fill("not-my-password");
-    await page.getByLabel("New password", { exact: true }).fill("new-secret-99");
-    await page.getByRole("button", { name: "Update password" }).click();
-
-    await expect(page.locator(".toast.error")).toHaveText("Current password is incorrect");
-    await expect(page.getByLabel("Current password", { exact: true })).toHaveValue("not-my-password");
-  });
-
   test("signs out from the account card", async ({ page }) => {
     await cardNamed(page, "Account").getByRole("button", { name: "Sign out" }).click();
 

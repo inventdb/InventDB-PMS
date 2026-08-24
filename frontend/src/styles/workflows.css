@@ -395,214 +395,13 @@
   font-size: 12px;
   white-space: nowrap;
 }
-
-/* ---- Editor ------------------------------------------------------------- */
-.wf-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-.wf-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.wf-section-head {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-faint);
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.wf-step-count {
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-}
 .wf-issues {
   margin: 6px 0 0;
   padding-left: 18px;
   font-size: 12.5px;
 }
-
-.wf-schedule {
-  margin-top: 2px;
-}
-.wf-sched-preview {
-  margin: 0;
-  font-weight: 500;
-  color: var(--brand);
-}
-
-/* Steps */
-.wf-step-editors {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.wf-step-editor {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px;
-  background: var(--surface-2);
-}
-/* The step a failed save named. Kept as a border rather than a fill so the
-   fields inside stay readable while it is being fixed. */
-.wf-step-editor.invalid {
-  border-color: var(--danger);
-  box-shadow: 0 0 0 3px var(--danger-soft);
-}
-.wf-step-editor-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.wf-grip {
-  color: var(--text-faint);
-  flex-shrink: 0;
-}
-.wf-step-no {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: var(--brand-soft);
-  color: var(--brand);
-  font-size: 11.5px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-.wf-kind-select {
-  max-width: 260px;
-}
-.wf-step-editor-actions {
-  margin-left: auto;
-  display: flex;
-  gap: 2px;
-}
 .btn-icon.danger:hover {
   color: var(--danger);
-}
-.wf-step-blurb {
-  margin: 8px 0 0;
-  font-size: 12.5px;
-  color: var(--text-faint);
-  font-weight: 300;
-}
-.wf-step-fields {
-  margin-top: 12px;
-}
-.wf-collapse {
-  margin-top: 10px;
-}
-
-/* Add-a-step */
-.wf-add {
-  align-self: flex-start;
-}
-.wf-add-menu {
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  padding: 12px;
-  background: var(--surface-2);
-}
-.wf-add-menu-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 13px;
-  font-weight: 500;
-  margin-bottom: 10px;
-}
-.wf-add-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 8px;
-}
-.wf-add-option {
-  display: grid;
-  grid-template-columns: 18px 1fr;
-  grid-template-areas: "icon label" ".    blurb";
-  gap: 2px 8px;
-  text-align: left;
-  padding: 9px 11px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  cursor: pointer;
-  font: inherit;
-  transition: border-color var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
-}
-.wf-add-option > svg {
-  grid-area: icon;
-  color: var(--brand);
-}
-.wf-add-option:hover {
-  border-color: var(--brand-line);
-  background: var(--brand-tint);
-}
-.wf-add-label {
-  grid-area: label;
-  font-size: 13px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-/* Marks the steps that can reach outside the system. Worth knowing before
-   adding one, not after the rehearsal. */
-.wf-add-tag {
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 5px;
-  border-radius: var(--radius-pill);
-  background: var(--warn-soft);
-  color: var(--warn);
-}
-.wf-add-blurb {
-  grid-area: blurb;
-  font-size: 11.5px;
-  color: var(--text-faint);
-  font-weight: 300;
-}
-
-/* Checkbox rows */
-.wf-check {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  cursor: pointer;
-  font-size: 13.5px;
-}
-.wf-check input {
-  margin-top: 2px;
-  width: 16px;
-  height: 16px;
-  accent-color: var(--brand);
-  flex-shrink: 0;
-}
-.wf-check > span {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.wf-check-hint {
-  font-size: 12.5px;
-  color: var(--text-faint);
-  font-weight: 300;
-}
-.wf-check.inline {
-  align-items: center;
-}
-
-.wf-preview {
-  background: var(--surface-2);
 }
 
 /* ---- Narrow screens ------------------------------------------------------
@@ -618,9 +417,6 @@
   .wf-action-end,
   .wf-card-open {
     margin-left: 0;
-  }
-  .wf-kind-select {
-    max-width: none;
   }
   .wf-run-error {
     max-width: 14ch;
@@ -774,18 +570,6 @@
 .wf-run-cancel {
   flex: none;
   color: var(--danger);
-}
-.wf-run-fix {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 0 0 12px 18px;
-}
-.wf-run-fix .report-note {
-  flex: 1;
-  min-width: 220px;
-  margin: 0;
 }
 
 /* ---- Versions: open one and read its plan ------------------------------- */

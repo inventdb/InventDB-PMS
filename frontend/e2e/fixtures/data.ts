@@ -1379,3 +1379,27 @@ data: {}
 `,
   ].join("");
 }
+
+/**
+ * Saved views, keyed by module.
+ *
+ * Empty on purpose: every module starts with no views, so the specs that
+ * predate this feature see exactly the list they always did. A spec that needs
+ * one creates it through the UI, which is also what exercises the save path.
+ */
+export interface SavedViewFixture {
+  id: string;
+  name: string;
+  search: string;
+  sort: { col: string; dir: "asc" | "desc" } | null;
+  is_default: boolean;
+  mode: "table" | "custom";
+  template_id: string | null;
+  base_sql: string;
+}
+
+/** What the mocked designer returns — a layout plus the query to drive it. */
+export const DESIGNED_LAYOUT =
+  "<html><body><div class='pv-card'>Designed layout</div></body></html>";
+
+export const SAVED_VIEWS: { [entity: string]: SavedViewFixture[] } = {};

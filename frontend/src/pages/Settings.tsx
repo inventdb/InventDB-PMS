@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 
 import { api, errorMessage } from "../api/client";
@@ -70,9 +70,6 @@ export default function Settings() {
 
         {/* Connection */}
         <ConnectionCard health={health} onLogout={logout} />
-
-        {/* Change password */}
-        <ChangePasswordCard />
       </div>
     </div>
   );
@@ -245,66 +242,6 @@ function ConnectionCard({
           onCancel={() => setConfirming(null)}
         />
       )}
-    </div>
-  );
-}
-
-function ChangePasswordCard() {
-  const toast = useToast();
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      await api.post("/auth/change-password", {
-        current_password: current,
-        new_password: next,
-      });
-      toast.success("Password changed");
-      setCurrent("");
-      setNext("");
-    } catch (err) {
-      toast.error(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="card card-pad">
-      <h3 style={{ fontSize: 15, marginBottom: 14 }}>Change Password</h3>
-      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div className="field">
-          <label htmlFor="cur">Current password</label>
-          <input
-            id="cur"
-            className="input"
-            type="password"
-            value={current}
-            onChange={(e) => setCurrent(e.target.value)}
-            required
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="new">New password</label>
-          <input
-            id="new"
-            className="input"
-            type="password"
-            value={next}
-            onChange={(e) => setNext(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <button className="btn btn-primary" type="submit" disabled={busy}>
-            {busy ? "Updating…" : "Update password"}
-          </button>
-        </div>
-      </form>
     </div>
   );
 }

@@ -12,7 +12,15 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { MessageSquarePlus, Search, Sparkles, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  MessageSquarePlus,
+  PencilLine,
+  Search,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 
 import {
   friendlyAiError,
@@ -110,6 +118,10 @@ const STARTERS = [
   "Which leases expire in the next 90 days?",
 ];
 
+/** Threads per page in the rail. Eight fills the column on a laptop without
+ *  the list needing a scrollbar of its own. */
+const THREADS_PER_PAGE = 8;
+
 export default function Analyze() {
   const [params, setParams] = useSearchParams();
   const threads = useThreads();
@@ -117,8 +129,12 @@ export default function Analyze() {
 
   const [input, setInput] = useState("");
   const [threadQuery, setThreadQuery] = useState("");
+  const [threadPage, setThreadPage] = useState(0);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Thread | null>(null);
+  /** The thread whose name is being edited in the rail, if any. */
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
 
   // Per-message model. Defaults to the workspace default; the picker overrides
   // it for the next message only.
@@ -287,6 +303,41 @@ export default function Analyze() {
     // it. Cleared on error/done above, so a finished exchange can be retried —
     // the guard at the top blocks concurrent duplicates, not a later re-run.
     analyzeControllers[key] = controller;
+  }
+
+  /** The name shown in the rail: what it was called, else what was asked. */
+  function titleOf(thread: Thread): string {
+    return thread.label || thread.exchanges[0]?.question || "Chat";
+  }
+
+  function startRename(thread: Thread) {
+    setRenaming(thread.id);
+    setRenameDraft(titleOf(thread));
+  }
+
+  /**
+   * Commit a rename. Saved immediately rather than left to the autosave: that
+   * effect skips a thread while it is streaming, and a name should not wait on
+   * an answer.
+   */
+  function commitRename(thread: Thread) {
+    const next = renameDraft.trim();
+    setRenaming(null);
+    if (!next || next === titleOf(thread)) return;
+
+    setThreads((ts) => ts.map((t) => (t.id === thread.id ? { ...t, label: next } : t)));
+    void saveThread({
+      id: thread.id,
+      label: next.slice(0, 80),
+      created: thread.created,
+      exchanges: thread.exchanges.map((ex) => ({
+        question: ex.question,
+        answer: answerOf(ex.steps),
+        artifacts: deriveArtifacts(ex),
+        steps: deriveSteps(ex),
+        ts: ex.ts,
+      })),
+    });
   }
 
   /** History for a thread, so a follow-up carries its own context. */
@@ -481,6 +532,7 @@ export default function Analyze() {
         const restored: Thread[] = stored.map((s) => ({
           id: s.id,
           created: s.created,
+          label: s.label || undefined,
           exchanges: s.exchanges.map((ex) => ({
             question: ex.question,
             running: false,
@@ -491,14 +543,15 @@ export default function Analyze() {
         // Seed the saved signatures in the SAME shape the save effect computes,
         // so restoring doesn't immediately re-write every thread.
         for (const thread of restored) {
-          analyzePersist.savedSig[thread.id] = JSON.stringify(
-            thread.exchanges.map((ex) => ({
+          analyzePersist.savedSig[thread.id] = JSON.stringify({
+            label: thread.label ?? null,
+            exchanges: thread.exchanges.map((ex) => ({
               question: ex.question,
               answer: answerOf(ex.steps),
               artifacts: deriveArtifacts(ex),
               ts: ex.ts,
-            }))
-          );
+            })),
+          });
         }
         setThreads((current) => [
           ...current,
@@ -533,19 +586,25 @@ export default function Analyze() {
       // The signature excludes `steps` on purpose: they land at the same moment
       // as the answer, and reconstructed steps don't round-trip exactly —
       // including them would re-save every thread on every reload.
-      const signature = JSON.stringify(
-        exchanges.map((ex) => ({
+      const signature = JSON.stringify({
+        // A rename changes nothing about the exchanges, so without the label in
+        // here the save would be skipped as "unchanged" and the new name would
+        // last only until the next reload.
+        label: thread.label ?? null,
+        exchanges: exchanges.map((ex) => ({
           question: ex.question,
           answer: ex.answer,
           artifacts: ex.artifacts,
           ts: ex.ts,
-        }))
-      );
+        })),
+      });
       if (analyzePersist.savedSig[thread.id] === signature) continue;
       analyzePersist.savedSig[thread.id] = signature;
       void saveThread({
         id: thread.id,
-        label: thread.exchanges[0]?.question || "Chat",
+        // A name somebody chose outranks the opening question, which is only
+        // ever a stand-in for one.
+        label: thread.label || thread.exchanges[0]?.question || "Chat",
         created: thread.created,
         exchanges,
       });
@@ -579,13 +638,29 @@ export default function Analyze() {
   // ---- render ------------------------------------------------------------
 
   const current = threads.find((t) => t.id === activeThread) || threads[0] || null;
-  const visibleThreads = (() => {
+  const matchedThreads = (() => {
     const needle = threadQuery.trim().toLowerCase();
     if (!needle) return threads;
-    return threads.filter((t) =>
-      (t.exchanges[0]?.question || "").toLowerCase().includes(needle)
+    // Search what the rail shows and what was asked. A renamed thread has to be
+    // findable by its new name — that is most of the point of naming it — and
+    // still by the question, which is what you may remember instead.
+    return threads.filter(
+      (t) =>
+        titleOf(t).toLowerCase().includes(needle) ||
+        (t.exchanges[0]?.question || "").toLowerCase().includes(needle)
     );
   })();
+
+  // The rail pages rather than scrolling on: a long history made finding an
+  // older thread a hunt, and pushed everything below the list out of reach.
+  const threadPageCount = Math.max(1, Math.ceil(matchedThreads.length / THREADS_PER_PAGE));
+  // Deleting the last thread on the last page, or narrowing the search, can
+  // leave the cursor past the end — step back rather than show nothing.
+  const safeThreadPage = Math.min(threadPage, threadPageCount - 1);
+  const visibleThreads = matchedThreads.slice(
+    safeThreadPage * THREADS_PER_PAGE,
+    safeThreadPage * THREADS_PER_PAGE + THREADS_PER_PAGE
+  );
 
   async function submitAsk(e: React.FormEvent) {
     e.preventDefault();
@@ -702,13 +777,28 @@ export default function Analyze() {
               <span className="an-group-title">Threads</span>
               <span className="count-pill">{threads.length}</span>
             </div>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm an-new-thread"
+              onClick={() => {
+                document
+                  .querySelector<HTMLTextAreaElement>(".an-composer-input")
+                  ?.focus();
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+            >
+              <MessageSquarePlus size={15} /> New question
+            </button>
             <div className="input-icon">
               <Search size={15} />
               <input
                 className="input"
                 placeholder="Search threads…"
                 value={threadQuery}
-                onChange={(e) => setThreadQuery(e.target.value)}
+                onChange={(e) => {
+                  setThreadQuery(e.target.value);
+                  setThreadPage(0);
+                }}
               />
             </div>
             <div className="an-thread-list">
@@ -724,47 +814,110 @@ export default function Analyze() {
                       key={thread.id}
                       className={`an-thread-row ${thread.id === current?.id ? "active" : ""}`}
                     >
-                      <button
-                        type="button"
-                        className="an-thread-open"
-                        onClick={() => setActiveThread(thread.id)}
-                        title={fmtWhen(thread.created)}
-                      >
-                        <span className="an-thread-title">
-                          {thread.exchanges[0]?.question || "Chat"}
-                        </span>
-                        <span className="an-note">
+                      {/* Only the NAME swaps for the field. The meta line stays
+                          rendered either way, so entering and leaving rename
+                          doesn't resize the row under the pointer. */}
+                      <div className="an-thread-body">
+                        {/* A constant-height slot for the name. Titles may run
+                            to two lines and the field is one, so without it the
+                            row resizes the moment you start typing — and every
+                            row below shifts with it. */}
+                        <div className="an-thread-namebox">
+                        {renaming === thread.id ? (
+                          <input
+                            className="input an-thread-input"
+                            value={renameDraft}
+                            autoFocus
+                            aria-label="Thread name"
+                            maxLength={80}
+                            onChange={(e) => setRenameDraft(e.target.value)}
+                            onBlur={() => commitRename(thread)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                commitRename(thread);
+                              }
+                              if (e.key === "Escape") {
+                                e.preventDefault();
+                                setRenaming(null);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className="an-thread-open"
+                            onClick={() => setActiveThread(thread.id)}
+                            // Double-click is the habit people bring from every
+                            // other list of named things; the pencil is the
+                            // discoverable way to find out it exists.
+                            onDoubleClick={() => startRename(thread)}
+                            title={fmtWhen(thread.created)}
+                          >
+                            <span className="an-thread-title">{titleOf(thread)}</span>
+                          </button>
+                        )}
+                        </div>
+                        <span className="an-note an-thread-meta">
                           {running ? "running…" : relTime(last) || "just now"} ·{" "}
                           {thread.exchanges.length} message
                           {thread.exchanges.length === 1 ? "" : "s"}
                         </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-icon an-thread-del"
-                        title="Delete this analysis"
-                        aria-label="Delete this analysis"
-                        onClick={() => setConfirmDelete(thread)}
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      </div>
+                      {renaming !== thread.id && (
+                        <div className="an-thread-actions">
+                          <button
+                            type="button"
+                            className="btn-icon an-thread-act"
+                            title="Rename this analysis"
+                            aria-label="Rename this analysis"
+                            onClick={() => startRename(thread)}
+                          >
+                            <PencilLine size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-icon an-thread-act an-thread-del"
+                            title="Delete this analysis"
+                            aria-label="Delete this analysis"
+                            onClick={() => setConfirmDelete(thread)}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })
               )}
             </div>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm an-new-thread"
-              onClick={() => {
-                document
-                  .querySelector<HTMLTextAreaElement>(".an-composer-input")
-                  ?.focus();
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-            >
-              <MessageSquarePlus size={15} /> New question
-            </button>
+            {threadPageCount > 1 && (
+              <nav className="an-thread-pager" aria-label="Threads pagination">
+                <button
+                  type="button"
+                  className="btn-icon"
+                  aria-label="Previous page of threads"
+                  disabled={safeThreadPage === 0}
+                  onClick={() => setThreadPage((p) => Math.max(0, p - 1))}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="an-note" aria-live="polite">
+                  {safeThreadPage + 1} / {threadPageCount}
+                </span>
+                <button
+                  type="button"
+                  className="btn-icon"
+                  aria-label="Next page of threads"
+                  disabled={safeThreadPage >= threadPageCount - 1}
+                  onClick={() =>
+                    setThreadPage((p) => Math.min(threadPageCount - 1, p + 1))
+                  }
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </nav>
+            )}
           </aside>
 
           {/* Workbench — only the selected thread renders, so a long history

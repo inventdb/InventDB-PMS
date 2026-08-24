@@ -127,61 +127,6 @@ def test_an_expired_token_surfaces_as_401(api, fake):
 # ===========================================================================
 
 
-@pytest.mark.parametrize(
-    "payload",
-    [
-        {},
-        {"current_password": "old"},
-        {"new_password": "new"},
-        {"current_password": "", "new_password": "new"},
-        {"current_password": "old", "new_password": ""},
-    ],
-)
-def test_change_password_requires_both_fields(api, fake, payload):
-    resp = api.post("/api/auth/change-password", json=payload)
-
-    assert resp.status_code == 400
-    assert "required" in resp.get_json()["error"]
-    assert fake.calls == []
-
-
-def test_change_password_requires_authentication(api, fake):
-    resp = api.post(
-        "/api/auth/change-password",
-        token=None,
-        json={"current_password": "a", "new_password": "b"},
-    )
-    assert resp.status_code == 401
-
-
-def test_change_password_forwards_both_values(api, fake):
-    api.post(
-        "/api/auth/change-password",
-        json={"current_password": "old", "new_password": "new"},
-    )
-    assert fake.last_call("POST", "/api/auth/change-password").body == {
-        "current_password": "old",
-        "new_password": "new",
-    }
-
-
-def test_a_wrong_current_password_keeps_the_upstream_status(api, fake):
-    fake.on(
-        "POST",
-        "/api/auth/change-password",
-        {"error": "Current password is incorrect"},
-        status=400,
-    )
-
-    resp = api.post(
-        "/api/auth/change-password",
-        json={"current_password": "wrong", "new_password": "new"},
-    )
-
-    assert resp.status_code == 400
-    assert resp.get_json()["error"] == "Current password is incorrect"
-
-
 @pytest.mark.parametrize("payload", [{}, {"email": ""}, {"email": "   "}])
 def test_forgot_password_requires_an_email(api, fake, payload):
     resp = api.post("/api/auth/forgot-password", token=None, json=payload)

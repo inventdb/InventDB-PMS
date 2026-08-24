@@ -33,6 +33,13 @@ export interface Exchange {
 export interface Thread {
   id: string;
   created: string;
+  /**
+   * What the rail calls this thread. Absent until somebody renames it, and the
+   * rail falls back to the opening question — so a thread you have not named
+   * still reads as what you asked, and a thread you have named keeps that name
+   * however many follow-ups it collects.
+   */
+  label?: string;
   exchanges: Exchange[];
 }
 

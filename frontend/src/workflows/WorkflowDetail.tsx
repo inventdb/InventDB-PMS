@@ -31,11 +31,9 @@ import {
   History,
   Loader2,
   Pause,
-  PencilLine,
   Play,
   Power,
   RotateCcw,
-  Sparkles,
   Trash2,
   XCircle,
 } from "lucide-react";
@@ -50,7 +48,6 @@ import {
   useClearWorkflowVersions,
   useDeleteWorkflow,
   useDeleteWorkflowVersion,
-  useFixFromRun,
   useRollbackWorkflow,
   useRunWorkflow,
   useWorkflow,
@@ -103,11 +100,9 @@ type Tab = "plan" | "runs" | "history";
 export function WorkflowDetail({
   workflow,
   onClose,
-  onEdit,
 }: {
   workflow: Workflow;
   onClose: () => void;
-  onEdit: (workflow: Workflow) => void;
 }) {
   // Shares the console's query key, so this costs no extra request — it only
   // keeps the modal's title honest when the workflow is renamed elsewhere.
@@ -118,7 +113,7 @@ export function WorkflowDetail({
   // once not. `title` still names the dialog for assistive tech.
   return (
     <Modal title={detail.data?.name ?? workflow.name} onClose={onClose} hideTitle>
-      <WorkflowConsole workflow={workflow} onEdit={onEdit} onDeleted={onClose} />
+      <WorkflowConsole workflow={workflow} onDeleted={onClose} />
     </Modal>
   );
 }
@@ -129,11 +124,9 @@ export function WorkflowDetail({
  */
 export function WorkflowConsole({
   workflow,
-  onEdit,
   onDeleted,
 }: {
   workflow: Workflow;
-  onEdit: (workflow: Workflow) => void;
   onDeleted: () => void;
 }) {
   const toast = useToast();
@@ -154,7 +147,6 @@ export function WorkflowConsole({
   const run = useRunWorkflow();
   const remove = useDeleteWorkflow();
   const update = useUpdateWorkflow();
-  const fix = useFixFromRun();
   const busy =
     lifecycle.isPending || run.isPending || remove.isPending || update.isPending;
 
@@ -218,30 +210,6 @@ export function WorkflowConsole({
       onDeleted();
     } catch (err) {
       setConfirmingDelete(false);
-      setError(errorMessage(err));
-    }
-  }
-
-  /**
-   * Ask the assistant to revise the plan after a run failed.
-   *
-   * The result is a *proposal*, so it goes straight into the editor rather than
-   * being saved: the model is reading its own workflow's error output, and an
-   * unreviewed AI edit to a live automation is the change nobody agreed to.
-   * Saving from the editor is what mints the version.
-   */
-  async function fixFromRun(runId: string) {
-    setError(null);
-    try {
-      const result = await fix.mutateAsync({ id: wf._id, runId });
-      const revised = result?.revised;
-      if (!revised || (!revised.plan && !revised.trigger_intent && !revised.name)) {
-        setError("The assistant couldn’t turn that failure into a usable fix. Try again, or edit it by hand.");
-        return;
-      }
-      onEdit({ ...wf, ...revised, _id: wf._id });
-      toast.success("Opened the proposed fix — review it, then save to keep it.");
-    } catch (err) {
       setError(errorMessage(err));
     }
   }
@@ -361,9 +329,6 @@ export function WorkflowConsole({
               <FlaskConical size={14} /> Back to rehearsing
             </button>
           )}
-          <button className="btn btn-sm" onClick={() => onEdit(wf)} disabled={busy}>
-            <PencilLine size={14} /> Edit
-          </button>
           <button
             className="btn btn-danger btn-sm wf-action-end"
             onClick={() => setConfirmingDelete(true)}
@@ -401,7 +366,7 @@ export function WorkflowConsole({
             <PlanTimeline workflow={wf} showTrigger emptyNote="This workflow has no steps yet." />
           ))}
 
-        {tab === "runs" && <RunList query={runs} onFix={fixFromRun} fixing={fix.isPending} />}
+        {tab === "runs" && <RunList query={runs} />}
 
         {tab === "history" && (
           <VersionList
@@ -431,12 +396,8 @@ export function WorkflowConsole({
 
 function RunList({
   query,
-  onFix,
-  fixing,
 }: {
   query: ReturnType<typeof useWorkflowRunsFor>;
-  onFix?: (runId: string) => void;
-  fixing?: boolean;
 }) {
   if (query.isLoading) return <Spinner />;
   if (query.isError) return <Alert kind="error">{errorMessage(query.error)}</Alert>;
@@ -458,7 +419,7 @@ function RunList({
   return (
     <div className="wf-runs">
       {runs.map((r) => (
-        <RunRow key={r._id} run={r} onFix={onFix} fixing={fixing} />
+        <RunRow key={r._id} run={r} />
       ))}
     </div>
   );
@@ -472,22 +433,12 @@ function RunList({
  * own cannot answer "so did the owners get their statements or not", which is
  * the only question anyone actually opens a run to settle.
  */
-function RunRow({
-  run,
-  onFix,
-  fixing,
-}: {
-  run: WorkflowRun;
-  /** Absent when there is no workflow to revise — e.g. a deleted one. */
-  onFix?: (runId: string) => void;
-  fixing?: boolean;
-}) {
+function RunRow({ run }: { run: WorkflowRun }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cancel = useCancelRun();
   const toast = useToast();
   const live = isLiveRun(run.status);
-  const failed = /fail|timed|error/i.test(run.status) || !!run.error;
 
   async function stop() {
     setError(null);
@@ -545,22 +496,7 @@ function RunRow({
         )}
       </div>
       {error && <Alert kind="error">{error}</Alert>}
-      {open && (
-        <>
-          <RunSteps runId={run._id} live={live} sandbox={run.sandbox} />
-          {failed && onFix && (
-            <div className="wf-run-fix">
-              <button className="btn btn-sm" disabled={fixing} onClick={() => onFix(run._id)}>
-                <Sparkles size={13} /> {fixing ? "Working…" : "Fix with AI"}
-              </button>
-              <span className="report-note">
-                Replays the workflow’s original intent plus this run’s errors, then opens the
-                editor with a proposed fix. Nothing is saved until you save it.
-              </span>
-            </div>
-          )}
-        </>
-      )}
+      {open && <RunSteps runId={run._id} live={live} sandbox={run.sandbox} />}
     </div>
   );
 }

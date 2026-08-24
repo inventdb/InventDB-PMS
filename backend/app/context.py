@@ -16,6 +16,16 @@ def _bearer_token() -> str:
     return parts[1].strip()
 
 
+def require_token() -> str:
+    """Assert the caller presented a bearer token, and return it.
+
+    For routes that are gated on being signed in but do no upstream work of
+    their own -- building a client just to throw it away would read as an
+    oversight rather than a deliberate check.
+    """
+    return _bearer_token()
+
+
 def authed_client() -> InventDBClient:
     """InventDB client bound to the caller's bearer token."""
     return InventDBClient(token=_bearer_token())

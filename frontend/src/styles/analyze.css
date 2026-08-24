@@ -259,14 +259,16 @@
   position: sticky;
   top: 16px;
   display: grid;
-  /* head · search · list · button. The list is the only row allowed to flex,
-     and `minmax(0, …)` is what lets it shrink below its content so it scrolls.
-     Without explicit tracks every row sizes to max-content: `max-height` then
-     clips the card while the list keeps growing, pushing "New question" out
-     past the bottom edge — which is what it was doing with a full history.
-     `min-height: 0` on the list alone does not fix it; the row track has to be
-     flexible too. */
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  /* head · new · search · list · pager. "New question" sits directly under the
+     head rather than after the list: it is the rail's most-used control, and
+     below a full history it was the last thing you could reach.
+
+     The list is the only row allowed to flex, and `minmax(0, …)` is what lets
+     it shrink below its content so it scrolls. Without explicit tracks every
+     row sizes to max-content: `max-height` then clips the card while the list
+     keeps growing, pushing whatever follows past the bottom edge. `min-height:
+     0` on the list alone does not fix it; the row track has to be flexible. */
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   gap: 13px;
   max-height: calc(100vh - var(--topbar-h) - 40px);
 }
@@ -303,18 +305,58 @@
   background: var(--brand-soft);
 }
 
-.an-thread-open {
+/* The row's two lines. Holding the padding here rather than on the button
+   means the name can be swapped for a field without the row resizing. */
+.an-thread-body {
   flex: 1;
   min-width: 0;
   display: grid;
   gap: 4px;
   padding: 10px 12px;
+}
+
+/* Two lines' worth, always — the rail's rows are then a uniform height whether
+   a title wraps or not, and swapping the name for a field changes nothing. */
+.an-thread-namebox {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.an-thread-open {
+  width: 100%;
+  min-width: 0;
+  display: block;
+  padding: 0;
   border: none;
   background: none;
   text-align: left;
   cursor: pointer;
   color: inherit;
   font: inherit;
+}
+.an-thread-open:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Sized to sit exactly where the name did — same type, same box. */
+.an-thread-input {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  border-radius: 5px;
+}
+
+.an-thread-meta {
+  /* Never wraps: the row's height is set by the name, not the timestamp. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .an-thread-title {
@@ -331,15 +373,43 @@
   color: var(--brand);
 }
 
-.an-thread-del {
+/* Rename and delete travel together: one group, revealed as one, so the row
+   never shows half its controls. */
+.an-thread-actions {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding-right: 6px;
   opacity: 0;
   transition: opacity var(--dur-1) var(--ease);
 }
 
-.an-thread-row:hover .an-thread-del,
-.an-thread-row.active .an-thread-del {
+.an-thread-row:hover .an-thread-actions,
+.an-thread-row.active .an-thread-actions,
+/* Keyboard users never hover, so the actions have to appear on focus too —
+   otherwise they can be tabbed to while invisible. */
+.an-thread-actions:focus-within {
   opacity: 1;
+}
+
+.an-thread-act {
+  width: 26px;
+  height: 26px;
+  color: var(--text-faint);
+}
+.an-thread-act:hover {
+  color: var(--text);
+}
+.an-thread-del:hover {
+  color: var(--danger);
+}
+
+/* Coarse pointers have no hover, so the actions are simply always there. */
+@media (hover: none) {
+  .an-thread-actions {
+    opacity: 1;
+  }
 }
 
 .an-new-thread {
@@ -1468,4 +1538,18 @@
   .an-spinner {
     animation: none !important;
   }
+}
+
+/* The rail pages instead of growing without end — a long history otherwise
+   turned finding an older thread into a hunt. */
+.an-thread-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.an-thread-pager .btn-icon:disabled {
+  opacity: 0.4;
+  cursor: default;
 }

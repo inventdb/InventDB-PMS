@@ -26,11 +26,13 @@ from .routers import (
     auth,
     dashboard,
     files,
+    imports,
     meta,
     notifications,
     reports,
     resources,
     settings as settings_routes,
+    views,
     workflows,
 )
 
@@ -97,6 +99,8 @@ def create_app() -> Flask:
     app.register_blueprint(notifications.bp)
     app.register_blueprint(files.bp)
     app.register_blueprint(analyze.bp)
+    app.register_blueprint(imports.bp)
+    app.register_blueprint(views.bp)
     # Registered last: its routes are `/api/<entity>`, which would otherwise
     # shadow the specific prefixes above.
     app.register_blueprint(resources.bp)

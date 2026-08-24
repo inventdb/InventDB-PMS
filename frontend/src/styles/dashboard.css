@@ -1,0 +1,680 @@
+/* ==========================================================================
+   Dashboard — InventDB SOAR's Today room, in the PMS.
+
+   A 12-column bento grid of widget cards. The structure follows SOAR's: room
+   head with the greeting and the dashboard picker, a toolbar that only appears
+   once there are widgets, then the grid. SOAR's `--fg` / `--line` / `--accent`
+   are the PMS's `--text` / `--border` / `--brand` throughout.
+
+   `.seg`, `.chip`, `.inline-error` and the drop zone live in import.css and are
+   shared with this room rather than declared twice.
+   ========================================================================== */
+
+/* ---- Room head ----------------------------------------------------------- */
+.room-head {
+  margin-bottom: 20px;
+}
+.room-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 6px;
+}
+.room-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.room-title h2 {
+  margin: 0;
+  font-size: 27px;
+  font-weight: 660;
+  letter-spacing: -0.02em;
+}
+.room-sub {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  max-width: 70ch;
+}
+.ns-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.ns-pick > span {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ns-pick-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.ns-pick-control select.input {
+  height: 34px;
+  width: auto;
+  /* Room for the value plus the chevron drawn over it. `appearance` needs both
+     prefixes: without them Chrome still reserves space for its own arrow, and
+     with `width: auto` that squeezes the text box until the value is clipped. */
+  min-width: 104px;
+  padding: 0 32px 0 12px;
+  font-weight: 600;
+  line-height: 32px;
+  text-overflow: ellipsis;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+/* Firefox keeps a focus inner-outline that repaints over the text. */
+.ns-pick-control select.input::-moz-focus-inner {
+  border: 0;
+}
+.ns-pick-control svg {
+  position: absolute;
+  right: 9px;
+  pointer-events: none;
+  color: var(--text-faint);
+}
+
+/* ---- Toolbar ------------------------------------------------------------- */
+.bento-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.bento-hint {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.bento-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bento-refresh .is-spinning {
+  animation: bento-spin 0.65s linear;
+}
+@keyframes bento-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.btn.is-active {
+  color: var(--brand);
+  border-color: var(--brand);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bento-refresh .is-spinning {
+    animation: none;
+  }
+}
+
+/* ---- The grid ------------------------------------------------------------
+   Twelve columns. A widget's `span` is its width in those columns; below the
+   breakpoint everything goes full width, because a 3-column figure on a phone
+   is a figure nobody can read. */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.bento-slot,
+.bento > .card {
+  min-width: 0;
+}
+.span-3 { grid-column: span 3; }
+.span-4 { grid-column: span 4; }
+.span-5 { grid-column: span 5; }
+.span-6 { grid-column: span 6; }
+.span-7 { grid-column: span 7; }
+.span-8 { grid-column: span 8; }
+.span-9 { grid-column: span 9; }
+.span-12 { grid-column: span 12; }
+
+@media (max-width: 1100px) {
+  .span-3, .span-4, .span-5 { grid-column: span 6; }
+  .span-7, .span-8, .span-9 { grid-column: span 12; }
+}
+@media (max-width: 720px) {
+  .bento { grid-template-columns: 1fr; }
+  .span-3, .span-4, .span-5, .span-6,
+  .span-7, .span-8, .span-9, .span-12 { grid-column: span 1; }
+}
+
+.bento-slot > .wg {
+  height: 100%;
+}
+
+/* ---- One widget ---------------------------------------------------------- */
+.wg {
+  padding: 15px 17px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.wg[data-dragging="true"] {
+  opacity: 0.4;
+}
+.wg[draggable="true"] {
+  cursor: grab;
+}
+.wg-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.wg-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.wg-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wg-handle {
+  cursor: grab;
+  flex: none;
+  color: var(--text-faint);
+}
+.wg-actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.wg-remove {
+  color: var(--danger);
+}
+.wg-sub {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.wg-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 4px 0;
+}
+/* The query receipt sits at the foot of the card, so its drawer opens downward
+   and never overlaps the figure it explains. */
+.wg-receipt {
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.wg-kpi {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.wg-kpi-value {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+.wg-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--brand);
+  cursor: pointer;
+}
+.wg-link:hover {
+  text-decoration: underline;
+}
+.wg-more {
+  margin-top: 10px;
+}
+.wg-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.wg-table {
+  margin-top: 2px;
+}
+.wg-table td.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* label → value rows, shared with the widget kit's own `.metric-row` so a
+   mini-report and a native list widget look identical */
+.metric-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+.metric-row:last-child {
+  border-bottom: none;
+}
+.metric-row .m-label {
+  color: var(--text-muted);
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.metric-row .m-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text);
+  flex: none;
+}
+
+/* ---- Charts -------------------------------------------------------------- */
+.wg-pie {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.wg-pie > svg {
+  width: 180px;
+  height: 180px;
+  flex: none;
+}
+.wg-legend {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  flex: 1;
+}
+.wg-legend-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 9px;
+  align-items: center;
+  font-size: 12px;
+  cursor: default;
+  transition: opacity 0.15s;
+}
+.wg-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+  display: inline-block;
+}
+.wg-legend-label {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wg-legend-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text);
+}
+.wg-legend-pct {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.wg-legend-inline {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+.wg-legend-inline > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wg-groups {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  height: 150px;
+  padding: 0 4px;
+}
+.wg-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.wg-group-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 120px;
+  width: 100%;
+  justify-content: center;
+}
+.wg-group-bars > span {
+  flex: 1;
+  max-width: 26px;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+  transition: opacity 0.15s;
+  cursor: default;
+}
+.wg-group-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.wg-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.wg-ticks > span {
+  white-space: nowrap;
+}
+.wg-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand-solid);
+  box-shadow: 0 0 0 2px var(--surface);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.wg-tip {
+  position: absolute;
+  transform: translate(-50%, -170%);
+  background: var(--text);
+  color: var(--surface);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+  white-space: nowrap;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.wg-scatter {
+  position: relative;
+}
+.wg-gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--text);
+  opacity: 0.06;
+}
+.wg-point {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: var(--brand-solid);
+  opacity: 0.82;
+}
+
+.wg-heat {
+  border-collapse: separate;
+  border-spacing: 2px;
+  font-size: 11px;
+}
+.wg-heat-y {
+  padding: 2px 8px 2px 0;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+.wg-heat-cell {
+  width: 38px;
+  height: 24px;
+  text-align: center;
+  color: #111;
+  border-radius: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.wg-heat-x {
+  padding: 3px 0 0;
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.wg-hbars {
+  display: grid;
+  gap: 10px;
+}
+.wg-hbar {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  cursor: default;
+}
+.wg-hbar-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wg-hbar-track {
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.wg-hbar-track > span {
+  display: block;
+  height: 100%;
+  background: var(--brand-solid);
+  border-radius: inherit;
+}
+.wg-hbar-value {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: 600;
+}
+@media (max-width: 560px) {
+  .wg-hbar {
+    grid-template-columns: 90px 1fr auto;
+  }
+}
+
+/* ---- Suggestion preview -------------------------------------------------- */
+.bento-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  border-color: var(--warn-line, var(--border));
+  background: var(--warn-soft, var(--surface-2));
+}
+.preview-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--warn, var(--text-muted));
+}
+.preview-text {
+  flex: 1;
+  min-width: 220px;
+  font-size: 13.5px;
+}
+
+/* ---- Empty state --------------------------------------------------------- */
+.bento-empty {
+  padding: 46px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.bento-empty-ico {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+.bento-empty-ico svg {
+  width: 22px;
+  height: 22px;
+}
+.bento-empty h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 620;
+}
+.bento-empty p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  max-width: 52ch;
+}
+.bento-empty-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+/* ---- Widget editor ------------------------------------------------------- */
+.we {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.we-sub {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin: 0;
+}
+.we-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  align-items: end;
+}
+.we-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.we-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.we-ask {
+  align-items: flex-end;
+}
+.we-ask > .input {
+  flex: 1;
+  min-width: 220px;
+}
+.we-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  padding-bottom: 8px;
+}
+/* The refinement trail — what has been asked of this widget so far. */
+.we-history {
+  display: grid;
+  gap: 3px;
+  border-left: 2px solid var(--brand);
+  padding-left: 10px;
+}
+.we-history > div {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.we-history-tag {
+  flex: none;
+  color: var(--text-muted);
+}
+.we-describe {
+  height: 70px;
+  padding: 10px;
+  resize: vertical;
+}
+.we-sql {
+  height: 80px;
+  padding: 10px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  resize: vertical;
+}
+.we-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.we-preview-box {
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+/* A whole described layout previews as the real grid, at a smaller gap so
+   several widgets fit the dialog without each one shrinking to a stripe. */
+.we-layout-preview {
+  gap: 10px;
+}
+.we-layout-preview .wg {
+  padding: 12px 14px;
+}
+.we-layout-preview .wg-kpi-value {
+  font-size: 26px;
+}
+/* The dialog is narrower than the room, so anything under half width would be
+   unreadable — everything gets at least a half-column here. */
+.we-layout-preview .span-3,
+.we-layout-preview .span-4,
+.we-layout-preview .span-5 {
+  grid-column: span 6;
+}

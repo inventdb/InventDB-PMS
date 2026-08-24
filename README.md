@@ -301,7 +301,7 @@ All endpoints live under `/api`. Data routes require a bearer token from the log
 |---|---|---|
 | `POST` | `/api/auth/login` | Log in via InventDB, returns JWT + user |
 | `GET` | `/api/auth/me` | Current user profile |
-| `POST` | `/api/auth/change-password` · `/api/auth/forgot-password` | Password management |
+| `POST` | `/api/auth/forgot-password` | Password reset request |
 | `GET` | `/api/health` | API + connection status |
 
 ### Records
@@ -398,7 +398,7 @@ InventDB-PMS/
 │   │   │                      #   Files · Settings · Login · EntityListPage
 │   │   ├── analyze/           # AI canvas: stream, threads, timeline, cards
 │   │   ├── reports/           # Report Studio: edit stream, inline rename
-│   │   ├── workflows/         # Editor, plan & run timelines, catalogue
+│   │   ├── workflows/         # Detail console, plan & run timelines, catalogue
 │   │   ├── notifications/     # Approval card, panel, body sanitiser
 │   │   ├── files/             # Drive tree, grid, detail panel
 │   │   ├── components/        # Layout · Modal · EntityForm · DescribeRecord …

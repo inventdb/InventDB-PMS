@@ -22,6 +22,9 @@ import {
   PNL,
   RENEWALS,
   RENT_ROLL,
+  SAVED_VIEWS,
+  DESIGNED_LAYOUT,
+  type SavedViewFixture,
   createReportStore,
   WORKFLOWS,
   WORKFLOW_DRAFT,
@@ -190,6 +193,28 @@ export async function installMockApi(
   runs.push(JSON.parse(JSON.stringify(INTAKE_RUN)));
   runSteps["run-intake"] = JSON.parse(JSON.stringify(INTAKE_RUN_STEPS));
 
+  // Saved views, per module and per test. Empty by default so every existing
+  // spec sees the module exactly as it did before views arrived — a spec that
+  // wants one creates it through the UI.
+  const savedViews: { [entity: string]: SavedViewFixture[] } = JSON.parse(
+    JSON.stringify(SAVED_VIEWS)
+  );
+  const viewsOf = (entity: string): SavedViewFixture[] => (savedViews[entity] ??= []);
+
+  // Analysis threads, per test — renaming and deleting mutate them, so they
+  // cannot be shared between specs any more than the entity store can.
+  const analyzeThreads: Rec[] = JSON.parse(JSON.stringify(ANALYZE_THREADS));
+
+  // The Today dashboard, per test. Empty by default so a spec starts on the
+  // onboarding state and builds whatever layout it is about.
+  let dashboardDoc: Rec | null = null;
+  // What `SELECT ... FROM pms.<type>` answers on this dashboard. A spec that
+  // needs a particular figure overrides this before navigating.
+  const widgetRows: Rec[] = [
+    { _id: "wr-1", status: "occupied", v: 46 },
+    { _id: "wr-2", status: "vacant", v: 5 },
+  ];
+
   await page.route(API_ROUTE, async (route) => {
     if (options.latencyMs) {
       await new Promise((resolve) => setTimeout(resolve, options.latencyMs));
@@ -232,12 +257,6 @@ export async function installMockApi(
         });
       }
       if (action === "me") return json(route, AUTH_USER);
-      if (action === "change-password") {
-        if (body.current_password !== "correct-horse") {
-          return json(route, { error: "Current password is incorrect" }, 400);
-        }
-        return json(route, { ok: true });
-      }
       if (action === "forgot-password") return json(route, { ok: true });
       if (action === "health") return json(route, { ok: true, inventdb: HEALTH });
       return json(route, { error: "Not found" }, 404);
@@ -252,6 +271,25 @@ export async function installMockApi(
 
     // ---- /api/reports/* ---------------------------------------------------
     if (head === "reports") {
+      // ---- dashboard widgets ---------------------------------------------
+      if (rest[0] === "widgets") {
+        // POST /reports/widgets/design -> a template that already renders
+        if (rest[1] === "design") {
+          return json(route, {
+            template_id: "wtpl-1",
+            html: '<div class="kpi"><span class="kpi-label">Built</span><span class="kpi-value">42</span></div>',
+            base_sql: String(body.base_sql ?? "SELECT * FROM pms.properties"),
+          });
+        }
+        // POST /reports/widgets/<id>/render
+        if (rest[2] === "render") {
+          return json(route, {
+            html: '<div class="kpi"><span class="kpi-label">Rendered</span><span class="kpi-value">42</span></div>',
+          });
+        }
+        return json(route, { error: "Not found" }, 404);
+      }
+
       if (rest[0] === "templates" && rest.length === 1) {
         return json(route, { templates: reports.templates, count: reports.templates.length });
       }
@@ -753,6 +791,15 @@ export async function installMockApi(
     if (head === "analyze") {
       const action = rest.join("/");
 
+      // The dashboard is stored as an ordinary record, so it saves through the
+      // record endpoints like anything else.
+      if (rest[0] === "records" && rest[1] === "dashboards") {
+        if (method === "POST" || method === "PUT") {
+          dashboardDoc = { _id: "dash-1", ...body };
+          return json(route, dashboardDoc);
+        }
+      }
+
       // The agent turn. Fulfilled as a real `text/event-stream` body so the
       // page's own SSE parser runs — a JSON stub would skip the code most
       // likely to break. A spec overrides this route to script a different turn.
@@ -778,7 +825,23 @@ export async function installMockApi(
       }
       if (rest[0] === "websearch") return json(route, { ok: true });
       if (rest[0] === "threads") {
-        if (method === "GET") return json(route, { threads: ANALYZE_THREADS });
+        if (method === "GET") return json(route, { threads: analyzeThreads });
+        if (method === "PUT") {
+          // Upsert by id, the way the backend's own thread route does — so a
+          // rename is still there after a reload rather than only on screen.
+          const id = String(body.id ?? "");
+          const at = analyzeThreads.findIndex((t) => String(t._id ?? t.id) === id);
+          const row: Rec = { ...(at >= 0 ? analyzeThreads[at] : {}), ...body, _id: id };
+          if (at >= 0) analyzeThreads[at] = row;
+          else analyzeThreads.unshift(row);
+          return json(route, { ok: true });
+        }
+        if (method === "DELETE") {
+          const id = decodeURIComponent(rest[1] ?? "");
+          const at = analyzeThreads.findIndex((t) => String(t._id ?? t.id) === id);
+          if (at >= 0) analyzeThreads.splice(at, 1);
+          return json(route, { ok: true });
+        }
         return json(route, { ok: true });
       }
       if (action === "sql") {
@@ -824,7 +887,107 @@ export async function installMockApi(
       // `order_by` for as long as it existed, which nothing noticed because
       // the app reads its entity list from src/config/entities.ts instead.
       if (rest[0] === "entities") return json(route, META_ENTITIES);
+
+      // The dashboard reads through this passthrough: its schema summary, its
+      // stored layout, and every widget's own query.
+      if (rest[0] === "types") return json(route, { types: Object.keys(ENTITY_KEYS) });
+      if (rest[0] === "sql") {
+        const statement = String(body.sql ?? "");
+        if (/from\s+pms\.dashboards/i.test(statement)) {
+          return json(route, { rows: dashboardDoc ? [dashboardDoc] : [] });
+        }
+        return json(route, { rows: widgetRows });
+      }
       return json(route, { types: [] });
+    }
+
+    // ---- /api/views/<entity>[/...] ---------------------------------------
+    // Mirrors backend/app/routers/views.py, including the rule the backend
+    // owns rather than the client: promoting a view clears whoever held the
+    // default, so two views can never both claim it.
+    if (head === "views") {
+      const entity = rest[0];
+      if (!entity) return json(route, { error: "Not found" }, 404);
+      const list = viewsOf(entity);
+      const byName = () =>
+        [...list].sort((a, b) =>
+          String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase())
+        );
+      const target = rest[1];
+
+      if (method === "GET") return json(route, { items: byName() });
+
+      // The designer. Stores a candidate layout and proves it renders, exactly
+      // as the backend does — so a design that is never saved still leaves a
+      // template id behind, and the preview has something to draw.
+      if (method === "POST" && target === "design") {
+        if (!String(body.instruction ?? "").trim()) {
+          return json(route, { error: "Describe the view you want" }, 400);
+        }
+        return json(route, {
+          template_id: String(body.template_id ?? "tpl-designed"),
+          html: DESIGNED_LAYOUT,
+          sql: null,
+        });
+      }
+
+      if (method === "POST" && target === "render") {
+        if (!String(body.template_id ?? "").trim()) {
+          return json(route, { error: "template_id is required" }, 400);
+        }
+        return json(route, {
+          html: "<html><body><div>Rendered layout</div></body></html>",
+          total: (store[entity] ?? []).length,
+        });
+      }
+
+      if (method === "POST") {
+        const templateId = String(body.template_id ?? "").trim();
+        const created: SavedViewFixture = {
+          id: nextId("view"),
+          name: String(body.name ?? "").trim(),
+          search: typeof body.search === "string" ? body.search : "",
+          sort: (body.sort as SavedViewFixture["sort"]) ?? null,
+          is_default: false,
+          mode: templateId ? "custom" : "table",
+          template_id: templateId || null,
+          base_sql: String(body.base_sql ?? ""),
+        };
+        if (!created.name) return json(route, { error: "A view needs a name" }, 400);
+        list.push(created);
+        if (body.is_default) {
+          for (const v of list) v.is_default = v.id === created.id;
+        }
+        return json(route, created, 201);
+      }
+
+      // `default` is a keyword, not an id — clearing the module's default.
+      if (method === "DELETE" && target === "default") {
+        for (const v of list) v.is_default = false;
+        return json(route, { items: byName() });
+      }
+
+      const view = list.find((v) => v.id === target);
+      if (!view) return json(route, { error: "View not found" }, 404);
+
+      if (method === "PUT" && rest[2] === "default") {
+        for (const v of list) v.is_default = v.id === target;
+        return json(route, { items: byName() });
+      }
+
+      if (method === "PUT") {
+        if ("name" in body) view.name = String(body.name ?? "").trim();
+        if ("search" in body) view.search = String(body.search ?? "");
+        if ("sort" in body) view.sort = body.sort as SavedViewFixture["sort"];
+        return json(route, view);
+      }
+
+      if (method === "DELETE") {
+        list.splice(list.indexOf(view), 1);
+        return json(route, { ok: true, deleted: target });
+      }
+
+      return json(route, { error: "Not found" }, 404);
     }
 
     // ---- /api/<entity>[/<id>] --------------------------------------------

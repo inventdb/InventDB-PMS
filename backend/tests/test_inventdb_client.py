@@ -259,14 +259,6 @@ def test_me_scopes_the_lookup_to_this_app(db, fake):
     assert fake.last_call("GET", "/api/auth/me").params == {"app": "pms"}
 
 
-def test_change_password_uses_snake_case_field_names(db, fake):
-    db.change_password("old", "new")
-    assert fake.last_call("POST", "/api/auth/change-password").body == {
-        "current_password": "old",
-        "new_password": "new",
-    }
-
-
 def test_forgot_password_sends_only_the_email(anon, fake):
     anon.forgot_password("a@b.c")
     assert fake.last_call("POST", "/api/auth/forgot-password").body == {"email": "a@b.c"}

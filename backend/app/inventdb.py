@@ -136,13 +136,6 @@ class InventDBClient:
     def me(self) -> dict[str, Any]:
         return self._request("GET", "/api/auth/me", params={"app": self.app})
 
-    def change_password(self, current_password: str, new_password: str) -> Any:
-        return self._request(
-            "POST",
-            "/api/auth/change-password",
-            json={"current_password": current_password, "new_password": new_password},
-        )
-
     def forgot_password(self, email: str) -> Any:
         return self._request(
             "POST", "/api/auth/forgot-password", auth=False, json={"email": email}
@@ -258,6 +251,23 @@ class InventDBClient:
     def get_report_template(self, template_id: str) -> Any:
         tid = _safe_id(template_id, "template id")
         return self._unwrap(self._request("GET", f"/api/report-templates/{tid}"))
+
+    def create_report_template(
+        self, name: str, html: str, parameters: Optional[list[Any]] = None
+    ) -> Any:
+        """Store template HTML and return the new row (carrying its ``_id``).
+
+        Used for a custom view's card layout as well as for ordinary reports:
+        InventDB backs both with the same ``_System.ReportTemplates`` store, and
+        a view simply points at one by id.
+        """
+        return self._unwrap(
+            self._request(
+                "POST",
+                "/api/report-templates",
+                json={"name": name, "html": html, "parameters": parameters or []},
+            )
+        )
 
     def render_report_template(
         self, template_id: str, params: Optional[dict[str, Any]] = None
@@ -616,6 +626,71 @@ class InventDBClient:
     def get_saved_view(self, view_id: str) -> Any:
         vid = _safe_id(view_id, "view id")
         return self._unwrap(self._request("GET", f"/api/saved-views/{vid}"))
+
+    def list_saved_views(self) -> list[dict[str, Any]]:
+        """Every saved view on the instance, as *summaries*.
+
+        InventDB's list projection is deliberately narrow -- ``_id``, ``name``,
+        ``description``, ``namespace``, ``defaultMode``, ``attachmentsEnabled``,
+        ``version``, ``createdBy``. It carries neither ``baseSql`` nor
+        ``defaultForType``, so the caller cannot tell which collection a view
+        belongs to without fetching it. :meth:`get_saved_view` is what fills
+        that in.
+        """
+        data = self._unwrap(self._request("GET", "/api/saved-views"))
+        if isinstance(data, dict):
+            views = data.get("views")
+            return [v for v in views if isinstance(v, dict)] if isinstance(views, list) else []
+        return [v for v in data if isinstance(v, dict)] if isinstance(data, list) else []
+
+    def create_saved_view(self, body: dict[str, Any]) -> Any:
+        """Create a view. Returns the stored document, including its ``_id``.
+
+        Note that InventDB deserialises the POST body into a *typed* struct, so
+        any field outside its schema -- ``defaultForType`` in particular -- is
+        dropped here and has to be applied afterwards with
+        :meth:`update_saved_view`, whose merge is untyped.
+        """
+        return self._unwrap(self._request("POST", "/api/saved-views", json=body))
+
+    def update_saved_view(self, view_id: str, patch: dict[str, Any]) -> Any:
+        """Merge ``patch`` into a stored view.
+
+        Unlike create, this is a raw document merge upstream: unknown keys are
+        kept, and ``_id``/``_createdAt``/``createdBy`` are ignored. It is the
+        only way to persist ``defaultForType``.
+        """
+        vid = _safe_id(view_id, "view id")
+        return self._unwrap(self._request("PUT", f"/api/saved-views/{vid}", json=patch))
+
+    def delete_saved_view(self, view_id: str) -> Any:
+        vid = _safe_id(view_id, "view id")
+        return self._unwrap(self._request("DELETE", f"/api/saved-views/{vid}"))
+
+    def generate_view_layout(self, body: dict[str, Any]) -> Any:
+        """Ask InventDB to design a custom layout for a view's rows.
+
+        Returns ``{html, sql}``: the report-engine template, plus the query the
+        designer chose when the instruction implied one (``None`` for a pure
+        styling change). This is the only saved-view route gated on an
+        AI-enabled tier -- CRUD and rendering work everywhere.
+
+        Unlike the rest of this client, the reply is *not* wrapped in the
+        ``{ok, data}`` envelope, so it is returned as-is.
+        """
+        return self._request("POST", "/api/saved-views/generate-layout", json=body)
+
+    def render_view_layout(self, body: dict[str, Any]) -> Any:
+        """Render one page of a custom layout.
+
+        The server windows ``baseSql`` with its own parser and returns
+        ``{html, total, page, pageSize}``. Pagination is deliberately left
+        upstream: composing LIMIT/OFFSET here would mean re-parsing SQL the
+        engine already understands.
+        """
+        return self._unwrap(
+            self._request("POST", "/api/saved-views/render-layout", json=body)
+        )
 
     def send_email(self, message: dict[str, Any]) -> Any:
         return self._request("POST", "/api/gmail/send", json=message)

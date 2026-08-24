@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthContext";
@@ -10,6 +11,12 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Workflows from "./pages/Workflows";
 import Files from "./pages/Files";
+import { Spinner } from "./components/ui";
+
+// Import pulls in SheetJS to read workbooks in the browser — around 330 kB
+// that no other room needs. Loading the route on demand keeps it out of the
+// bundle everyone downloads to look at the dashboard.
+const ImportPage = lazy(() => import("./pages/Import"));
 
 function ProtectedLayout() {
   const { user, token } = useAuth();
@@ -27,6 +34,14 @@ export default function App() {
         <Route path="reports" element={<Reports />} />
         <Route path="workflows" element={<Workflows />} />
         <Route path="files" element={<Files />} />
+        <Route
+          path="import"
+          element={
+            <Suspense fallback={<Spinner />}>
+              <ImportPage />
+            </Suspense>
+          }
+        />
         <Route path="settings" element={<Settings />} />
         <Route path=":entity" element={<EntityListPage />} />
       </Route>

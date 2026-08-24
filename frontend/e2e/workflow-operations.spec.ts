@@ -216,34 +216,6 @@ test.describe("One workflow, opened", () => {
 
     await expect(page.locator(".toast")).toContainText("Version history cleared");
   });
-
-  test("offers an AI fix only on a run that actually failed", async ({ page }) => {
-    await dialog(page).getByRole("tab", { name: /^Runs/ }).click();
-
-    // The successful run has nothing to repair.
-    await dialog(page).locator(".wf-run").first().click();
-    await expect(dialog(page).getByRole("button", { name: "Fix with AI" })).toHaveCount(0);
-
-    await dialog(page).locator(".wf-run").nth(1).click();
-    await expect(dialog(page).getByRole("button", { name: "Fix with AI" })).toBeVisible();
-  });
-
-  test("an AI fix opens in the editor and is saved nowhere until you save it", async ({ page }) => {
-    const saved: unknown[] = [];
-    await page.route("**/api/workflows/wf-1", async (route) => {
-      if (route.request().method() === "PUT") saved.push(route.request().postDataJSON());
-      await route.fallback();
-    });
-
-    await dialog(page).getByRole("tab", { name: /^Runs/ }).click();
-    await dialog(page).locator(".wf-run").nth(1).click();
-    await dialog(page).getByRole("button", { name: "Fix with AI" }).click();
-
-    await expect(page.locator(".toast")).toContainText("review it, then save to keep it");
-    // The proposal is in the editor, not in the workflow.
-    await expect(dialog(page)).toContainText("Find overdue leases");
-    expect(saved).toEqual([]);
-  });
 });
 
 test.describe("A run's timeline", () => {

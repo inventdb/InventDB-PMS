@@ -7,6 +7,7 @@ import { expect, test } from "./fixtures";
  */
 const DESTINATIONS = [
   { link: "Dashboard", path: "/", title: "Dashboard" },
+  { link: "Import", path: "/import", title: "Import" },
   { link: "Properties", path: "/properties", title: "Properties" },
   { link: "Owners", path: "/owners", title: "Owners" },
   { link: "Tenants", path: "/tenants", title: "Tenants" },

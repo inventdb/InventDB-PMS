@@ -649,3 +649,142 @@ def work_orders_report():
             "open_cost_estimate": _num(open_cost[0].get("total")) if open_cost else 0.0,
         }
     )
+
+
+# ===========================================================================
+# Dashboard widgets — the "describe a mini-report" surface
+# ===========================================================================
+# A dashboard widget of kind `report` is a report-engine template like any
+# other; what differs is that it is authored by description, is compact, and may
+# read several types rather than one module's rows. So it uses the same
+# generate -> persist -> prove-it-renders loop the view designer uses, without
+# the entity scoping: a widget is not "a layout for Properties", it is whatever
+# the person asked for.
+
+
+def _widget_html(result: Any) -> str:
+    """The HTML out of a layout-generator reply, whichever shape it arrives in."""
+    data = result if isinstance(result, dict) else {}
+    inner = data.get("data") if isinstance(data.get("data"), dict) else {}
+    return str(data.get("html") or inner.get("html") or "")
+
+
+@bp.post("/widgets/design")
+def design_widget():
+    """Design (or edit) one dashboard widget, and return a template that renders.
+
+    Nothing about this is entity-scoped. The generator is told which types exist
+    and may query any of them, because a widget is frequently a figure drawn
+    from two or three at once -- occupancy against rent, say.
+    """
+    client = authed_client()
+    body = request.get_json(silent=True) or {}
+
+    instruction = body.get("instruction")
+    if not isinstance(instruction, str) or not instruction.strip():
+        raise ApiError(400, "Describe the widget you want")
+    instruction = instruction.strip()
+
+    base_sql = body.get("base_sql")
+    base_sql = (
+        base_sql.strip()
+        if isinstance(base_sql, str) and base_sql.strip()
+        else f"SELECT * FROM {NS}.properties"
+    )
+
+    history = body.get("history")
+    history = (
+        [str(h) for h in history if isinstance(h, str)][-20:]
+        if isinstance(history, list)
+        else []
+    )
+    family = body.get("model_family")
+
+    # Editing an existing widget amends the template's *source*, never its
+    # rendered output -- the render inlines every row it read and would swamp
+    # the model's context for no benefit.
+    template_id = body.get("template_id")
+    template_id = template_id.strip() if isinstance(template_id, str) else ""
+    current_html = ""
+    if template_id:
+        existing = client.get_report_template(template_id)
+        if isinstance(existing, dict):
+            current_html = str(existing.get("html") or "")
+
+    title = body.get("title")
+    title = title.strip() if isinstance(title, str) and title.strip() else "untitled"
+
+    html = ""
+    render_error = ""
+    steer = instruction
+
+    # Three attempts. A template whose server-side SQL uses an unsupported
+    # function only fails at render, and the engine's error names the functions
+    # it does support -- feeding that back is what turns a dead widget into a
+    # working one. Past three the model is not converging and the error is worth
+    # showing rather than hiding behind another retry.
+    for attempt in range(3):
+        payload: dict[str, Any] = {
+            "baseSql": base_sql,
+            "namespace": client.namespace,
+            "instruction": steer,
+        }
+        if current_html:
+            payload["currentHtml"] = current_html
+        if history:
+            payload["history"] = history
+        if isinstance(family, str) and family.strip():
+            payload["model_family"] = family.strip()
+
+        candidate = _widget_html(client.generate_view_layout(payload))
+        if not candidate:
+            if attempt == 0:
+                raise ApiError(502, "The assistant returned no widget")
+            break
+        html = candidate
+
+        # Rendering needs a stored template, so the candidate has to be saved
+        # before it can be proved. An abandoned design therefore leaves a
+        # template behind -- the same trade SOAR makes, for the same reason.
+        if template_id:
+            client.update_report_template(template_id, {"html": html})
+        else:
+            created = client.create_report_template(f"Widget — {title}", html)
+            new_id = ""
+            if isinstance(created, dict):
+                new_id = str(created.get("_id") or created.get("id") or "")
+            if not new_id:
+                raise ApiError(502, "Could not store the generated widget")
+            template_id = new_id
+
+        try:
+            client.render_report_template(template_id, {"viewSql": base_sql})
+            render_error = ""
+            break
+        except ApiError as exc:
+            render_error = str(exc.detail)
+            current_html = html
+            steer = (
+                f"{instruction}\n\nThe widget you produced FAILED to render with "
+                f"this InventDB engine error. Fix the template so it renders "
+                f"cleanly -- for example by replacing an unsupported SQL function "
+                f"with a supported one from the list in the error -- without "
+                f"changing the intended design:\n\n{render_error}"
+            )
+
+    if render_error:
+        raise ApiError(502, f"The generated widget could not render: {render_error}")
+
+    return jsonify({"template_id": template_id, "html": html, "base_sql": base_sql})
+
+
+@bp.post("/widgets/<template_id>/render")
+def render_widget(template_id: str):
+    """Re-run a widget's queries and return its HTML. Live on every open."""
+    body = request.get_json(silent=True) or {}
+    view_sql = body.get("base_sql")
+    view_sql = view_sql.strip() if isinstance(view_sql, str) else ""
+
+    client = authed_client()
+    result = client.render_report_template(template_id, {"viewSql": view_sql}) or {}
+    return jsonify({"html": result.get("html") or ""})

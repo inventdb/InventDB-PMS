@@ -1320,6 +1320,13 @@ table.data tbody tr:hover {
   align-items: center;
   margin-bottom: 14px;
   flex-wrap: wrap;
+  /* The entrance animation leaves a transform on this element, and a non-none
+     transform makes it a stacking context — so a dropdown inside it (the view
+     switcher's palette) cannot raise itself above the table that follows, no
+     matter what z-index it sets. The toolbar itself has to out-rank the table.
+     Kept under the topbar (30) so a scrolled palette still passes beneath it. */
+  position: relative;
+  z-index: 20;
 }
 .toolbar .search {
   flex: 1;
