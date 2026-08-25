@@ -117,6 +117,20 @@ test.describe("Designed views", () => {
     // The preview is the real layout rendered over real rows — and it is on
     // screen while the view is still unsaved.
     await expect(designer(page).locator("iframe")).toBeVisible();
+    await page.waitForTimeout(400);
+    // And it has CONTENT. The designer returns the template, whose server
+    // blocks have not run; drawing that gave an empty white box.
+    const drawn = await designer(page)
+      .locator("iframe")
+      .evaluate((el: Element) => {
+        const d = (el as HTMLIFrameElement).contentDocument!;
+        return {
+          cards: d.querySelectorAll(".vk-card").length,
+          height: Math.round(d.documentElement.scrollHeight),
+        };
+      });
+    expect(drawn.cards, "the preview drew no records").toBeGreaterThan(0);
+    expect(drawn.height, "the preview is an empty box").toBeGreaterThan(120);
     await expect(page.getByRole("button", { name: "Save view" })).toBeVisible();
 
     // Nothing has been saved: the module is still showing its own table.
@@ -170,6 +184,23 @@ for (const v of VIEWS) {
         `frame ${fit.frameH}px is shorter than its ${fit.contentH}px of content`
       ).toBeGreaterThanOrEqual(fit.contentH - 4);
       expect(fit.innerScroller, "rows are trapped in a nested scroller").toBe(false);
+
+      // The page itself must be able to reach the bottom of the layout. The
+      // module locks its height so the TABLE can scroll internally with sticky
+      // heads — applied to a document-shaped view, that clipped everything past
+      // the first screen with nothing to scroll.
+      const reach = await page.evaluate(() => {
+        const el = document.scrollingElement!;
+        const frame = document.querySelector(".custom-view iframe") as HTMLElement;
+        return {
+          frameBottom: Math.round(frame.getBoundingClientRect().bottom + window.scrollY),
+          scrollable: Math.round(el.scrollHeight),
+        };
+      });
+      expect(
+        reach.scrollable,
+        `the page cannot reach the bottom of a ${reach.frameBottom}px layout`
+      ).toBeGreaterThanOrEqual(reach.frameBottom - 8);
 
       // ---- the page never scrolls sideways ---------------------------------
       const overflow = await page.evaluate(

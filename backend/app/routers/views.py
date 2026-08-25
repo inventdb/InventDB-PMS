@@ -366,6 +366,7 @@ def design_view(entity_name: str):
             current_html = str(existing.get("html") or "")
 
     html = ""
+    preview_html = ""
     sql: str | None = None
     render_error = ""
     # The kit goes with every turn, including a refinement: the model is
@@ -422,7 +423,7 @@ def design_view(entity_name: str):
 
         check_sql = sql if sql and _targets(sql, client, entity) else base_sql
         try:
-            client.render_view_layout(
+            proof = client.render_view_layout(
                 {
                     "templateId": template_id,
                     "baseSql": check_sql,
@@ -430,6 +431,11 @@ def design_view(entity_name: str):
                     "pageSize": 12,
                 }
             )
+            # Keep it: this render IS the preview. `html` is the template, whose
+            # <script type="server"> blocks have not run, so drawing that in the
+            # preview frame showed an empty document.
+            if isinstance(proof, dict):
+                preview_html = str(proof.get("html") or "")
             render_error = ""
             break
         except ApiError as exc:
@@ -451,6 +457,9 @@ def design_view(entity_name: str):
         {
             "template_id": template_id,
             "html": html,
+            # What the designer should SHOW: the layout run against real rows,
+            # styled by the kit exactly as the saved view will be.
+            "preview_html": _with_kit(preview_html),
             # Only adopt a query that actually reads this module; a designer that
             # wandered elsewhere gets ignored rather than saved and then lost.
             "sql": sql if sql and _targets(sql, client, entity) else None,

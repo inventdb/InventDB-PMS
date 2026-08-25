@@ -931,7 +931,10 @@ export async function installMockApi(
         designedFor[tid] = entity;
         return json(route, {
           template_id: tid,
-          html: designedLayout(entity, 12, 0),
+          // The template — server blocks unexecuted, nothing to look at.
+          html: "<html><body><script type=\"server\">rows()</script></body></html>",
+          // What the preview must actually draw.
+          preview_html: designedLayout(entity, 12, 0),
           sql: `SELECT * FROM pms.${entity}`,
         });
       }

@@ -369,9 +369,12 @@ function EntityModule({ config }: { config: EntityConfig }) {
   const submitting = create.isPending || update.isPending;
 
   return (
-    // `content-fill` gives the table the height the window has left, so the
-    // column heads can lock to it while the rows scroll underneath.
-    <div className="content content-fill">
+    // `content-fill` gives the TABLE the height the window has left, so the
+    // column heads can lock to it while the rows scroll underneath. A designed
+    // view is not a table — it is a document, and it has to be allowed to run
+    // past the fold and let the page scroll. Locking the page around it clipped
+    // everything below the first screen with nothing to scroll.
+    <div className={`content${customView || designing ? "" : " content-fill"}`}>
       <div className="page-head">
         <div className="stat-ico" style={{ width: 40, height: 40 }}>
           <Icon name={config.icon} size={20} />

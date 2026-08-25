@@ -308,8 +308,9 @@
 .vd-preview {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  overflow: hidden;
   background: var(--surface-2);
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .vd-preview--busy {
@@ -338,8 +339,11 @@
 .custom-view {
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
   background: var(--surface);
+  /* Clip the corners, never the content: the frame grows to its layout and the
+     PAGE scrolls. `overflow: hidden` here cut off everything past the fold. */
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .custom-view--busy {

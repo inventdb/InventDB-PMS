@@ -87,7 +87,7 @@ export function ViewDesigner({
         history,
         base_sql: design?.sql ?? undefined,
       });
-      setDesign(next);
+      setDesign({ ...next, html: next.preview_html || next.html });
       setHistory((h) => [...h, text]);
       setInstruction("");
       if (!name.trim()) setName(text.slice(0, 60));

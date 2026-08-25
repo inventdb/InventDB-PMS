@@ -61,6 +61,10 @@ export interface ViewDraft {
  * "make the badges green" implies no new query, and the view keeps its own.
  */
 export interface DesignResult {
+  /** The layout run against real rows, kit-styled — what the preview draws.
+   *  `html` is the TEMPLATE, whose server blocks have not executed, so drawing
+   *  that showed an empty document. */
+  preview_html?: string;
   template_id: string;
   html: string;
   sql: string | null;
