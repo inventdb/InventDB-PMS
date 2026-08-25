@@ -15,15 +15,7 @@
  * pinned as the default.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ChevronDown,
-  ChevronUp,
-  Plus,
-  Settings2,
-  Sparkles,
-  Star,
-  Rows3,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Rows3, Settings2, Sparkles, Star, Wand2 } from "lucide-react";
 
 import type { SavedView } from "./api";
 import { ConfirmDialog } from "../components/Modal";
@@ -41,6 +33,7 @@ export function ViewSwitcher({
   onSetDefault,
   onDeleteViews,
   onRenameView,
+  onEditView,
   busy,
 }: {
   views: SavedView[];
@@ -56,6 +49,9 @@ export function ViewSwitcher({
   onSetDefault: (view: SavedView) => void;
   onDeleteViews: (ids: string[]) => void | Promise<void>;
   onRenameView: (view: SavedView, name: string) => void | Promise<void>;
+  /** Reopen the designer on a saved layout, to change it by describing the
+   *  change. Only a designed view has a layout to change. */
+  onEditView: (view: SavedView) => void;
   busy?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -244,6 +240,20 @@ export function ViewSwitcher({
                       }}
                     >
                       <Star size={14} fill={isDefault ? "currentColor" : "none"} />
+                    </button>
+                  )}
+
+                  {manage && row.view?.mode === "custom" && (
+                    <button
+                      className="vs-star vs-edit"
+                      title="Change this layout by describing the change"
+                      aria-label={`Edit ${row.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEditView(row.view!);
+                      }}
+                    >
+                      <Wand2 size={14} />
                     </button>
                   )}
 

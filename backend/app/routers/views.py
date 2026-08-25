@@ -37,6 +37,7 @@ from flask import Blueprint, jsonify, request
 from ..context import authed_client
 from ..entities import Entity, get_entity
 from ..errors import ApiError
+from ..viewkit import VIEW_KIT_CSS, VIEW_KIT_GUIDE
 from ..inventdb import InventDBClient
 from ..sqlutil import ident
 
@@ -306,6 +307,23 @@ def create_view(entity_name: str):
     return jsonify(_shape({**payload, **stored, "_id": view_id}, default_key)), 201
 
 
+def _with_kit(html: str) -> str:
+    """Append the view kit's stylesheet to a rendered layout.
+
+    Last, so its rules win over anything the model wrote for the same class --
+    which is also what brings a view designed before the kit existed up to the
+    house style without anyone having to redesign it.
+    """
+    if not html:
+        return html
+    style = f"<style>{VIEW_KIT_CSS}</style>"
+    lower = html.lower()
+    if "</body>" in lower:
+        at = lower.rindex("</body>")
+        return html[:at] + style + html[at:]
+    return html + style
+
+
 @bp.post("/<entity_name>/design")
 def design_view(entity_name: str):
     """Ask InventDB's designer for a layout, and the query to drive it.
@@ -350,7 +368,10 @@ def design_view(entity_name: str):
     html = ""
     sql: str | None = None
     render_error = ""
-    steer = instruction
+    # The kit goes with every turn, including a refinement: the model is
+    # amending its own markup, and without the vocabulary in front of it a
+    # later turn happily replaces a kit class with something invented.
+    steer = f"{instruction}\n\n{VIEW_KIT_GUIDE}"
 
     # Generate, persist, then prove it renders. A template whose server-side SQL
     # uses an unsupported function only fails at render time, and the engine's
@@ -415,7 +436,8 @@ def design_view(entity_name: str):
             render_error = str(exc.detail)
             current_html = html
             steer = (
-                f"{instruction}\n\nThe layout you produced FAILED to render with "
+                f"{instruction}\n\n{VIEW_KIT_GUIDE}\n\n"
+                f"The layout you produced FAILED to render with "
                 f"this InventDB engine error. Fix the template so it renders "
                 f"cleanly — for example by replacing an unsupported SQL function "
                 f"with a supported one from the list in the error — without "
@@ -462,7 +484,9 @@ def render_view(entity_name: str):
         }
     )
     data = result if isinstance(result, dict) else {}
-    return jsonify({"html": data.get("html") or "", "total": data.get("total")})
+    return jsonify(
+        {"html": _with_kit(data.get("html") or ""), "total": data.get("total")}
+    )
 
 
 @bp.put("/<entity_name>/<view_id>")

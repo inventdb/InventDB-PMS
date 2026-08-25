@@ -13,13 +13,13 @@
  * though it does leave a report template behind, because rendering a layout
  * requires a stored one, which is the same trade SOAR makes.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sparkles, X } from "lucide-react";
 
 import { ReportFrame } from "../components/ReportFrame";
 import { Alert, Spinner } from "../components/ui";
 import { errorMessage } from "../api/client";
-import { useDesignView, type DesignResult } from "./api";
+import { useDesignView, usePreviewLayout, type DesignResult } from "./api";
 
 export interface DesignedView {
   template_id: string;
@@ -31,6 +31,7 @@ export function ViewDesigner({
   entity,
   typeLabel,
   busy,
+  editing: existing,
   onCancel,
   onSave,
 }: {
@@ -38,17 +39,40 @@ export function ViewDesigner({
   typeLabel: string;
   /** True while the save is in flight, so the panel cannot be double-submitted. */
   busy?: boolean;
+  /**
+   * The saved view being changed, if any. Seeding the designer with its
+   * template is what makes "now group them by region" an edit of THIS view
+   * rather than the start of a new one.
+   */
+  editing?: { id: string; name: string; template_id: string; base_sql: string } | null;
   onCancel: () => void;
   onSave: (designed: DesignedView, name: string) => void | Promise<void>;
 }) {
   const [instruction, setInstruction] = useState("");
   const [history, setHistory] = useState<string[]>([]);
-  const [design, setDesign] = useState<DesignResult | null>(null);
-  const [name, setName] = useState("");
+  const [design, setDesign] = useState<DesignResult | null>(
+    existing
+      ? { template_id: existing.template_id, sql: existing.base_sql || null, html: "" }
+      : null
+  );
+  const [name, setName] = useState(existing?.name ?? "");
   const [error, setError] = useState("");
 
   const designer = useDesignView(entity);
-  const editing = !!design;
+  const amending = !!design;
+  // A saved view opens with its own layout on screen, not a blank panel —
+  // you cannot describe a change to something you cannot see.
+  const preview = usePreviewLayout(entity);
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (!existing || seeded.current) return;
+    seeded.current = true;
+    preview
+      .mutateAsync({ template_id: existing.template_id, base_sql: existing.base_sql })
+      .then((r) => setDesign((d) => (d ? { ...d, html: r.html } : d)))
+      .catch((err) => setError(errorMessage(err)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existing]);
 
   async function run() {
     const text = instruction.trim();
@@ -76,12 +100,12 @@ export function ViewDesigner({
     <div className="view-designer" data-testid="view-designer">
       <div className="vd-head">
         <span className="vd-chip">
-          <Sparkles size={13} /> New view
+          <Sparkles size={13} /> {existing ? "Edit view" : "New view"}
         </span>
         <p className="vd-lede">
-          Describe how you want to see your {typeLabel.toLowerCase()} — a card per
-          record, a gallery, a compact table. The designer builds the layout and
-          its query.
+          {existing
+            ? `Describe a change to “${existing.name}” — “group them by region”, “show the rent bigger”, “add the owner”. The change is applied to this view.`
+            : `Describe how you want to see your ${typeLabel.toLowerCase()} — a card per record, a gallery, a compact table. The designer builds the layout and its query.`}
         </p>
         <button className="btn btn-ghost btn-sm" onClick={onCancel} aria-label="Close designer">
           <X size={15} />
@@ -119,7 +143,7 @@ export function ViewDesigner({
           disabled={designer.isPending}
           onChange={(e) => setInstruction(e.target.value)}
           placeholder={
-            editing
+            amending
               ? "Describe a change — e.g. “make the rent bold”"
               : `e.g. “a card per record with address, status badge and rent”`
           }
@@ -132,7 +156,7 @@ export function ViewDesigner({
         >
           {designer.isPending
             ? "Designing…"
-            : editing
+            : amending
               ? "Apply change"
               : "Design view"}
         </button>
@@ -149,10 +173,17 @@ export function ViewDesigner({
         </div>
       )}
 
-      {design && !designer.isPending && (
+      {(design?.html || preview.isPending) && !designer.isPending && (
         <>
-          <div className="vd-preview">
-            <ReportFrame html={design.html} title="View preview" />
+          {/* Keyed off whether there IS a layout, not off whether some request
+              is in flight — an edit that has just been applied must show its
+              result even while the panel's first fetch is still settling. */}
+          <div className={`vd-preview${design?.html ? "" : " vd-preview--busy"}`}>
+            {design?.html ? (
+              <ReportFrame html={design.html} title="View preview" />
+            ) : (
+              <Spinner />
+            )}
           </div>
           <div className="vd-save">
             <div className="field vd-name">
@@ -171,15 +202,15 @@ export function ViewDesigner({
               onClick={() =>
                 onSave(
                   {
-                    template_id: design.template_id,
-                    base_sql: design.sql,
-                    html: design.html,
+                    template_id: design!.template_id,
+                    base_sql: design!.sql,
+                    html: design!.html,
                   },
                   name.trim()
                 )
               }
             >
-              {busy ? "Saving…" : "Save view"}
+              {busy ? "Saving…" : existing ? "Save changes" : "Save view"}
             </button>
             <button className="btn btn-ghost" onClick={onCancel} disabled={busy}>
               Cancel

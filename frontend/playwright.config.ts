@@ -1,13 +1,20 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * End-to-end tests for the InventDB PMS frontend.
+ * End-to-end tests for InventDB PMS — both halves.
  *
- * The suite runs against the Vite dev server with the `/api` surface mocked in
- * the browser (see `e2e/fixtures/mock-api.ts`), so it needs neither the Flask
- * backend nor a live InventDB instance. That keeps it deterministic and lets
- * it assert on failure paths — 401s, 500s, empty datasets — that a live
- * instance would never produce on demand.
+ * The BROWSER projects run against the Vite dev server with the `/api` surface
+ * mocked in the browser (see `e2e/fixtures/mock-api.ts`), so they need neither
+ * the Flask backend nor a live InventDB instance. That keeps them deterministic
+ * and lets them assert on failure paths — 401s, 500s, empty datasets — that a
+ * live instance would never produce on demand.
+ *
+ * The `api` project runs against the REAL Flask app over HTTP
+ * (`backend/tests/e2e_server.py`), with InventDB replaced by an in-memory
+ * stand-in. Between them, the mocked browser suite and the pytest suite never
+ * meet: one stops at the network boundary, the other starts inside Flask's test
+ * client. This project is where the wire itself is asserted — status codes,
+ * headers, the error envelope — so a contract can't drift unnoticed.
  *
  * `locale` and `timezoneId` are pinned because the app formats currency and
  * dates with `toLocaleString`, so the rendered text is machine-dependent
@@ -45,9 +52,17 @@ export default defineConfig({
     // project starts from.
     { name: "setup", testMatch: /auth\.setup\.ts/ },
 
+    // The backend, over HTTP. No browser: these drive the API directly, so the
+    // project carries no storageState and depends on nothing.
+    {
+      name: "api",
+      testMatch: /api[\/].*\.spec\.ts/,
+      use: { baseURL: "http://127.0.0.1:8099" },
+    },
+
     {
       name: "chromium",
-      testIgnore: /mobile\.spec\.ts/,
+      testIgnore: [/mobile\.spec\.ts/, /[\/]api[\/]/],
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 900 },
@@ -67,12 +82,24 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: "npm run dev",
-    url: "http://localhost:5173",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-    stdout: "ignore",
-    stderr: "pipe",
-  },
+  webServer: [
+    {
+      command: "npm run dev",
+      url: "http://localhost:5173",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      stdout: "ignore",
+      stderr: "pipe",
+    },
+    // The real application, on a port, with InventDB stubbed in memory.
+    {
+      command: "python -m tests.e2e_server 8099",
+      cwd: "../backend",
+      url: "http://127.0.0.1:8099/api/health",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      stdout: "ignore",
+      stderr: "pipe",
+    },
+  ],
 });

@@ -21,7 +21,7 @@ import { AgentTimeline } from "../analyze/Timeline";
 import { ActionProgress, AutoTextarea } from "../analyze/ui";
 import { Modal } from "../components/Modal";
 import { ENTITIES } from "../config/entities";
-import { buildSchemaSummary, NS, suggestWidgets } from "./suggest";
+import { buildSchemaSummary, NS } from "./suggest";
 import { generateWidget } from "./reportWidget";
 import { WidgetView } from "./WidgetView";
 import { newWidgetId, WIDGET_KINDS, type Widget, type WidgetKind } from "./types";
@@ -31,16 +31,13 @@ const SPANS = [3, 4, 6, 8, 12];
 export function WidgetEditor({
   initial,
   onSave,
-  onApplyLayout,
   onClose,
 }: {
   initial?: Widget | null;
   onSave: (w: Widget) => void;
-  /** A whole described layout: replace what is there, or add to it. */
-  onApplyLayout?: (widgets: Widget[], how: "replace" | "add") => void;
   onClose: () => void;
 }) {
-  const [mode, setMode] = useState<"describe" | "simple" | "form" | "layout">(
+  const [mode, setMode] = useState<"describe" | "simple" | "form">(
     initial?.kind === "report" || !initial
       ? "describe"
       : initial?.kind === "form"
@@ -78,10 +75,6 @@ export function WidgetEditor({
   const [ask, setAsk] = useState("");
   const [modelFamily, setModelFamily] = useState("");
 
-  // whole layout, described
-  const [layoutAsk, setLayoutAsk] = useState("");
-  const [layoutWidgets, setLayoutWidgets] = useState<Widget[] | null>(null);
-
   // quick-add form
   const [formType, setFormType] = useState(
     initial?.kind === "form" ? (initial.formType || "") : ""
@@ -89,7 +82,7 @@ export function WidgetEditor({
 
   // shared
   const [previewW, setPreviewW] = useState<Widget | null>(initial ? { ...initial } : null);
-  const [busy, setBusy] = useState<"ai" | "sql" | "layout" | null>(null);
+  const [busy, setBusy] = useState<"ai" | "sql" | null>(null);
   const [aiSteps, setAiSteps] = useState<AgentStep[]>([]);
   const [progress, setProgress] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -210,40 +203,6 @@ export function WidgetEditor({
     }
   }
 
-  async function buildLayout() {
-    const instr = layoutAsk.trim();
-    if (!instr) {
-      setErr("Describe the dashboard you want.");
-      return;
-    }
-    const a = new AbortController();
-    ac.current = a;
-    setBusy("layout");
-    setErr(null);
-    setAiSteps([]);
-    setProgress("Reading your data…");
-    try {
-      setLayoutWidgets(
-        await suggestWidgets(instr, a.signal, setProgress, (st) =>
-          setAiSteps((xs) => [...xs, st])
-        )
-      );
-    } catch (e) {
-      if (!isCancel(e)) setErr((e as Error)?.message || "Could not build that layout.");
-    } finally {
-      if (ac.current === a) ac.current = null;
-      setBusy(null);
-      setProgress("");
-      // The trace is progress, not a result — it goes once the work is done.
-      setAiSteps([]);
-    }
-  }
-
-  function applyLayout(how: "replace" | "add") {
-    if (!layoutWidgets?.length || !onApplyLayout) return;
-    onApplyLayout(layoutWidgets, how);
-  }
-
   function previewSimple() {
     if (!sql.trim()) {
       setErr("Add a query (write it or generate it).");
@@ -318,38 +277,14 @@ export function WidgetEditor({
       title={initial ? "Edit widget" : "Add widget"}
       onClose={onClose}
       footer={
-        mode === "layout" ? (
-          <>
-            {/* A described layout is a whole dashboard, so the two things you
-                might mean by "yes" are different actions rather than one. */}
-            <button
-              className="btn btn-primary"
-              disabled={!layoutWidgets?.length}
-              onClick={() => applyLayout("replace")}
-            >
-              Replace my dashboard
-            </button>
-            <button
-              className="btn"
-              disabled={!layoutWidgets?.length}
-              onClick={() => applyLayout("add")}
-            >
-              Add to my dashboard
-            </button>
-            <button className="btn btn-ghost" onClick={onClose}>
-              Cancel
-            </button>
-          </>
-        ) : (
-          <>
-            <button className="btn btn-primary" onClick={save}>
-              {initial ? "Save widget" : "Add widget"}
-            </button>
-            <button className="btn" onClick={onClose}>
-              Cancel
-            </button>
-          </>
-        )
+        <>
+          <button className="btn btn-primary" onClick={save}>
+            {initial ? "Save widget" : "Add widget"}
+          </button>
+          <button className="btn" onClick={onClose}>
+            Cancel
+          </button>
+        </>
       }
     >
       <div className="we">
@@ -382,19 +317,8 @@ export function WidgetEditor({
           >
             Quick-add form
           </button>
-          {onApplyLayout && !initial && (
-            <button
-              className={`seg-btn${mode === "layout" ? " is-active" : ""}`}
-              role="tab"
-              aria-selected={mode === "layout"}
-              onClick={() => setMode("layout")}
-            >
-              ✦ Whole layout
-            </button>
-          )}
         </div>
 
-        {mode !== "layout" && (
         <div className="we-grid">
           <label className="field" htmlFor="w-title">
             <span>Title</span>
@@ -422,48 +346,8 @@ export function WidgetEditor({
             </select>
           </label>
         </div>
-        )}
 
-        {mode === "layout" ? (
-          <div className="we-pane">
-            <p className="we-sub">
-              Describe the dashboard you want and the assistant builds the whole thing —
-              several widgets at once, each backed by its own query. e.g. “a delinquency
-              view: overdue rent by property, leases ending within 60 days, and arrears by
-              region”.
-            </p>
-            <textarea
-              id="w-layout"
-              className="input we-describe"
-              placeholder="Describe the dashboard…"
-              value={layoutAsk}
-              onChange={(e) => setLayoutAsk(e.target.value)}
-              disabled={busy === "layout"}
-            />
-            <div className="we-row">
-              {busy === "layout" ? (
-                <ActionProgress label={progress || "Building the layout…"} onCancel={cancelAi} />
-              ) : (
-                <button
-                  className="btn btn-primary btn-sm"
-                  disabled={!layoutAsk.trim()}
-                  onClick={() => void buildLayout()}
-                >
-                  {layoutWidgets ? "Rebuild layout" : "✦ Build layout"}
-                </button>
-              )}
-              {layoutWidgets && busy !== "layout" && (
-                <span className="we-sub">
-                  {layoutWidgets.length} widget{layoutWidgets.length === 1 ? "" : "s"} — nothing
-                  is written until you choose below
-                </span>
-              )}
-            </div>
-            {busy === "layout" && aiSteps.length > 0 && (
-              <AgentTimeline steps={aiSteps} running />
-            )}
-          </div>
-        ) : mode === "describe" ? (
+        {mode === "describe" ? (
           <div className="we-pane">
             <p className="we-sub">
               Describe what to show — it can combine multiple sources. e.g. “each region with
@@ -621,21 +505,7 @@ export function WidgetEditor({
         <div className="we-preview">
           <span className="we-sub">Preview</span>
           <div className="we-preview-box">
-            {mode === "layout" ? (
-              layoutWidgets?.length ? (
-                <div className="bento we-layout-preview">
-                  {layoutWidgets.map((lw) => (
-                    <div key={lw.id} className={`bento-slot span-${lw.span}`}>
-                      <WidgetView w={lw} editing={false} onEdit={() => {}} onDelete={() => {}} />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="we-sub">
-                  Describe the dashboard and press ✦ Build layout to preview it here.
-                </p>
-              )
-            ) : mode === "form" ? (
+            {mode === "form" ? (
               formType.trim() ? (
                 <WidgetView
                   key={`form:${formType}`}

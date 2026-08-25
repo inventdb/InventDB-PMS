@@ -23,6 +23,7 @@ import { ConfirmDialog } from "../components/Modal";
 import { Skeleton } from "../analyze/ui";
 import { loadDashboard, saveDashboard } from "../dashboard/dashboardStore";
 import { suggestWidgets, NS } from "../dashboard/suggest";
+import { LayoutDesigner } from "../dashboard/LayoutDesigner";
 import { WidgetEditor } from "../dashboard/WidgetEditor";
 import { WidgetView } from "../dashboard/WidgetView";
 import type { Widget } from "../dashboard/types";
@@ -55,6 +56,8 @@ export default function Dashboard() {
   const [editing, setEditing] = useState(false);
   const [editor, setEditor] = useState<{ w: Widget | null } | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  /** The New layout panel — a whole dashboard, described. */
+  const [layoutOpen, setLayoutOpen] = useState(false);
 
   const [aiBusy, setAiBusy] = useState(false);
   const [aiStep, setAiStep] = useState("");
@@ -73,7 +76,8 @@ export default function Dashboard() {
   const dragId = useRef<string | null>(null);
   const [dragVisualId, setDragVisualId] = useState<string | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
-  useGridFlip(gridRef, (widgets ?? []).map((w) => w.id).join("|"));
+  // Tween the settle, never the drag itself.
+  useGridFlip(gridRef, (widgets ?? []).map((w) => w.id).join("|"), dragVisualId === null);
 
   useEffect(() => {
     let live = true;
@@ -104,10 +108,10 @@ export default function Dashboard() {
 
   const remove = (id: string) => persist((widgets ?? []).filter((x) => x.id !== id));
 
-  /** A whole described layout, from the editor's "Whole layout" tab. */
+  /** A whole described layout, from the New layout panel. */
   function applyLayout(next: Widget[], how: "replace" | "add") {
     persist(how === "replace" ? next : [...next, ...(widgets ?? [])]);
-    setEditor(null);
+    setLayoutOpen(false);
     setEditing(false);
   }
 
@@ -126,12 +130,40 @@ export default function Dashboard() {
     );
     const px = e.clientX;
     const py = e.clientY;
+
+    /**
+     * Insert beside whichever card the pointer is NEAREST, on whichever side of
+     * its centre the pointer is.
+     *
+     * Reading order — "before the first card the pointer sits above or left of"
+     * — sounds right and is not. It compares against a card's top EDGE, so the
+     * moment the pointer leaves its own row every card in the next row answers
+     * "before me", and the dragged card is pinned at the end of the row it
+     * started in. Dragging straight across, which is what people do, then moved
+     * a card one slot and stopped. Distance to a centre has no such boundary:
+     * both axes are considered together, and crossing a row is nothing special.
+     */
     let insert = items.length;
+    let best = Infinity;
+    let inRow = false;
+
     for (let i = 0; i < items.length; i++) {
       const r = items[i].getBoundingClientRect();
-      if (py < r.top || (py < r.bottom && px < r.left + r.width / 2)) {
-        insert = i;
-        break;
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      // A card the pointer is actually level with always beats one it is not.
+      // Straight-line distance alone lets a card in the row ABOVE win at the
+      // left edge of a wide card, and the drop lands a row early.
+      const over = py >= r.top && py <= r.bottom;
+      if (inRow && !over) continue;
+      const d = over ? Math.abs(px - cx) : Math.hypot(px - cx, py - cy);
+      if (over && !inRow) {
+        inRow = true;
+        best = Infinity;
+      }
+      if (d < best) {
+        best = d;
+        insert = px < cx ? i : i + 1;
       }
     }
     setWidgets((ws) => {
@@ -287,6 +319,9 @@ export default function Dashboard() {
             <RefreshCw size={14} className={refreshing ? "is-spinning" : undefined} />
             Refresh
           </button>
+          <button className="btn btn-sm" onClick={() => setLayoutOpen(true)}>
+            ✦ New layout
+          </button>
           <button
             className={`btn btn-sm${editing ? " is-active" : ""}`}
             onClick={() => setEditing((v) => !v)}
@@ -332,6 +367,12 @@ export default function Dashboard() {
             <button className="btn" onClick={() => setEditor({ w: null })}>
               + Add a widget
             </button>
+            {/* The toolbar only exists once there are widgets, so the empty
+                state carries this too — otherwise describing a layout would be
+                unreachable on the one dashboard that most needs it. */}
+            <button className="btn" onClick={() => setLayoutOpen(true)}>
+              ✦ New layout
+            </button>
           </div>
         </div>
       ) : (
@@ -368,9 +409,12 @@ export default function Dashboard() {
         <WidgetEditor
           initial={editor.w}
           onSave={addOrUpdate}
-          onApplyLayout={applyLayout}
           onClose={() => setEditor(null)}
         />
+      )}
+
+      {layoutOpen && (
+        <LayoutDesigner onApply={applyLayout} onClose={() => setLayoutOpen(false)} />
       )}
 
       {confirmClear && (
@@ -429,14 +473,49 @@ function WidgetViewSlot({
  * new one, so reordering reads as a push-around rather than a snap. The card
  * under the cursor is left alone — the native drag ghost follows the pointer.
  */
-function useGridFlip(ref: RefObject<HTMLElement | null>, orderKey: string) {
+function useGridFlip(
+  ref: RefObject<HTMLElement | null>,
+  orderKey: string,
+  /**
+   * False while a drag is in flight.
+   *
+   * `dragover` fires continuously, so the order can change many times a second
+   * and this effect would run on every one of them — transforming each card and
+   * scheduling a frame to clear it. The next run lands before that frame does,
+   * so offsets compound from stale rects: the grid flickers and cards can be
+   * translated far enough to look as though they have disappeared. The reflow
+   * IS the preview while dragging; FLIP is for the settle afterwards.
+   */
+  enabled: boolean
+) {
   const prev = useRef<Map<string, DOMRect>>(new Map());
+  const frames = useRef<number[]>([]);
+
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
+
     const nodes = Array.from(el.querySelectorAll<HTMLElement>("[data-flip]"));
     const cur = new Map<string, DOMRect>();
     for (const n of nodes) cur.set(n.dataset.flip!, n.getBoundingClientRect());
+
+    // Whatever the last run scheduled is now stale — it would restore a card to
+    // a position the grid has already moved on from.
+    for (const id of frames.current) cancelAnimationFrame(id);
+    frames.current = [];
+
+    if (!enabled) {
+      // Leave nothing mid-tween: a card holding a transform while the grid
+      // reflows underneath it is exactly the "vanished card".
+      for (const n of nodes) {
+        if (!n.style.transform && !n.style.transition) continue;
+        n.style.transition = "";
+        n.style.transform = "";
+      }
+      prev.current = cur;
+      return;
+    }
+
     for (const n of nodes) {
       const id = n.dataset.flip!;
       const p = prev.current.get(id);
@@ -447,13 +526,25 @@ function useGridFlip(ref: RefObject<HTMLElement | null>, orderKey: string) {
       if (!dx && !dy) continue;
       n.style.transition = "none";
       n.style.transform = `translate(${dx}px, ${dy}px)`;
-      requestAnimationFrame(() => {
-        n.style.transition = "transform .24s var(--ease)";
-        n.style.transform = "";
-      });
+      frames.current.push(
+        requestAnimationFrame(() => {
+          n.style.transition = "transform .24s var(--ease)";
+          n.style.transform = "";
+        })
+      );
     }
     prev.current = cur;
-  }, [orderKey, ref]);
+  }, [orderKey, ref, enabled]);
+
+  // Unmounting mid-tween would otherwise leave the frames to fire against
+  // detached nodes.
+  useEffect(
+    () => () => {
+      for (const id of frames.current) cancelAnimationFrame(id);
+      frames.current = [];
+    },
+    []
+  );
 }
 
 /** Room header — the greeting, the dashboard picker, and what the room is. */

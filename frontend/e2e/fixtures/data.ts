@@ -1399,7 +1399,41 @@ export interface SavedViewFixture {
 }
 
 /** What the mocked designer returns — a layout plus the query to drive it. */
-export const DESIGNED_LAYOUT =
-  "<html><body><div class='pv-card'>Designed layout</div></body></html>";
+/**
+ * A layout shaped like one the designer really returns: kit classes, a card per
+ * record, long values that would overflow a careless layout. Built to a count so
+ * a spec can render a tall page and check nothing is clipped.
+ */
+export function designedLayout(entity: string, count = 12, page = 0): string {
+  const card = (i: number) => `
+    <div class="vk-card">
+      <div class="vk-card-head">
+        <div><div class="vk-title">${entity} record ${page * 100 + i}</div>
+        <div class="vk-sub">Richmond, VA</div></div>
+        <span class="vk-badge is-ok">Active</span>
+      </div>
+      <div class="vk-figures">
+        <div class="vk-figure"><b>$2,100</b><span>Rent</span></div>
+        <div class="vk-figure"><b>10%</b><span>Fee</span></div>
+      </div>
+      <div class="vk-rows">
+        <div class="vk-row"><span>Email</span><b>a.very.long.address${i}@team758135.testinator.email</b></div>
+        <div class="vk-row"><span>Phone</span><b>(540) 555-50${String(i).padStart(2, "0")}</b></div>
+      </div>
+      <div class="vk-foot">4522 Pocahontas Tr, Charlottesville, VA 20191</div>
+    </div>`;
+  return `<html><head><style>
+    /* The kind of page styling a model emits unprompted — the app has to
+       survive it, so the fixture keeps it. */
+    html,body{height:100vh;margin:0;overflow:auto}
+    .vk-grid{max-height:70vh;overflow-y:auto}
+  </style></head><body>
+    <div class="vk-grid" data-page="${page}">
+      ${Array.from({ length: count }, (_, i) => card(i + 1)).join("")}
+    </div>
+  </body></html>`;
+}
+
+export const DESIGNED_LAYOUT = designedLayout("record");
 
 export const SAVED_VIEWS: { [entity: string]: SavedViewFixture[] } = {};

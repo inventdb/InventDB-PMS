@@ -439,7 +439,10 @@ def test_design_generates_stores_and_proves_the_layout_renders(api, fake):
     sent = fake.last_call("POST", "/api/saved-views/generate-layout").body
     assert sent["baseSql"] == f"SELECT * FROM {NAMESPACE}.properties"
     assert sent["namespace"] == NAMESPACE
-    assert sent["instruction"] == "a card per property"
+    # The instruction travels with the house style: a layout designed without
+    # the kit's vocabulary is styled however the model felt that run.
+    assert sent["instruction"].startswith("a card per property")
+    assert "vk-card" in sent["instruction"]
     # Stored, then rendered -- in that order, because the render needs the id.
     assert fake.calls_to("POST", "/api/report-templates")
     assert (
@@ -678,7 +681,12 @@ def test_render_pages_the_layout_upstream(api, fake):
     )
 
     assert resp.status_code == 200
-    assert resp.get_json() == {"html": "<div>page</div>", "total": 42}
+    body = resp.get_json()
+    assert body["total"] == 42
+    assert body["html"].startswith("<div>page</div>")
+    # The kit rides along on every render, so a view designed before it existed
+    # is brought up to the house style without being redesigned.
+    assert ".vk-card" in body["html"]
     sent = fake.last_call("POST", "/api/saved-views/render-layout").body
     assert sent["templateId"] == "tpl-1"
     assert sent["page"] == 2

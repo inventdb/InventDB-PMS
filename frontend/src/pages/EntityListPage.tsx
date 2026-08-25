@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { keepPreviousData } from "@tanstack/react-query";
+import { keepPreviousData, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDown,
   ArrowUp,
@@ -83,8 +83,11 @@ function EntityModule({ config }: { config: EntityConfig }) {
   // than silently rewriting what was saved.
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [designing, setDesigning] = useState(false);
+  /** The saved view the designer is amending. null = designing a new one. */
+  const [editingView, setEditingView] = useState<SavedView | null>(null);
   const [savingView, setSavingView] = useState(false);
   const [viewName, setViewName] = useState("");
+  const qc = useQueryClient();
   const views = useViews(config.name);
   const createView = useCreateView(config.name);
   const updateView = useUpdateView(config.name);
@@ -129,18 +132,49 @@ function EntityModule({ config }: { config: EntityConfig }) {
 
   async function saveDesignedView(designed: DesignedView, name: string) {
     try {
+      if (editingView) {
+        // The template is edited in place upstream, so the view keeps its id,
+        // its default flag and its place in the list — a change to a view, not
+        // a second view that looks like it.
+        await updateView.mutateAsync({
+          id: editingView.id,
+          patch: {
+            name,
+            template_id: designed.template_id,
+            base_sql: designed.base_sql ?? undefined,
+          },
+        });
+        closeDesigner();
+        setActiveViewId(editingView.id);
+        setPage(0);
+        // The layout changed under the same template id, so the cached render
+        // for this view is stale.
+        await qc.invalidateQueries({ queryKey: ["view-render", config.name] });
+        toast.success(`Updated “${name}”`);
+        return;
+      }
       const created = await createView.mutateAsync({
         name,
         template_id: designed.template_id,
         base_sql: designed.base_sql ?? undefined,
       });
-      setDesigning(false);
+      closeDesigner();
       setActiveViewId(created?.id ?? null);
       setPage(0);
       toast.success(`Saved “${name}”`);
     } catch (err) {
       toast.error(errorMessage(err));
     }
+  }
+
+  function closeDesigner() {
+    setDesigning(false);
+    setEditingView(null);
+  }
+
+  function editView(view: SavedView) {
+    setEditingView(view);
+    setDesigning(true);
   }
 
   async function saveCurrentView() {
@@ -226,10 +260,11 @@ function EntityModule({ config }: { config: EntityConfig }) {
   // Deleting the last row of the last page, or any change that shortens the
   // result while paged deep into it, leaves `offset` past the end. Step back to
   // the last page that still has rows rather than showing "no records".
+  const fetching = customView ? rendered.isFetching : list.isFetching;
   useEffect(() => {
-    if (list.isFetching) return;
+    if (fetching) return;
     if (total > 0 && page > 0 && page >= pageCount) setPage(pageCount - 1);
-  }, [total, page, pageCount, list.isFetching]);
+  }, [total, page, pageCount, fetching]);
 
   // `?focus=<id>` opens one record straight away. Analyze links here when a
   // result row is clicked — this app has no separate record page, so the module
@@ -362,7 +397,11 @@ function EntityModule({ config }: { config: EntityConfig }) {
           typeLabel={config.labelPlural}
           onApplyView={applyView}
           onApplyAll={applyAllView}
-          onNewView={() => setDesigning(true)}
+          onNewView={() => {
+            setEditingView(null);
+            setDesigning(true);
+          }}
+          onEditView={editView}
           onSaveCurrent={() => {
             setViewName("");
             setSavingView(true);
@@ -445,10 +484,23 @@ function EntityModule({ config }: { config: EntityConfig }) {
 
       {designing && (
         <ViewDesigner
+          // Remounts when the target changes, so an edit never opens showing
+          // the previous view's design.
+          key={editingView?.id ?? "new"}
           entity={config.name}
           typeLabel={config.labelPlural}
-          busy={createView.isPending}
-          onCancel={() => setDesigning(false)}
+          busy={createView.isPending || updateView.isPending}
+          editing={
+            editingView?.template_id
+              ? {
+                  id: editingView.id,
+                  name: editingView.name,
+                  template_id: editingView.template_id,
+                  base_sql: editingView.base_sql,
+                }
+              : null
+          }
+          onCancel={closeDesigner}
           onSave={saveDesignedView}
         />
       )}
@@ -554,7 +606,10 @@ function EntityModule({ config }: { config: EntityConfig }) {
         </ScrollX>
       )}
 
-      {items.length > 0 && (
+      {/* Gated on the RESULT, not on `items`: a custom view is rendered by the
+          engine and never fills `items`, so keying off it left the pager
+          appearing only when stale table rows happened to still be in cache. */}
+      {total > 0 && (
         <nav className="pager" aria-label={`${config.labelPlural} pagination`}>
           <p className="pager-status" aria-live="polite">
             Showing <b>{firstRow.toLocaleString()}</b>–<b>{lastRow.toLocaleString()}</b> of{" "}

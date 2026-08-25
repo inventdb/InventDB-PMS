@@ -23,7 +23,7 @@ import {
   RENEWALS,
   RENT_ROLL,
   SAVED_VIEWS,
-  DESIGNED_LAYOUT,
+  designedLayout,
   type SavedViewFixture,
   createReportStore,
   WORKFLOWS,
@@ -204,6 +204,8 @@ export async function installMockApi(
   // Analysis threads, per test — renaming and deleting mutate them, so they
   // cannot be shared between specs any more than the entity store can.
   const analyzeThreads: Rec[] = JSON.parse(JSON.stringify(ANALYZE_THREADS));
+  /** Which module each designed template belongs to. */
+  const designedFor: { [templateId: string]: string } = {};
 
   // The Today dashboard, per test. Empty by default so a spec starts on the
   // onboarding state and builds whatever layout it is about.
@@ -924,21 +926,25 @@ export async function installMockApi(
         if (!String(body.instruction ?? "").trim()) {
           return json(route, { error: "Describe the view you want" }, 400);
         }
+        // Refinements amend the SAME template, exactly as the backend does.
+        const tid = String(body.template_id ?? `tpl-${entity}`);
+        designedFor[tid] = entity;
         return json(route, {
-          template_id: String(body.template_id ?? "tpl-designed"),
-          html: DESIGNED_LAYOUT,
-          sql: null,
+          template_id: tid,
+          html: designedLayout(entity, 12, 0),
+          sql: `SELECT * FROM pms.${entity}`,
         });
       }
 
       if (method === "POST" && target === "render") {
-        if (!String(body.template_id ?? "").trim()) {
-          return json(route, { error: "template_id is required" }, 400);
-        }
-        return json(route, {
-          html: "<html><body><div>Rendered layout</div></body></html>",
-          total: (store[entity] ?? []).length,
-        });
+        const tid = String(body.template_id ?? "").trim();
+        if (!tid) return json(route, { error: "template_id is required" }, 400);
+        // Pages for real, so a spec can prove Next actually changes the rows.
+        const size = Number(body.page_size) > 0 ? Number(body.page_size) : 25;
+        const pg = Number(body.page) >= 0 ? Number(body.page) : 0;
+        const total = 120;
+        const rows = Math.max(0, Math.min(size, total - pg * size));
+        return json(route, { html: designedLayout(entity, rows, pg), total });
       }
 
       if (method === "POST") {

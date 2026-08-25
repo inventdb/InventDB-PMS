@@ -36,6 +36,41 @@ export interface ReportFrameHandle {
  * The frame grows to its content instead of scrolling internally, so a report
  * reads as one continuous sheet.
  */
+/**
+ * Force the document to flow at its natural height.
+ *
+ * A generated layout frequently declares its own page: `html,body{height:100vh}`,
+ * or a wrapper with `max-height` and `overflow:auto`. Inside a frame that is
+ * sized from its content, that produces the worst of both — the frame measures
+ * the collapsed height and the rows scroll in a nested scroller the wheel can
+ * barely reach.
+ *
+ * Only the page box and body's own children are neutralised. Anything deeper
+ * keeps its overflow, so a wide table inside a card still scrolls sideways
+ * where it should.
+ */
+const FLOW_RESET = `
+<style>
+  html, body {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  body > * {
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+</style>`;
+
+/** Append the reset so it wins over whatever the document declared. */
+function withFlowReset(html: string): string {
+  if (!html) return html;
+  return /<\/body>/i.test(html)
+    ? html.replace(/<\/body>/i, `${FLOW_RESET}</body>`)
+    : html + FLOW_RESET;
+}
+
 export const ReportFrame = forwardRef<
   ReportFrameHandle,
   { html: string; title: string }
@@ -56,7 +91,9 @@ export const ReportFrame = forwardRef<
       doc.documentElement.scrollHeight,
       doc.body?.scrollHeight ?? 0
     );
-    if (next > 0) setHeight(next);
+    // Never shrink below what has already been shown: a mid-reflow read can
+    // come back short and the frame would visibly collapse and re-expand.
+    if (next > 0) setHeight((h) => (Math.abs(next - h) < 2 ? h : next));
   }, []);
 
   // Web fonts and images land after load and change the height, and the frame
@@ -75,7 +112,7 @@ export const ReportFrame = forwardRef<
       ref={ref}
       className="report-frame"
       title={title}
-      srcDoc={html}
+      srcDoc={withFlowReset(html)}
       onLoad={measure}
       style={{ height }}
       sandbox="allow-same-origin allow-modals"
