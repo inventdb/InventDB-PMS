@@ -19,6 +19,7 @@
  * Files room pins it.
  */
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import * as XLSX from "xlsx";
 
 import { api } from "../api/client";
@@ -26,6 +27,7 @@ import { agentText, isCancel, type AgentStep } from "../analyze/agent";
 import { AgentTimeline } from "../analyze/Timeline";
 import { ActionProgress, useCancelableRun } from "../analyze/ui";
 import { useToast } from "../components/Toast";
+import { ENTITY_BY_NAME } from "../config/entities";
 import { titleCase } from "../utils/format";
 
 type ColType = "text" | "number" | "date" | "bool";
@@ -197,6 +199,14 @@ export default function ImportPage() {
   const [name, setName] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  // What the last successful import wrote, and a signature of the plan it wrote
+  // from. The signature is what lets the page tell "you have already imported
+  // this" from "you have changed something since" — the difference between a
+  // result to read and a button to press. Without it the room looked identical
+  // before and after a write, so the only way to find out whether an import had
+  // landed was to press the button again, which imported everything twice.
+  const [doneTypes, setDoneTypes] = useState<string[]>([]);
+  const [doneSig, setDoneSig] = useState<string | null>(null);
   const [recordMode, setRecordMode] = useState<"row" | "sheet">("row");
 
   // "All sheets → types": every data sheet of the workbook into its own type,
@@ -427,6 +437,9 @@ export default function ImportPage() {
   const importRef = useRef<{
     jobs: { type: string; records: Record<string, unknown>[] }[];
     total: number;
+    // Captured when the run starts, not read when it settles: by then the
+    // signature has moved on if the operator edited the plan mid-import.
+    sig: string;
     summary: (imported: number, types: number) => string;
   } | null>(null);
 
@@ -453,12 +466,26 @@ export default function ImportPage() {
           return;
         }
         if (aborted) {
-          if (n > 0) setDone(`Imported ${n.toLocaleString()} rows — cancelled the rest.`);
+          // A cancelled run still committed every batch before the stop. Those
+          // records are real, so this settles into the same result state as a
+          // finished one — re-pressing would write the committed prefix twice.
+          if (n > 0 && p) {
+            setDone(`Imported ${n.toLocaleString()} rows — cancelled the rest.`);
+            setDoneTypes([...new Set(p.jobs.map((j) => j.type))]);
+            setDoneSig(p.sig);
+          }
           return;
         }
         if (p) {
-          const msg = p.summary(n, p.jobs.length);
+          // Deduped: two sheets can be pointed at one type name, and the same
+          // module must not be offered twice — nor counted twice. "3 types"
+          // beside a single "View Matters" link is the room contradicting
+          // itself about what it just did.
+          const written = [...new Set(p.jobs.map((j) => j.type))];
+          const msg = p.summary(n, written.length);
           setDone(msg);
+          setDoneTypes(written);
+          setDoneSig(p.sig);
           toast.success(msg);
         }
       },
@@ -491,6 +518,7 @@ export default function ImportPage() {
       importRef.current = {
         jobs: [{ type, records: [rec] }],
         total: 1,
+        sig: planSig,
         summary: () => `Created 1 record in ${type}.`,
       };
     } else {
@@ -502,6 +530,7 @@ export default function ImportPage() {
       importRef.current = {
         jobs: [{ type, records: recs }],
         total: recs.length,
+        sig: planSig,
         summary: (imported) => `Created ${imported.toLocaleString()} records in ${type}.`,
       };
     }
@@ -511,6 +540,8 @@ export default function ImportPage() {
 
   function reset() {
     setWb(null);
+    setDoneTypes([]);
+    setDoneSig(null);
     setAoa([]);
     setCols([]);
     setSheet("");
@@ -542,6 +573,59 @@ export default function ImportPage() {
     (s) => s.include && s.rowCount > 0 && keyify(s.type)
   );
 
+  /**
+   * Everything about the current plan that decides what gets written.
+   *
+   * Compared against the signature of the last successful import, this answers
+   * the one question the room could not previously answer: is the button about
+   * to repeat work that is already done? Deliberately built from the *inputs* —
+   * file, sheet, header row, type name, column choices — rather than from the
+   * records themselves, so it stays cheap on a workbook of tens of thousands
+   * of rows and still changes the moment the operator touches anything that
+   * would alter the outcome. Untick one column and the plan is a different
+   * plan.
+   */
+  const planSig = useMemo(() => {
+    if (!wb) return "";
+    if (allSheets) {
+      const sheets = (plan || [])
+        .filter((sp) => sp.include && sp.rowCount > 0 && keyify(sp.type))
+        .map((sp) => `${sp.sheet}>${keyify(sp.type)}:${sp.rowCount}`);
+      return ["all", fileName, ...sheets].join("|");
+    }
+    if (recordMode === "sheet") {
+      const fields = (shapeFields || [])
+        .filter((f) => f.include)
+        .map((f) => `${f.key}:${f.type}:${f.value}`);
+      return ["one", fileName, sheet, keyify(name), shapeItems.length, ...fields].join("|");
+    }
+    return [
+      "rows",
+      fileName,
+      sheet,
+      headerRow,
+      keyify(name),
+      dataRows.length,
+      ...cols.map((c) => `${c.key}:${c.type}:${c.include ? 1 : 0}`),
+    ].join("|");
+  }, [
+    wb,
+    allSheets,
+    plan,
+    fileName,
+    sheet,
+    headerRow,
+    name,
+    cols,
+    dataRows,
+    recordMode,
+    shapeFields,
+    shapeItems,
+  ]);
+
+  /** The last import is still the current plan — show the result, not the button. */
+  const settled = !!done && doneSig === planSig;
+
   function importAll() {
     if (!chosenSheets.length) {
       setErr("Pick at least one sheet that has data.");
@@ -560,6 +644,7 @@ export default function ImportPage() {
     importRef.current = {
       jobs,
       total,
+      sig: planSig,
       summary: (imported, types) =>
         `Imported ${imported.toLocaleString()} records across ${types} type${types === 1 ? "" : "s"}.`,
     };
@@ -1002,7 +1087,6 @@ export default function ImportPage() {
       )}
 
       {err && <div className="inline-error">{err}</div>}
-      {done && <div className="chip chip-green">{done}</div>}
 
       {importRun.running ? (
         <ActionProgress
@@ -1011,6 +1095,54 @@ export default function ImportPage() {
           total={importRun.total}
           onCancel={importRun.cancel}
         />
+      ) : settled ? (
+        /* The plan above is the one that was just written. Say so, offer the
+           way onward, and take the Import button away — leaving it armed with
+           an unchanged plan is what made a second press write everything
+           twice. Editing anything re-arms it, because the plan is then a
+           different plan. */
+        <div className="import-result" role="status">
+          <div className="import-result-head">
+            <span className="import-result-mark" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+            </span>
+            <b>{done}</b>
+          </div>
+          <div className="import-result-actions">
+            {/* One type has an obvious next step, so it leads. Several do not —
+                a whole workbook lands in five modules at once and none of them
+                is "the" one — so they carry equal weight instead of five
+                primaries competing for the same click. */}
+            {doneTypes.map((t) =>
+              ENTITY_BY_NAME[t] ? (
+                <Link
+                  key={t}
+                  className={doneTypes.length === 1 ? "btn btn-primary" : "btn"}
+                  to={`/${t}`}
+                >
+                  {`View ${ENTITY_BY_NAME[t].labelPlural} →`}
+                </Link>
+              ) : (
+                <span key={t} className="chip is-active">
+                  {t}
+                </span>
+              )
+            )}
+            <button className="btn btn-ghost" onClick={reset}>
+              Import another file
+            </button>
+          </div>
+          <span className="import-sub">
+            {/* The second sentence is the one that explains the missing Import
+                button, so it is always said. */}
+            {doneTypes.some((t) => !ENTITY_BY_NAME[t])
+              ? "New types are not modules — query them in Analyze. "
+              : ""}
+            Change the file, sheet, type or columns to import again.
+          </span>
+        </div>
       ) : (
         <div className="import-actions">
           {allSheets ? (

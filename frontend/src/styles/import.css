@@ -316,6 +316,54 @@
   margin: 0;
 }
 
+/* ---- Result --------------------------------------------------------------
+   Where the Import button was, once the plan above has been written. It takes
+   the button's place rather than sitting beside it: the room used to look
+   identical before and after an import, so the only reading of a still-armed
+   primary button was "not done yet". */
+.import-result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--success);
+  border-radius: var(--radius);
+  background: var(--success-soft);
+}
+.import-result-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  color: var(--text);
+}
+.import-result-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  /* The page surface, not white: on dark the success green is the light
+     colour of the pair, so a white tick on it would be the unreadable way
+     round. --surface flips with the theme and stays the contrasting one. */
+  color: var(--surface);
+  background: var(--success);
+}
+.import-result-mark svg {
+  width: 15px;
+  height: 15px;
+}
+.import-result-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.import-result .import-sub {
+  margin: 0;
+}
+
 .inline-error {
   font-size: 13px;
   color: var(--danger);
