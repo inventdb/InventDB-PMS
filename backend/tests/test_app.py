@@ -9,12 +9,15 @@ the backend "worked".
 
 from __future__ import annotations
 
+import socket
+
 import pytest
 from werkzeug.exceptions import NotFound
 
 from app import __version__
+from app.config import Settings
 from app.errors import ApiError
-from app.main import _frontend_dist, create_app
+from app.main import _frontend_dist, _refuse_occupied_port, create_app
 
 
 # ===========================================================================
@@ -247,3 +250,73 @@ def test_a_directory_without_an_index_is_not_treated_as_a_build(tmp_path, monkey
 def test_a_nonexistent_configured_dist_is_ignored(tmp_path, monkeypatch):
     monkeypatch.setenv("FRONTEND_DIST", str(tmp_path / "nope"))
     assert _frontend_dist() != tmp_path / "nope"
+
+
+# ===========================================================================
+# Port collision
+# ===========================================================================
+
+
+def test_a_free_port_starts_normally():
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        free = probe.getsockname()[1]
+
+    # Nothing is listening now that the probe socket is closed.
+    assert _refuse_occupied_port("127.0.0.1", free) is None
+
+
+def test_a_port_someone_else_is_serving_is_refused():
+    """The bug this exists to prevent.
+
+    ``SO_REUSEADDR`` lets a second server bind a port Windows is already
+    serving, so the collision does not raise -- requests just get split between
+    two apps. A sibling InventDB app sharing this port is how its frontend ended
+    up proxying into this app's entity registry, with every module there
+    answering ``404 Unknown entity``.
+    """
+    with socket.socket() as taken:
+        taken.bind(("127.0.0.1", 0))
+        taken.listen(1)
+        port = taken.getsockname()[1]
+
+        with pytest.raises(SystemExit) as excinfo:
+            _refuse_occupied_port("127.0.0.1", port)
+
+    assert str(port) in str(excinfo.value)
+    assert "API_PORT" in str(excinfo.value)
+
+
+def test_a_wildcard_bind_is_probed_on_the_loopback():
+    """`0.0.0.0` is not connectable; the check has to ask 127.0.0.1 instead."""
+    with socket.socket() as taken:
+        taken.bind(("127.0.0.1", 0))
+        taken.listen(1)
+        port = taken.getsockname()[1]
+
+        with pytest.raises(SystemExit):
+            _refuse_occupied_port("0.0.0.0", port)
+
+
+def test_the_reloader_child_does_not_refuse_the_port_its_parent_opened(monkeypatch):
+    """Werkzeug binds in the parent and passes the fd down.
+
+    Without this exemption the guard fires on every `debug=True` start: the
+    child probes the port, finds the parent's own listening socket, and exits.
+    """
+    with socket.socket() as taken:
+        taken.bind(("127.0.0.1", 0))
+        taken.listen(1)
+        port = taken.getsockname()[1]
+
+        monkeypatch.setenv("WERKZEUG_RUN_MAIN", "true")
+        assert _refuse_occupied_port("127.0.0.1", port) is None
+
+        monkeypatch.delenv("WERKZEUG_RUN_MAIN")
+        monkeypatch.setenv("WERKZEUG_SERVER_FD", "7")
+        assert _refuse_occupied_port("127.0.0.1", port) is None
+
+
+def test_this_app_keeps_the_conventional_port():
+    """8000 stays here; the sibling app is the one that moved off it."""
+    assert Settings().api_port == 8000

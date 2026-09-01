@@ -78,6 +78,55 @@
   }
 }
 
+/* ---- Library toolbar -----------------------------------------------------
+   Select-all, the count, and the bulk action share one row directly above the
+   list. The count sits here rather than only in the page head because this is
+   where a search changes it. */
+.rs-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 2px;
+}
+
+.rs-tools-count {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.rs-bulk-del {
+  margin-left: auto;
+  padding: 5px 10px;
+}
+
+/* A generous hit area around a 15px box: the checkbox is the control most
+   likely to be aimed at on a touch screen and missed. */
+.rs-check {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+}
+
+.rs-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+.rs-check input:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.rs-row.is-chosen {
+  background: var(--brand-tint);
+}
+
 .rs-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

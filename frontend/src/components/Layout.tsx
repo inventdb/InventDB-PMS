@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { LogOut, Menu, Moon, Sun } from "lucide-react";
 
 import { ENTITY_BY_NAME } from "../config/entities";
@@ -86,6 +86,7 @@ export function Layout() {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const location = useLocation();
+  const navigate = useNavigate();
   // A workflow parks whenever it reaches a decision — which is to say, while
   // you are somewhere else in the app. Polled from the shell so it keeps
   // arriving without anyone having to sit on the Workflows page waiting for it.
@@ -102,7 +103,30 @@ export function Layout() {
     <div className="app-shell">
       <aside className={`sidebar ${open ? "open" : ""}`}>
         <BrandLockup className="sidebar-brand" tile />
-        <nav className="nav" onClick={() => setOpen(false)}>
+        {/* Tab / Shift+Tab inside the rail move to the next module *and* open it,
+            so stepping through the practice with the keyboard shows each type
+            rather than only lighting up its name. Scoped to the rail on
+            purpose: Tab is how you move between fields, and hijacking it
+            everywhere would throw you out of a half-filled form. */}
+        <nav
+          className="nav"
+          onClick={() => setOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key !== "Tab" || e.altKey || e.ctrlKey || e.metaKey) return;
+            const links = Array.from(
+              e.currentTarget.querySelectorAll<HTMLAnchorElement>("a.nav-item")
+            );
+            const at = links.indexOf(document.activeElement as HTMLAnchorElement);
+            if (at === -1) return;
+            const next = at + (e.shiftKey ? -1 : 1);
+            // Off either end: let Tab do its ordinary job and leave the rail.
+            if (next < 0 || next >= links.length) return;
+            e.preventDefault();
+            links[next].focus();
+            navigate(links[next].getAttribute("href") || "/");
+            setOpen(false);
+          }}
+        >
           {NAV.map((group, gi) => (
             <div key={gi}>
               {group.section && <div className="nav-section">{group.section}</div>}

@@ -3,12 +3,6 @@
     {
       "expense": 0.0,
       "income": 0.0,
-      "month": "2026-03",
-      "net": 0.0
-    },
-    {
-      "expense": 0.0,
-      "income": 0.0,
       "month": "2026-04",
       "net": 0.0
     },
@@ -35,6 +29,12 @@
       "income": 2500.0,
       "month": "2026-08",
       "net": 2180.0
+    },
+    {
+      "expense": 0.0,
+      "income": 0.0,
+      "month": "2026-09",
+      "net": 0.0
     }
   ],
   "expense_breakdown": [

@@ -37,6 +37,7 @@ import {
 import { errorMessage } from "../api/client";
 import {
   useDeleteReport,
+  useDeleteReports,
   useDeleteSnapshot,
   usePromoteSnapshot,
   useRenameReport,
@@ -83,12 +84,17 @@ export default function Reports() {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState("edit");
   const [confirmDelete, setConfirmDelete] = useState<ReportItem | null>(null);
+  // Selection is held as library keys rather than as items, so it survives the
+  // list re-fetching underneath it and cannot pin a stale copy of a report.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmBulk, setConfirmBulk] = useState(false);
   // Bumped after an AI edit so the stage re-fetches the definition and re-renders.
   const [editKey, setEditKey] = useState(0);
 
   const rename = useRenameReport();
   const deleteReport = useDeleteReport();
   const deleteSnapshot = useDeleteSnapshot();
+  const deleteMany = useDeleteReports();
   const promote = usePromoteSnapshot();
 
   const templateRows = useMemo(() => templates.data?.templates ?? [], [templates.data]);
@@ -155,6 +161,81 @@ export default function Reports() {
   }, [items, query]);
 
   const loading = templates.isLoading || snapshots.isLoading;
+
+  // ---- Selection ---------------------------------------------------------
+  // Everything below works on the *visible* rows. Select-all that quietly took
+  // in rows a search had filtered out would be a bulk delete of records the
+  // operator cannot see, which is the one thing this control must never do.
+  const chosen = useMemo(
+    () => visible.filter((i) => selected.has(i.key)),
+    [visible, selected]
+  );
+  const allChosen = visible.length > 0 && chosen.length === visible.length;
+  const someChosen = chosen.length > 0 && !allChosen;
+
+  // A deleted report leaves its key behind. Dropping keys the library no longer
+  // holds keeps the count honest and stops a stale key resurrecting a tick.
+  useEffect(() => {
+    setSelected((prev) => {
+      if (prev.size === 0) return prev;
+      const live = new Set(items.map((i) => i.key));
+      const next = new Set([...prev].filter((k) => live.has(k)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [items]);
+
+  function toggleOne(key: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allChosen) visible.forEach((i) => next.delete(i.key));
+      else visible.forEach((i) => next.add(i.key));
+      return next;
+    });
+  }
+
+  async function doBulkDelete() {
+    const targets = chosen;
+    let deleted = 0;
+    let failed: string[] = [];
+    try {
+      ({ deleted, failed } = await deleteMany.mutateAsync(
+        targets.map((i) =>
+          i.kind === "template"
+            ? ({ kind: "template", id: i.templateId, name: i.name } as const)
+            : ({ kind: "snapshot", recordId: i.snapshot.record_id, name: i.name } as const)
+        )
+      ));
+    } catch (err) {
+      // The mutation handles a per-report failure itself, so reaching here means
+      // the run did not get that far. Close the dialog anyway: leaving it open
+      // over an error is an invitation to press Delete a second time.
+      setConfirmBulk(false);
+      toast.error(errorMessage(err));
+      return;
+    }
+    if (targets.some((i) => i.key === activeKey)) setActiveKey("");
+    setSelected(new Set());
+    setConfirmBulk(false);
+    if (failed.length) {
+      // Naming the survivors matters more than the total: the operator has to
+      // know which reports are still there before deciding what to do next.
+      toast.error(
+        `Deleted ${deleted}. Could not delete ${failed.length}: ${failed
+          .slice(0, 3)
+          .join(", ")}${failed.length > 3 ? "…" : ""}`
+      );
+    } else {
+      toast.success(`Deleted ${deleted} report${deleted === 1 ? "" : "s"}.`);
+    }
+  }
 
   async function doDelete(item: ReportItem) {
     try {
@@ -227,6 +308,45 @@ export default function Reports() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
+          {/* The count belongs beside the list it counts, not only in the page
+              head: with a search box above it, "6 reports" three hundred pixels
+              away answers a question nobody asked once the list is filtered. */}
+          <div className="rs-tools">
+            <label className="rs-check rs-check-all" title="Select every report shown">
+              <input
+                type="checkbox"
+                checked={allChosen}
+                ref={(el) => {
+                  if (el) el.indeterminate = someChosen;
+                }}
+                onChange={toggleAllVisible}
+                disabled={visible.length === 0}
+                aria-label={allChosen ? "Clear selection" : "Select every report shown"}
+              />
+            </label>
+            {chosen.length > 0 ? (
+              <>
+                <span className="rs-tools-count">{chosen.length} selected</span>
+                <button
+                  type="button"
+                  className="btn btn-danger btn-sm rs-bulk-del"
+                  onClick={() => setConfirmBulk(true)}
+                  disabled={deleteMany.isPending}
+                >
+                  <Trash2 size={14} />
+                  Delete {chosen.length}
+                </button>
+              </>
+            ) : (
+              <span className="rs-tools-count">
+                {/* Filtered: say what is on screen *and* what is not, so a
+                    shrinking list reads as a search rather than a loss. */}
+                {query.trim() && visible.length !== items.length
+                  ? `${visible.length} of ${items.length} reports`
+                  : `${items.length} report${items.length === 1 ? "" : "s"}`}
+              </span>
+            )}
+          </div>
           <div className="rs-list">
             {visible.length === 0 ? (
               <p className="report-note">No report matches “{query}”.</p>
@@ -234,8 +354,18 @@ export default function Reports() {
               visible.map((item) => (
                 <div
                   key={item.key}
-                  className={`rs-row ${item.key === activeKey ? "active" : ""}`}
+                  className={`rs-row ${item.key === activeKey ? "active" : ""}${
+                    selected.has(item.key) ? " is-chosen" : ""
+                  }`}
                 >
+                  <label className="rs-check" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(item.key)}
+                      onChange={() => toggleOne(item.key)}
+                      aria-label={`Select ${item.name}`}
+                    />
+                  </label>
                   <button
                     type="button"
                     className="rs-row-open"
@@ -446,6 +576,27 @@ export default function Reports() {
           onCancel={() => setConfirmDelete(null)}
         />
       )}
+
+      {confirmBulk && (
+        <ConfirmDialog
+          title={`Delete ${chosen.length} report${chosen.length === 1 ? "" : "s"}?`}
+          message={
+            // Naming them is the point. "Delete 6 reports?" is not a question
+            // anyone can answer safely without knowing which six.
+            `${chosen
+              .slice(0, 6)
+              .map((i) => `“${i.name}”`)
+              .join(", ")}${chosen.length > 6 ? `, and ${chosen.length - 6} more` : ""}. ` +
+            "Live reports are removed from your InventDB instance, for everyone. " +
+            "This can't be undone."
+          }
+          confirmLabel={`Delete ${chosen.length}`}
+          busy={deleteMany.isPending}
+          onConfirm={() => void doBulkDelete()}
+          onCancel={() => setConfirmBulk(false)}
+        />
+      )}
+
     </div>
   );
 }

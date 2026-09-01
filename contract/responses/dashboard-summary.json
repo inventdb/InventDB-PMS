@@ -1,9 +1,9 @@
 {
   "financials": {
     "expected_rent": 2500.0,
-    "expense_month": 320.0,
-    "income_month": 2500.0,
-    "net_month": 2180.0
+    "expense_month": 0.0,
+    "income_month": 0.0,
+    "net_month": 0.0
   },
   "leases": {
     "active": 1,

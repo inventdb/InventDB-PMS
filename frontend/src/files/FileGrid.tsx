@@ -15,10 +15,21 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { ChevronLeft, ChevronRight, FileText, Search, Upload } from "lucide-react";
 
 import { Alert, EmptyState, Spinner } from "../components/ui";
+import { ConfirmDialog } from "../components/Modal";
 import { ScrollX } from "../components/ScrollX";
 import { useToast } from "../components/Toast";
 import { errorMessage } from "../api/client";
-import { useFileSearch, useUploadFile, type FileSearchParams } from "../api/hooks";
+import {
+  downloadFile,
+  useDeleteFile,
+  useFileSearch,
+  useUploadFile,
+  type FileHome,
+  type FileSearchParams,
+} from "../api/hooks";
+import { ActionProgress } from "../analyze/ui";
+import { listTypes } from "../dashboard/api";
+import { NS } from "../dashboard/suggest";
 import { ENTITIES } from "../config/entities";
 import type { FileRow } from "../types";
 import type { DriveSelection } from "./FolderTree";
@@ -46,8 +57,16 @@ const MODE_SEARCH: { [m in Mode]: FileSearchParams["searchType"] } = {
   meaning: "semantic",
 };
 
+/**
+ * A file with this record id has no real parent — it sits in its type's vault.
+ * InventDB's own convention, and what an upload lands in unless it is aimed at
+ * a specific record. Both files already in this drive live here.
+ */
+const VAULT = "_vault";
+
 interface UploadTarget {
   type: string;
+  /** Empty means the vault: a home without a parent record. */
   recordId: string;
 }
 
@@ -55,11 +74,31 @@ function readLastTarget(): UploadTarget | null {
   try {
     const raw = localStorage.getItem(LAST_TARGET_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
-    return parsed?.type && parsed?.recordId ? parsed : null;
+    return parsed?.type ? { type: parsed.type, recordId: parsed.recordId || "" } : null;
   } catch {
     return null;
   }
 }
+
+/** `a/b/c.pdf` -> `a/b`; a bare name has no folder. */
+function relativeFolder(file: File): string {
+  const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath || "";
+  return folderOf(rel);
+}
+
+/** The row's full address: its type, its record, and the attachment itself. */
+const homeOf = (f: FileRow): FileHome => ({
+  ...fileHome(f),
+  attachmentId: fileId(f),
+});
+
+/** `application/pdf` -> `pdf`, `image/jpeg` -> `jpeg` — the useful half. */
+function shortType(f: FileRow): string {
+  const raw = f.content_type || ext(f.filename || "").toLowerCase();
+  return raw.replace(/^application[/]/, "").replace(/^image[/]/, "") || "—";
+}
+
+const trimSlashes = (v: string) => v.trim().replace(/^\/+|\/+$/g, "");
 
 export function FileGrid({
   selection,
@@ -75,10 +114,17 @@ export function FileGrid({
   const [page, setPage] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pendingDrop, setPendingDrop] = useState<File[] | null>(null);
+  // Staged, not sent. Nothing leaves the browser until the destination below
+  // is confirmed — which is the whole point of showing it.
+  const [staged, setStaged] = useState<File[]>([]);
+  const [sending, setSending] = useState<{ done: number; total: number } | null>(null);
   const picker = useRef<HTMLInputElement>(null);
+  const folderPicker = useRef<HTMLInputElement | null>(null);
+  const cancelSend = useRef(false);
+  const [confirming, setConfirming] = useState<FileRow | null>(null);
 
   const upload = useUploadFile();
+  const removeFile = useDeleteFile();
 
   // A new scope or a new query starts at the first page; staying on page 4 of
   // a result set that no longer has one shows an empty grid over real matches.
@@ -108,43 +154,46 @@ export function FileGrid({
     return rows.filter((r) => (r.filename || "").toLowerCase().includes(needle));
   }, [rows, draft, submitted]);
 
-  async function send(files: File[], target: UploadTarget) {
+  async function send(files: File[], target: UploadTarget, prefix: string) {
     setError(null);
+    cancelSend.current = false;
+    setSending({ done: 0, total: files.length });
     let ok = 0;
     for (const file of files) {
+      if (cancelSend.current) break;
       try {
         // A dropped folder gives each file a relative path; its directory part
         // becomes the folder, so the structure survives the drop rather than
-        // flattening into one heap.
-        const relative = (file as File & { webkitRelativePath?: string }).webkitRelativePath || "";
-        const folder = [selection.folder, folderOf(relative)].filter(Boolean).join("/");
+        // flattening into one heap. The typed prefix sits above it.
+        const folder = [prefix, relativeFolder(file)].filter(Boolean).join("/");
         await upload.mutateAsync({
           type: target.type,
-          recordId: target.recordId,
+          // No record chosen means the type's vault — a home of its own, not a
+          // missing answer. It is where both files already in this drive live.
+          recordId: target.recordId || VAULT,
           file,
           folder: folder || undefined,
         });
         ok += 1;
+        setSending({ done: ok, total: files.length });
       } catch (err) {
         setError(errorMessage(err));
         break;
       }
     }
-    if (ok) toast.success(`Uploaded ${ok} file${ok === 1 ? "" : "s"}.`);
+    setSending(null);
+    setStaged([]);
+    if (ok) {
+      const where = target.recordId ? `${target.type} · ${target.recordId}` : target.type;
+      toast.success(`Uploaded ${ok} file${ok === 1 ? "" : "s"} to ${where}.`);
+    }
   }
 
+  /** Everything dropped or picked waits here until the destination is confirmed. */
   function accept(files: File[]) {
     if (!files.length) return;
-    const target = selection.type
-      ? { type: selection.type, recordId: readLastTarget()?.recordId || "" }
-      : readLastTarget();
-    // A file has to land on a record. If we do not know which, ask — never
-    // guess, and never drop the bytes on the floor either.
-    if (!target?.type || !target?.recordId) {
-      setPendingDrop(files);
-      return;
-    }
-    void send(files, target);
+    setError(null);
+    setStaged((prev) => [...prev, ...files]);
   }
 
   function onDrop(e: DragEvent) {
@@ -197,13 +246,60 @@ export function FileGrid({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
           />
+          {/* Typing filters what is already on screen; this is what asks the
+              server. Without a button the distinction is invisible. */}
+          <button className="btn btn-sm" type="submit" disabled={search.isFetching}>
+            <Search size={14} /> {search.isFetching ? "Searching…" : "Search"}
+          </button>
+          {(draft || submitted) && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                setDraft("");
+                setSubmitted("");
+                setPage(0);
+              }}
+            >
+              Clear
+            </button>
+          )}
         </form>
 
-        <button className="btn btn-sm" onClick={() => picker.current?.click()} disabled={upload.isPending}>
-          <Upload size={14} /> {upload.isPending ? "Uploading…" : "Upload"}
+        {/* Two pickers, as SOAR has: a folder upload needs `webkitdirectory`,
+            which a file picker cannot also carry. */}
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={() => picker.current?.click()}
+          disabled={!!sending}
+        >
+          <Upload size={14} /> Upload files
+        </button>
+        <button
+          className="btn btn-sm"
+          onClick={() => folderPicker.current?.click()}
+          disabled={!!sending}
+        >
+          Upload folder
         </button>
         <input
           ref={picker}
+          type="file"
+          multiple
+          className="fx-hidden-input"
+          onChange={(e) => {
+            accept(Array.from(e.target.files || []));
+            e.target.value = "";
+          }}
+        />
+        <input
+          ref={(el) => {
+            if (el) {
+              el.setAttribute("webkitdirectory", "");
+              el.setAttribute("directory", "");
+            }
+            folderPicker.current = el;
+          }}
           type="file"
           multiple
           className="fx-hidden-input"
@@ -216,16 +312,43 @@ export function FileGrid({
 
       {error && <Alert kind="error">{error}</Alert>}
 
-      {pendingDrop && (
-        <UploadTargetPrompt
-          count={pendingDrop.length}
+      {/* Always on screen, not only after a drop: a drive whose drop target is
+          the file list gives no sign it accepts anything at all. */}
+      <div
+        className={`fx-dropzone ${dragging ? "is-over" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+        onClick={() => picker.current?.click()}
+      >
+        <span className="dz-mark" aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 16V4M7 9l5-5 5 5M5 20h14" />
+          </svg>
+        </span>
+        <div>
+          <b>Drop files or a folder</b> here, or click to choose — you&rsquo;ll confirm where
+          they live before anything uploads. Folders keep their structure.
+        </div>
+      </div>
+
+      {staged.length > 0 && (
+        <UploadStage
+          files={staged}
           presetType={selection.type}
-          onCancel={() => setPendingDrop(null)}
-          onConfirm={(target) => {
+          presetFolder={selection.folder}
+          sending={sending}
+          onRemove={(i) => setStaged((prev) => prev.filter((_, at) => at !== i))}
+          onCancel={() => {
+            if (sending) cancelSend.current = true;
+            else setStaged([]);
+          }}
+          onConfirm={(target, prefix) => {
             localStorage.setItem(LAST_TARGET_KEY, JSON.stringify(target));
-            const files = pendingDrop;
-            setPendingDrop(null);
-            void send(files, target);
+            void send(staged, target, prefix);
           }}
         />
       )}
@@ -260,8 +383,11 @@ export function FileGrid({
                 <tr>
                   <th>Name</th>
                   <th>Where</th>
-                  <th>Size</th>
-                  <th>Added</th>
+                  <th>Type</th>
+                  <th className="fx-num">Size</th>
+                  <th>Modified</th>
+                  <th>Status</th>
+                  <th aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
@@ -288,8 +414,60 @@ export function FileGrid({
                           {f.folder_path ? ` › ${f.folder_path}` : ""}
                         </span>
                       </td>
-                      <td className="fx-num">{fileSizeLabel(fileSize(f))}</td>
-                      <td className="fx-num">{fmtFileDate(f.created_at)}</td>
+                      <td className="fx-dim fx-type" title={f.content_type || undefined}>
+                        {shortType(f)}
+                      </td>
+                      <td className="fx-num fx-dim">
+                        {fileSizeLabel(fileSize(f))}
+                        {f.version && f.version > 1 ? ` · v${f.version}` : ""}
+                      </td>
+                      <td className="fx-dim">{fmtFileDate(f.updated_at || f.created_at)}</td>
+                      <td>
+                        {/* An unindexed file is stored but not yet searchable,
+                            which is worth saying: its absence from a text
+                            search is the pipeline still working, not a miss. */}
+                        {f.processing_state && f.processing_state !== "Ready" ? (
+                          <span
+                            className={`fx-state is-${f.processing_state.toLowerCase()}`}
+                          >
+                            {f.processing_state === "Skipped"
+                              ? "no text"
+                              : f.processing_state === "Failed"
+                                ? "failed"
+                                : f.processing_state === "Processing"
+                                  ? "processing…"
+                                  : "queued"}
+                          </span>
+                        ) : (
+                          <span className="fx-state">ready</span>
+                        )}
+                      </td>
+                      <td
+                        className="fx-actions"
+                        // The row opens the file; the buttons do their own
+                        // thing, so their clicks stop here.
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button className="btn btn-ghost btn-sm" onClick={() => onOpen(f)}>
+                          Preview
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => {
+                            downloadFile(homeOf(f), f.filename || "file").catch((err) =>
+                              setError(errorMessage(err))
+                            );
+                          }}
+                        >
+                          Download
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-sm fx-del"
+                          onClick={() => setConfirming(f)}
+                        >
+                          Delete
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -298,6 +476,38 @@ export function FileGrid({
           </ScrollX>
         )}
       </div>
+
+      <details className="fx-how">
+        <summary>⌁ how this works</summary>
+        <div>
+          <b>source</b> — <code>POST /api/files/search</code>, over every attachment in the{" "}
+          <code>{NS}</code> namespace you can see (access is enforced upstream).
+        </div>
+        <div>
+          <b>note</b> — each file lives on a record type (the Where chip); a file with no
+          parent record sits in that type&rsquo;s <code>_vault</code>. Folders come from the
+          path files were uploaded with.
+        </div>
+      </details>
+
+      {confirming && (
+        <ConfirmDialog
+          title={`Delete “${confirming.filename || "this file"}”?`}
+          message="This removes the file and every version of it from your InventDB instance. This can't be undone."
+          confirmLabel="Delete"
+          busy={removeFile.isPending}
+          onConfirm={() => {
+            const home = homeOf(confirming);
+            const name = confirming.filename || "file";
+            removeFile
+              .mutateAsync(home)
+              .then(() => toast.success(`Deleted “${name}”.`))
+              .catch((err) => setError(errorMessage(err)))
+              .finally(() => setConfirming(null));
+          }}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
 
       {pages > 1 && (
         <div className="fx-pager">
@@ -331,68 +541,180 @@ export function FileGrid({
  * Asked rather than assumed, and only when the answer is not already known —
  * a file with no record to hang off is not a file this system can store.
  */
-function UploadTargetPrompt({
-  count,
+/**
+ * The staging panel — everything picked, and where it is about to go.
+ *
+ * Uploading is the one action in this room that cannot be undone by looking
+ * somewhere else, so it is deliberately two steps: the files sit here, named
+ * and sized, until a destination is confirmed. Nothing has left the browser
+ * while this is on screen, which is what the badge says out loud.
+ */
+function UploadStage({
+  files,
   presetType,
+  presetFolder,
+  sending,
+  onRemove,
   onCancel,
   onConfirm,
 }: {
-  count: number;
+  files: File[];
   presetType?: string;
+  presetFolder?: string;
+  sending: { done: number; total: number } | null;
+  onRemove: (index: number) => void;
   onCancel: () => void;
-  onConfirm: (target: UploadTarget) => void;
+  onConfirm: (target: UploadTarget, folderPrefix: string) => void;
 }) {
-  const [type, setType] = useState(presetType || ENTITIES[0]?.name || "");
-  const [recordId, setRecordId] = useState(readLastTarget()?.recordId || "");
+  const last = readLastTarget();
+  const [type, setType] = useState(presetType || last?.type || "files");
+  const [recordId, setRecordId] = useState("");
+  const [folder, setFolder] = useState(presetFolder || "");
+
+  // Every type in the namespace, InventDB's own list — the same source SOAR
+  // offers, so a vault this drive can already show is one it can also fill.
+  const [types, setTypes] = useState<string[]>([]);
+  useEffect(() => {
+    let live = true;
+    listTypes()
+      .then((all) => {
+        if (live) setTypes(all.filter((t) => !t.startsWith("_")));
+      })
+      .catch(() => {
+        /* the select falls back to the modules below */
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const options = useMemo(() => {
+    const names = types.length ? types : ENTITIES.map((e) => e.name);
+    return Array.from(new Set([...names, "files", type])).filter(Boolean).sort();
+  }, [types, type]);
+
+  const prefix = trimSlashes(folder);
+  const landing = `${NS}.${type || "…"}`;
 
   return (
-    <div className="card card-pad fx-target">
-      <h4 className="fx-target-head">
-        Where should {count} file{count === 1 ? "" : "s"} go?
-      </h4>
-      <p className="report-note">
-        Files attach to a record. Pick the record type and the id of the record they belong to —
-        the lease, the work order, the inspection.
-      </p>
-      <div className="form-grid">
-        <div className="field">
-          <label htmlFor="fx-target-type">Record type</label>
-          <select
-            id="fx-target-type"
-            className="select"
-            value={type}
-            onChange={(e) => setType(e.target.value)}
+    <div className="card fx-stage">
+      <div className="fx-stage-head">
+        <h4>
+          Ready to upload — {files.length} file{files.length === 1 ? "" : "s"}
+        </h4>
+        <span className="fx-stage-tag">NOT UPLOADED YET</span>
+      </div>
+
+      <div className="fx-stage-list">
+        {files.slice(0, 200).map((f, i) => (
+          <div className="fx-stage-row" key={`${f.name}-${i}`}>
+            <span className="fx-stage-name" title={relativeFolder(f) || f.name}>
+              {(f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name}
+            </span>
+            <span className="fx-stage-size">{fileSizeLabel(f.size)}</span>
+            {!sending && (
+              <button
+                type="button"
+                className="fx-stage-x"
+                aria-label={`Remove ${f.name}`}
+                onClick={() => onRemove(i)}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        ))}
+        {files.length > 200 && (
+          <span className="report-note">…and {files.length - 200} more</span>
+        )}
+      </div>
+
+      {!sending && (
+        <div className="fx-stage-where">
+          <span className="report-note">
+            Where should these live? Every file belongs to a <b>type</b> — pick one, and
+            attach it to a record if it has one.
+          </span>
+          <div className="fx-stage-grid">
+            <div className="field">
+              <label>Namespace</label>
+              {/* Fixed, unlike SOAR's picker: this app is pinned to one
+                  namespace server-side, so offering a choice it cannot honour
+                  would be a control that lies. */}
+              <input className="input mono" value={NS} readOnly aria-readonly />
+            </div>
+            <div className="field">
+              <label htmlFor="fx-stage-type">Type</label>
+              <select
+                id="fx-stage-type"
+                className="select"
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+              >
+                {options.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="fx-stage-record">Record</label>
+              <input
+                id="fx-stage-record"
+                className="input mono"
+                value={recordId}
+                placeholder="(vault — no parent record)"
+                onChange={(e) => setRecordId(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="fx-stage-folder">
+            <span className="report-note">Folder</span>
+            <input
+              className="input mono"
+              value={folder}
+              placeholder="(target root — no folder)"
+              aria-label="Folder prefix for uploaded files"
+              onChange={(e) => setFolder(e.target.value)}
+            />
+            {folder && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setFolder("")}>
+                Clear
+              </button>
+            )}
+          </div>
+          <span className="report-note">
+            Files land at{" "}
+            <b className="mono">
+              {landing} / {prefix ? `${prefix}/…` : "…"}
+            </b>
+            {recordId.trim() ? ` — attached to record ${recordId.trim()}.` : ""}
+          </span>
+        </div>
+      )}
+
+      {sending ? (
+        <ActionProgress
+          label="Uploading files…"
+          done={sending.done}
+          total={sending.total}
+          onCancel={onCancel}
+        />
+      ) : (
+        <div className="fx-stage-actions">
+          <button
+            className="btn btn-amber"
+            disabled={!type}
+            onClick={() => onConfirm({ type, recordId: recordId.trim() }, prefix)}
           >
-            {ENTITIES.map((entity) => (
-              <option key={entity.name} value={entity.name}>
-                {entity.labelPlural}
-              </option>
-            ))}
-          </select>
+            Upload {files.length} file{files.length === 1 ? "" : "s"} to {landing}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={onCancel}>
+            Cancel
+          </button>
         </div>
-        <div className="field">
-          <label htmlFor="fx-target-record">Record id</label>
-          <input
-            id="fx-target-record"
-            className="input mono"
-            value={recordId}
-            placeholder="lea-1"
-            onChange={(e) => setRecordId(e.target.value)}
-          />
-        </div>
-      </div>
-      <div className="fx-target-actions">
-        <button className="btn btn-ghost btn-sm" onClick={onCancel}>
-          Cancel
-        </button>
-        <button
-          className="btn btn-primary btn-sm"
-          disabled={!type || !recordId.trim()}
-          onClick={() => onConfirm({ type, recordId: recordId.trim() })}
-        >
-          Upload here
-        </button>
-      </div>
+      )}
     </div>
   );
 }

@@ -36,14 +36,19 @@ async function saveCurrentAs(page: import("@playwright/test").Page, name: string
 }
 
 test.describe("View switcher", () => {
-  test("every module offers one, defaulting to the full list", async ({ page }) => {
-    for (const { name, plural } of MODULES) {
+  // One test per module rather than one loop over all ten. A single test walking
+  // every module spends ten navigations against one timeout, and under
+  // `fullyParallel` that budget is shared with whatever else the other workers
+  // are doing — so it failed on machine load rather than on a defect. Split,
+  // each module carries its own budget and they run in parallel.
+  for (const { name, plural } of MODULES) {
+    test(`${name} offers one, defaulting to the full list`, async ({ page }) => {
       await page.goto(`/${name}`);
       await expect(page.locator(trigger)).toHaveText(
         new RegExp(`All ${plural}`, "i")
       );
-    }
-  });
+    });
+  }
 
   test("starts with no saved views, so Manage has nothing to do", async ({ page }) => {
     await page.goto("/properties");

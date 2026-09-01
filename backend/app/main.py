@@ -12,6 +12,7 @@ serves the SPA so the whole app can be deployed as a single service.
 from __future__ import annotations
 
 import os
+import socket
 from pathlib import Path
 
 from flask import Flask, jsonify, send_from_directory
@@ -155,8 +156,45 @@ def create_app() -> Flask:
 app = create_app()
 
 
+def _refuse_occupied_port(host: str, port: int) -> None:
+    """Abort rather than share a port that something else is already serving.
+
+    Both Flask's dev server and waitress set ``SO_REUSEADDR``, and on Windows
+    that flag lets a second process bind an address another process is already
+    listening on -- no ``EADDRINUSE``, no warning. Connections then land on
+    whichever socket the stack picks, so a second app on the same port doesn't
+    fail to start, it *intermittently answers for the first one*.
+
+    That is not a theoretical failure. A sibling InventDB app sharing 8000 meant
+    its frontend proxied ``/api`` straight into this app's entity registry: every
+    module there came back ``404 Unknown entity`` while both servers reported
+    themselves healthy. Refusing to start names the collision at the moment it
+    happens instead of leaving it to be diagnosed from an empty table three
+    layers away.
+    """
+    # Werkzeug's reloader binds the listening socket in the parent and hands the
+    # descriptor to the child, so the child would find "its own" port occupied
+    # and refuse to start. Only the process that actually opens the port asks.
+    if os.environ.get("WERKZEUG_RUN_MAIN") or os.environ.get("WERKZEUG_SERVER_FD"):
+        return
+
+    probe_host = "127.0.0.1" if host in ("", "0.0.0.0", "::") else host
+    with socket.socket() as sock:
+        sock.settimeout(0.5)
+        if sock.connect_ex((probe_host, port)) != 0:
+            return
+
+    raise SystemExit(
+        f"Port {port} is already serving something on {probe_host}.\n"
+        f"Starting here anyway would not fail -- on Windows both processes can\n"
+        f"hold the port, and requests would be split between them at random.\n"
+        f"Stop the other server, or pick another port:  API_PORT=8001"
+    )
+
+
 def run() -> None:  # pragma: no cover - convenience entrypoint
     settings = get_settings()
+    _refuse_occupied_port(settings.api_host, settings.api_port)
     app.run(host=settings.api_host, port=settings.api_port, debug=True)
 
 

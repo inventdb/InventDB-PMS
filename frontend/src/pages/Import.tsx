@@ -18,17 +18,31 @@
  * PMS record lives in the one namespace, pinned server-side, exactly as the
  * Files room pins it.
  */
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { Link } from "react-router-dom";
 import * as XLSX from "xlsx";
 
-import { api } from "../api/client";
 import { agentText, isCancel, type AgentStep } from "../analyze/agent";
 import { AgentTimeline } from "../analyze/Timeline";
-import { ActionProgress, useCancelableRun } from "../analyze/ui";
+import { ActionProgress } from "../analyze/ui";
 import { useToast } from "../components/Toast";
 import { ENTITY_BY_NAME } from "../config/entities";
 import { titleCase } from "../utils/format";
+import {
+  cancelImport,
+  getImportState,
+  resetImport,
+  startImport,
+  subscribeImport,
+  type ImportPlan,
+} from "./importRun";
 
 type ColType = "text" | "number" | "date" | "bool";
 
@@ -58,7 +72,6 @@ interface SheetPlan {
 
 const SPREAD = /\.(csv|xlsx|xls|tsv)$/i;
 const TYPES: ColType[] = ["text", "number", "date", "bool"];
-const BATCH = 500;
 
 function keyify(h: string): string {
   return String(h)
@@ -185,6 +198,57 @@ function buildPlan(w: XLSX.WorkBook): SheetPlan[] {
   });
 }
 
+/**
+ * The running import.
+ *
+ * Deliberately not the shared `ActionProgress`: that is a one-line strip meant
+ * to sit inside a busy panel, and this is the only thing on the page — a run
+ * writing tens of thousands of records reduced to a thin grey bar with a raw
+ * `12638/68715` beside it. Given the room to itself it gets grouped digits, a
+ * percentage, a full-width bar, and a Cancel that reads as a choice rather than
+ * as an error.
+ */
+function ImportProgress({
+  done,
+  total,
+  onCancel,
+}: {
+  done: number;
+  total: number;
+  onCancel: () => void;
+}) {
+  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  return (
+    <div className="card import-running" role="status" aria-live="polite">
+      <div className="import-running-head">
+        <span className="import-running-spin" aria-hidden />
+        <div className="import-running-titles">
+          <b>Importing rows</b>
+          <span className="import-running-count">
+            {done.toLocaleString()} of {total.toLocaleString()}
+            {total > 0 && <span className="import-running-pct"> · {pct}%</span>}
+          </span>
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+      <div
+        className="import-running-track"
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <span style={{ width: `${pct}%` }} />
+      </div>
+      <span className="import-running-note">
+        Keeps running while you work elsewhere — batches already sent are saved.
+      </span>
+    </div>
+  );
+}
+
 export default function ImportPage() {
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -198,15 +262,12 @@ export default function ImportPage() {
   const [cols, setCols] = useState<Col[]>([]);
   const [name, setName] = useState("");
   const [err, setErr] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
   // What the last successful import wrote, and a signature of the plan it wrote
   // from. The signature is what lets the page tell "you have already imported
   // this" from "you have changed something since" — the difference between a
   // result to read and a button to press. Without it the room looked identical
   // before and after a write, so the only way to find out whether an import had
   // landed was to press the button again, which imported everything twice.
-  const [doneTypes, setDoneTypes] = useState<string[]>([]);
-  const [doneSig, setDoneSig] = useState<string | null>(null);
   const [recordMode, setRecordMode] = useState<"row" | "sheet">("row");
 
   // "All sheets → types": every data sheet of the workbook into its own type,
@@ -258,7 +319,7 @@ export default function ImportPage() {
 
   async function onFile(f: File) {
     setErr(null);
-    setDone(null);
+    resetImport();
     if (!SPREAD.test(f.name)) {
       setErr("Pick a CSV or Excel file (.csv, .xlsx, .xls).");
       return;
@@ -431,68 +492,34 @@ export default function ImportPage() {
   useEffect(() => () => shapeAc.current?.abort("unmount"), []);
 
   // ── Import ────────────────────────────────────────────────────────────────
-  // Both paths funnel into ONE cancelable run over a plan of {type, records}
-  // jobs, so the UI shows a live count and can stop. Batches of 500; cancelling
-  // halts before the next batch — earlier ones are already committed, and said so.
-  const importRef = useRef<{
-    jobs: { type: string; records: Record<string, unknown>[] }[];
-    total: number;
-    // Captured when the run starts, not read when it settles: by then the
-    // signature has moved on if the operator edited the plan mid-import.
-    sig: string;
-    summary: (imported: number, types: number) => string;
-  } | null>(null);
+  // The run itself lives in `importRun.ts`, deliberately outside this component.
+  // Owning it here meant navigating away unmounted it, which aborted the batches
+  // mid-flight and lost every trace — leaving real, half-imported rows behind
+  // and an empty room to come back to. The page now only watches.
+  const run = useSyncExternalStore(subscribeImport, getImportState, getImportState);
 
-  const importRun = useCancelableRun(
-    async (ctx) => {
-      const p = importRef.current!;
-      ctx.setTotal(p.total);
-      let sent = 0;
-      for (const job of p.jobs) {
-        for (let i = 0; i < job.records.length; i += BATCH) {
-          ctx.throwIfAborted();
-          const chunk = job.records.slice(i, i + BATCH);
-          await api.post(`/import/${job.type}`, { rows: chunk }, { signal: ctx.signal });
-          sent += chunk.length;
-          ctx.progress(sent);
-        }
-      }
-    },
-    {
-      onSettled: ({ aborted, error, done: n }) => {
-        const p = importRef.current;
-        if (error) {
-          setErr(error || "Import failed");
-          return;
-        }
-        if (aborted) {
-          // A cancelled run still committed every batch before the stop. Those
-          // records are real, so this settles into the same result state as a
-          // finished one — re-pressing would write the committed prefix twice.
-          if (n > 0 && p) {
-            setDone(`Imported ${n.toLocaleString()} rows — cancelled the rest.`);
-            setDoneTypes([...new Set(p.jobs.map((j) => j.type))]);
-            setDoneSig(p.sig);
-          }
-          return;
-        }
-        if (p) {
-          // Deduped: two sheets can be pointed at one type name, and the same
-          // module must not be offered twice — nor counted twice. "3 types"
-          // beside a single "View Matters" link is the room contradicting
-          // itself about what it just did.
-          const written = [...new Set(p.jobs.map((j) => j.type))];
-          const msg = p.summary(n, written.length);
-          setDone(msg);
-          setDoneTypes(written);
-          setDoneSig(p.sig);
-          toast.success(msg);
-        }
-      },
-    }
-  );
+  // The result is the store's, so it survives leaving and returning. `done` and
+  // `doneTypes` below are read straight from it rather than mirrored into state.
+  const done = run.message;
+  const doneTypes = run.types;
+  const doneSig = run.sig;
+
+  // A failure is the room's to show; everything else is the store's.
+  useEffect(() => {
+    if (run.error) setErr(run.error);
+  }, [run.error]);
+
+  function launch(plan: ImportPlan) {
+    setErr(null);
+    void startImport(plan, ({ message, ok }) => {
+      // Announced from the provider above the router, so a run that finishes
+      // while the user is three modules away still says so.
+      if (ok) toast.success(message);
+    });
+  }
 
   function create() {
+    let plan: ImportPlan;
     const type = keyify(name);
     if (!type) {
       setErr("Name the type.");
@@ -515,7 +542,7 @@ export default function ImportPage() {
         setErr("Include at least one field.");
         return;
       }
-      importRef.current = {
+      plan = {
         jobs: [{ type, records: [rec] }],
         total: 1,
         sig: planSig,
@@ -527,28 +554,25 @@ export default function ImportPage() {
         setErr("No rows to import — check the header row.");
         return;
       }
-      importRef.current = {
+      plan = {
         jobs: [{ type, records: recs }],
         total: recs.length,
         sig: planSig,
         summary: (imported) => `Created ${imported.toLocaleString()} records in ${type}.`,
       };
     }
-    setDone(null);
-    void importRun.run();
+    launch(plan);
   }
 
   function reset() {
     setWb(null);
-    setDoneTypes([]);
-    setDoneSig(null);
+    resetImport();
     setAoa([]);
     setCols([]);
     setSheet("");
     setFileName("");
     setName("");
     setErr(null);
-    setDone(null);
     setShapeFields(null);
     setShapeItems([]);
     setShapeErr(null);
@@ -562,7 +586,7 @@ export default function ImportPage() {
       setPlan(buildPlan(wb));
       setAllSheets(true);
       setErr(null);
-      setDone(null);
+      resetImport();
     }
   }
 
@@ -632,7 +656,6 @@ export default function ImportPage() {
       return;
     }
     setErr(null);
-    setDone(null);
     const jobs: { type: string; records: Record<string, unknown>[] }[] = [];
     let total = 0;
     for (const s of chosenSheets) {
@@ -641,14 +664,13 @@ export default function ImportPage() {
       jobs.push({ type: keyify(s.type), records });
       total += records.length;
     }
-    importRef.current = {
+    launch({
       jobs,
       total,
       sig: planSig,
       summary: (imported, types) =>
         `Imported ${imported.toLocaleString()} records across ${types} type${types === 1 ? "" : "s"}.`,
-    };
-    void importRun.run();
+    });
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -665,6 +687,53 @@ export default function ImportPage() {
           </div>
         </div>
 
+        {/* Coming back to the room mid-import. The workbook that configured it
+            is gone with the unmount, but the run is not — so the room shows the
+            work still going rather than an empty dropzone over live writes. */}
+        {run.running && (
+          <ImportProgress done={run.done} total={run.total} onCancel={cancelImport} />
+        )}
+
+        {/* The result of the last one, for the same reason: a finished import you
+            navigated away from should still be able to say so. */}
+        {!run.running && run.message && (
+          <div className="import-result" role="status">
+            <div className="import-result-head">
+              <span className="import-result-mark" aria-hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              </span>
+              <b>{run.message}</b>
+            </div>
+            <div className="import-result-actions">
+              {doneTypes.map((t) =>
+                ENTITY_BY_NAME[t] ? (
+                  <Link
+                    key={t}
+                    className={doneTypes.length === 1 ? "btn btn-primary" : "btn"}
+                    to={`/${t}`}
+                  >
+                    {`View ${ENTITY_BY_NAME[t].labelPlural} →`}
+                  </Link>
+                ) : (
+                  <span key={t} className="chip is-active">
+                    {t}
+                  </span>
+                )
+              )}
+              <button className="btn btn-ghost" onClick={resetImport}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Hidden while a run is in flight: only one import goes at a time, so a
+            dropzone that could take a file but never offer an Import button is
+            an invitation to a dead end. */}
+        {!run.running && (
+        <>
         <div
           className={`dropzone${drag ? " is-drag" : ""}`}
           onDragOver={(e) => {
@@ -698,6 +767,8 @@ export default function ImportPage() {
           accept=".csv,.xlsx,.xls,.tsv"
           onChange={(e) => e.target.files?.[0] && void onFile(e.target.files[0])}
         />
+        </>
+        )}
         {err && <div className="inline-error">{err}</div>}
       </div>
     );
@@ -1088,13 +1159,8 @@ export default function ImportPage() {
 
       {err && <div className="inline-error">{err}</div>}
 
-      {importRun.running ? (
-        <ActionProgress
-          label="Importing rows…"
-          done={importRun.done}
-          total={importRun.total}
-          onCancel={importRun.cancel}
-        />
+      {run.running ? (
+        <ImportProgress done={run.done} total={run.total} onCancel={cancelImport} />
       ) : settled ? (
         /* The plan above is the one that was just written. Say so, offer the
            way onward, and take the Import button away — leaving it armed with

@@ -9,12 +9,13 @@ Windows (waitress):
     waitress-serve --listen=0.0.0.0:8000 wsgi:app
 """
 
-from app.main import app  # noqa: F401
+from app.main import _refuse_occupied_port, app  # noqa: F401
 
 if __name__ == "__main__":
     from app.config import get_settings
 
     settings = get_settings()
+    _refuse_occupied_port(settings.api_host, settings.api_port)
     try:
         from waitress import serve
 

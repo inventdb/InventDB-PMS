@@ -68,11 +68,51 @@ test.describe("Mobile shell", () => {
   test("gives a widget the full width rather than a squeezed column", async ({ page }) => {
     // Every span collapses to one column below the breakpoint: a 3-of-12 figure
     // on a phone is a figure nobody can read.
-    const columns = await page
-      .locator(".bento")
-      .evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length)
-      .catch(() => 1);
-    expect(columns).toBe(1);
+    //
+    // The widget has to be seeded. The mocked dashboard starts empty, so it
+    // renders `.bento-empty` and never `.bento` — which meant this test's
+    // `.catch(() => 1)` returned 1 and it passed while asserting nothing, then
+    // failed under load whenever a transient render caught the grid before
+    // layout and `gridTemplateColumns` came back as the unresolved
+    // `repeat(12, minmax(0, 1fr))`. Seeding makes it deterministic, and lets it
+    // measure the thing the comment above actually cares about.
+    await page.route("**/api/meta/sql", async (route) => {
+      const statement = String(route.request().postDataJSON()?.sql ?? "");
+      if (/from\s+pms\.dashboards/i.test(statement)) {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            rows: [
+              {
+                _id: "dash-1",
+                widgets: [
+                  {
+                    id: "w1",
+                    kind: "kpi",
+                    title: "Doors",
+                    sql: "SELECT COUNT(*) AS n FROM pms.properties",
+                    span: 3,
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+      }
+      await route.fallback();
+    });
+    await page.reload();
+
+    const slot = page.locator(".bento-slot").first();
+    await expect(slot).toBeVisible();
+
+    // A span-3 slot on a phone must still fill the grid, not a quarter of it.
+    const { slotWidth, gridWidth } = await slot.evaluate((el) => ({
+      slotWidth: el.getBoundingClientRect().width,
+      gridWidth: (el.parentElement as HTMLElement).getBoundingClientRect().width,
+    }));
+    expect(slotWidth).toBeGreaterThan(gridWidth - 2);
   });
 
   test("scrolls a wide table inside its own container", async ({ page }) => {

@@ -287,19 +287,219 @@
   gap: 10px;
 }
 
-/* ---- Upload target prompt ------------------------------------------------ */
-.fx-target {
-  border: 1px solid var(--brand-line);
+/* ---- Table: type, status and per-row actions ----------------------------- */
+.fx-dim {
+  color: var(--text-faint);
+  white-space: nowrap;
 }
-.fx-target-head {
-  margin: 0 0 4px;
+/* `application/vnd.openxmlformats-…-spreadsheetml.sheet` is a real content type
+   and it will happily push Status and the row actions off the table. Capped
+   with the full value on hover rather than dropped. */
+.fx-type {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fx-state {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.fx-state.is-failed {
+  color: var(--danger);
+}
+.fx-state.is-processing,
+.fx-state.is-queued,
+.fx-state.is-pending {
+  color: var(--warn);
+}
+.fx-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+/* Borderless, like SOAR's — three bordered buttons per row is a lot of chrome
+   in a table, and it pushed Delete off the right edge. */
+.fx-actions .btn {
+  padding: 3px 6px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 12.5px;
+}
+.fx-actions .btn:hover {
+  background: var(--brand-tint);
+}
+.fx-del {
+  color: var(--danger);
+}
+.fx-del:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+/* ---- "how this works" ---------------------------------------------------- */
+.fx-how {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.fx-how summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.fx-how > div {
+  margin-top: 6px;
+}
+.fx-how code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* ---- The always-there dropzone ------------------------------------------
+   A drive whose only drop target is the file list gives no sign it takes
+   anything at all, so this sits above the list whether or not a drag is in
+   progress. */
+.fx-dropzone {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 22px 16px;
+  margin-bottom: 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
+}
+.fx-dropzone:hover,
+.fx-dropzone.is-over {
+  border-color: var(--brand);
+  background: var(--brand-tint);
+}
+.fx-dropzone .dz-mark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: var(--brand);
+  background: var(--brand-tint);
+}
+.fx-dropzone .dz-mark svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---- Staging: picked, not yet uploaded -----------------------------------
+   Amber rather than the brand colour on purpose. Everything else in this room
+   reports what is already stored; this panel is the one place showing bytes
+   that are still only in the browser, and it should not look like the rest. */
+.fx-stage {
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--warn);
+  background: var(--warn-soft);
+}
+.fx-stage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.fx-stage-head h4 {
+  margin: 0;
   font-size: 14px;
 }
-.fx-target-actions {
+.fx-stage-tag {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-pill);
+  color: var(--warn);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.fx-stage-list {
+  display: grid;
+  gap: 2px;
+  max-height: 180px;
+  overflow: auto;
+  margin: 10px 0;
+}
+.fx-stage-row {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 8px;
-  margin-top: 12px;
+}
+.fx-stage-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.fx-stage-size {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.fx-stage-x {
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+.fx-stage-where {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.fx-stage-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 10px;
+}
+.fx-stage-folder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.fx-stage-folder .input {
+  flex: 1;
+  min-width: 160px;
+}
+.fx-stage-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn-amber {
+  /* The page surface, not white: on dark the amber is the light half of the
+     pair, so white-on-amber would be the unreadable way round. */
+  color: var(--surface);
+  border-color: var(--warn);
+  background: var(--warn);
+}
+.btn-amber:hover:not(:disabled) {
+  filter: brightness(1.08);
+  color: var(--surface);
+  background: var(--warn);
+}
+
+@media (max-width: 780px) {
+  .fx-stage-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* ---- Bulk-delete progress ------------------------------------------------ */

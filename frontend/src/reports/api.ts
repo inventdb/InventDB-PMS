@@ -99,6 +99,56 @@ export function useDeleteSnapshot() {
   });
 }
 
+/** One library entry to remove: a live template, or a stored snapshot. */
+export type DeletableReport =
+  | { kind: "template"; id: string; name: string }
+  | { kind: "snapshot"; recordId: string; name: string };
+
+/**
+ * Delete a selection in one go.
+ *
+ * Deliberately *not* `useDeleteReport` in a loop. Each of those invalidates on
+ * success, so clearing a library of two hundred would fire two hundred list
+ * refetches while the deletes were still running. This invalidates once, at the
+ * end, when the list is finally worth re-reading.
+ *
+ * Sequential rather than parallel for the same reason a bulk import batches:
+ * a select-all can be the whole library, and two hundred simultaneous DELETEs
+ * is a burst the instance has no reason to absorb. It also makes a partial
+ * failure legible — the caller learns exactly which names survived instead of
+ * one rejected promise standing in for an unknown number of them.
+ */
+export function useDeleteReports() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (targets: DeletableReport[]) => {
+      const failed: string[] = [];
+      let deleted = 0;
+      for (const target of targets) {
+        try {
+          if (target.kind === "template") {
+            await api.delete(`/reports/templates/${encodeURIComponent(target.id)}`);
+          } else {
+            await api.delete(
+              `/reports/snapshots/${encodeURIComponent(target.recordId)}`
+            );
+          }
+          deleted += 1;
+        } catch {
+          failed.push(target.name);
+        }
+      }
+      return { deleted, failed };
+    },
+    onSettled: () => {
+      // Even a run that failed part-way changed the library, so both lists are
+      // re-read on the way out rather than only on success.
+      qc.invalidateQueries({ queryKey: ["reports", "templates"] });
+      qc.invalidateQueries({ queryKey: ["reports", "snapshots"] });
+    },
+  });
+}
+
 /** Turn a frozen snapshot into a live template that re-queries on render. */
 export function usePromoteSnapshot() {
   const qc = useQueryClient();
