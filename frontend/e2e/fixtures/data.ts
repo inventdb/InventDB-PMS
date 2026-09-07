@@ -51,7 +51,7 @@ export const AUTH_TOKEN = "e2e-test-token";
 export const HEALTH = {
   ok: true,
   version: "1.0.0",
-  inventdb_base_url: "https://e2e.sandbox.inventdb.com",
+  inventdb_base_url: "https://e2e.cloud.inventdb.com",
   namespace: "pms",
   frontend_bundled: false,
 };

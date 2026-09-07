@@ -24,7 +24,7 @@ test.describe("Settings", () => {
     // The base URL is an editable field now, so it lives in the input's value
     // rather than in the card's text.
     await expect(connection.locator("#base-url")).toHaveValue(
-      "https://e2e.sandbox.inventdb.com"
+      "https://e2e.cloud.inventdb.com"
     );
     await expect(connection).toContainText("pms");
     await expect(connection).toContainText("1.0.0");

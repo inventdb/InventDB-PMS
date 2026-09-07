@@ -166,7 +166,7 @@ function ConnectionCard({
             type="url"
             inputMode="url"
             spellCheck={false}
-            placeholder="https://your-slug.sandbox.inventdb.com"
+            placeholder="https://your-slug.cloud.inventdb.com"
             value={draft}
             disabled={busy || !connection}
             onChange={(e) => {

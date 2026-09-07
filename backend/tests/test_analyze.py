@@ -336,7 +336,7 @@ def test_config_does_not_leak_the_provider_credentials(api, fake):
             "model": "claude-sonnet-5",
             "modelFamily": "claude",
             "maskedKey": "2BVN...GchL",
-            "baseUrl": "http://ai-gateway.inventdb.local:4300",
+            "baseUrl": "https://ai-gateway.example.com",
         },
     )
 
