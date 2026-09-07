@@ -14,7 +14,22 @@ in one fast, responsive workspace.
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
+[Quick start](#-quick-start) ·
+[Configuration](#-configuration) ·
+[Deployment](#-deployment) ·
+[Testing](#-testing) ·
+[API](#-api) ·
+[Troubleshooting](#-troubleshooting)
+
 </div>
+
+---
+
+> [!IMPORTANT]
+> **This is a front end for [InventDB SOAR](https://www.inventdb.com), and it needs one to run.**
+> InventDB is the database *and* the identity provider — there is no local datastore to install
+> and no separate sign-up. Bring an instance and the credentials you log in with, and the app
+> has everything else it needs.
 
 ---
 
@@ -273,13 +288,14 @@ docker run -p 8000:8000 -e INVENTDB_BASE_URL=https://<slug>.sandbox.inventdb.com
 
 | Suite | Command | Expected |
 |---|---|---|
-| Back end + contract | `cd backend && python -m pytest` | **1067 passed, 6 xfailed** |
+| Back end + contract | `cd backend && python -m pytest` | **1144 passed, 6 xfailed** |
 | Types | `cd frontend && npm run typecheck` | 0 errors |
-| End-to-end | `cd frontend && npx playwright test` | **408 tests, 21 files** |
+| End-to-end | `cd frontend && npx playwright test` | **25 spec files, all green** |
 
-- The backend suite ships a **fake InventDB**, so it needs no network, no secrets and no live instance.
-- The E2E suite mocks `/api` in the browser and starts its own Vite server — no backend required.
-- The 6 xfails are documented known gaps, marked in the suite with written reasons.
+- The backend suite ships a **fake InventDB**, so it needs no network, no secrets and no live instance — it cannot touch real data.
+- The E2E suite mocks `/api` in the browser and starts its own Vite server, so it needs no backend either.
+- **`xfailed` is not a failure.** It means *expected to fail*: six tests document two known gaps, each with a written reason in the code. Six is the correct number.
+- Both suites are deterministic. If the counts above don't match on your machine, something really has changed.
 
 ```bash
 pip install -r backend/requirements-dev.txt   # test deps
@@ -404,7 +420,7 @@ InventDB-PMS/
 │   │   ├── components/        # Layout · Modal · EntityForm · DescribeRecord …
 │   │   ├── config/entities.ts # Field schema driving all tables & forms
 │   │   └── api/ auth/ theme/ utils/ styles/
-│   ├── e2e/                   # 21 Playwright spec files
+│   ├── e2e/                   # 25 Playwright spec files
 │   └── vite.config.ts · package.json
 ├── contract/                  # Generated shape of every /api response
 └── docs/                      # Architecture notes, test results, runbooks
