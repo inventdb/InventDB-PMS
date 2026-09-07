@@ -7,7 +7,7 @@ Most settings are environment-only: they are deployment decisions, and changing
 them at runtime would mean an app that no longer matches how it was started.
 The InventDB **base URL** is the exception. It is the one setting an operator
 genuinely needs to change without a redeploy — pointing the app at their own
-instance instead of the bundled sandbox — so it can be overridden at runtime and
+instance instead of the bundled default — so it can be overridden at runtime and
 is persisted to a small state file beside the app. Everything else stays where
 it was declared.
 """
@@ -52,7 +52,7 @@ _RUNTIME_KEYS = ("inventdb_base_url",)
 @dataclass(frozen=True)
 class Settings:
     inventdb_base_url: str = _get(
-        "INVENTDB_BASE_URL", "https://your-slug.sandbox.inventdb.com"
+        "INVENTDB_BASE_URL", "https://your-slug.cloud.inventdb.com"
     )
     inventdb_namespace: str = _get("INVENTDB_NAMESPACE", "pms")
     inventdb_app: str = _get("INVENTDB_APP", "pms")

@@ -518,7 +518,7 @@
       <div class="aside">
         <b>The recordings shipped here are synthetic.</b> They're shaped like
         InventDB's responses but the values are invented, because this repository
-        holds no credentials. Running <code>capture.py</code> against your sandbox
+        holds no credentials. Running <code>capture.py</code> against your instance
         replaces them with real ones — it drives the actual application with a
         recorder attached, so whatever the app asks InventDB for is what gets
         recorded, and the recordings update themselves when the app's queries
@@ -797,7 +797,7 @@
         <dt><span class="num">09</span> Unexpected errors echo their message to the client</dt>
         <dd>
           The catch-all handler puts the exception text into the response body.
-          That's genuinely convenient in a sandbox, and it's why finding 05 above is
+          That's genuinely convenient in a demo instance, and it's why finding 05 above is
           as visible as it is. Worth revisiting before this faces anyone untrusted,
           since an exception message can carry a connection string.
         </dd>
@@ -869,7 +869,7 @@ cd ../frontend &amp;&amp; npx playwright test contract.spec.ts</code></pre>
       <h3>Replacing the synthetic recordings with real ones</h3>
 
 <pre><code>cd backend
-INVENTDB_BASE_URL=https://&lt;slug&gt;.sandbox.inventdb.com \
+INVENTDB_BASE_URL=https://&lt;slug&gt;.cloud.inventdb.com \
 INVENTDB_USERNAME=you INVENTDB_PASSWORD=... \
 python -m tests.contract.capture</code></pre>
 

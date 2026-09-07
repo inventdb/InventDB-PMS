@@ -15,7 +15,7 @@ Usage
 Refresh from a live instance (read-only)::
 
     cd backend
-    INVENTDB_BASE_URL=https://<slug>.sandbox.inventdb.com \\
+    INVENTDB_BASE_URL=https://<slug>.cloud.inventdb.com \\
     INVENTDB_USERNAME=you INVENTDB_PASSWORD=... \\
     python -m tests.contract.capture
 
@@ -599,7 +599,7 @@ _SYNTHETIC_HTTP: dict[str, dict[str, Any]] = {
         "payload": {
             "configured": True,
             "maskedKey": "2BVN...GchL",
-            "baseUrl": "http://ai-gateway.inventdb.local:4300/anthropic/v1",
+            "baseUrl": "https://ai-gateway.example.com/anthropic/v1",
             "model": "claude-sonnet-5",
             "modelFamily": "claude",
         },

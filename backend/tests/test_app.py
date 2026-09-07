@@ -97,7 +97,7 @@ def test_an_unexpected_exception_becomes_a_json_500(flask_app, api):
 def test_the_catch_all_handler_echoes_the_exception_text(flask_app, api):
     """Worth being deliberate about: the 500 body includes `str(exc)`, so any
     internal detail in an exception message reaches the client. Fine for a
-    sandbox, worth revisiting before an untrusted deployment.
+    demo instance, worth revisiting before an untrusted deployment.
     """
     @flask_app.get("/api/leaky")
     def _leaky():

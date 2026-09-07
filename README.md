@@ -147,12 +147,12 @@ run *is* a workflow, mid-flight.
 |---|---|
 | Python | 3.10+ (3.13 / 3.14 fine — the stack is pure-Python) |
 | Node.js | 18+ (20/22/24 fine) |
-| InventDB workspace | A sandbox or production instance |
+| InventDB workspace | A cloud or self-hosted instance |
 
 ### 1. Get an InventDB workspace
 
 1. Register at **[inventdb.com](https://www.inventdb.com)**
-2. Note your base URL — a sandbox looks like `https://<slug>.sandbox.inventdb.com`
+2. Note your base URL — an instance looks like `https://<slug>.cloud.inventdb.com`
 3. Have a username & password — these are what PMS users log in with
 
 > The `pms` namespace is created automatically on first write. Nothing to set up.
@@ -200,7 +200,7 @@ python backend/check_inventdb.py <username> <password>
 
 | Variable | Default | Description |
 |---|---|---|
-| `INVENTDB_BASE_URL` | `https://your-slug.sandbox.inventdb.com` | Your instance, no trailing slash. Also editable in **Settings → InventDB Connection**, which wins over this |
+| `INVENTDB_BASE_URL` | `https://your-slug.cloud.inventdb.com` | Your instance, no trailing slash. Also editable in **Settings → InventDB Connection**, which wins over this |
 | `INVENTDB_NAMESPACE` | `pms` | Namespace holding all PMS data |
 | `INVENTDB_APP` | `pms` | App label sent to `/api/auth/me` |
 | `INVENTDB_TIMEOUT` | `30` | Outbound request timeout (seconds) |
@@ -277,7 +277,7 @@ CMD ["gunicorn", "-w", "2", "--worker-class", "gthread", "--threads", "8", \
 
 ```bash
 docker build -t inventdb-pms .
-docker run -p 8000:8000 -e INVENTDB_BASE_URL=https://<slug>.sandbox.inventdb.com inventdb-pms
+docker run -p 8000:8000 -e INVENTDB_BASE_URL=https://<slug>.cloud.inventdb.com inventdb-pms
 ```
 
 </details>

@@ -93,7 +93,7 @@ with real ones:
 
 ```bash
 cd backend
-INVENTDB_BASE_URL=https://<slug>.sandbox.inventdb.com \
+INVENTDB_BASE_URL=https://<slug>.cloud.inventdb.com \
 INVENTDB_USERNAME=you INVENTDB_PASSWORD=... \
 python -m tests.contract.capture
 ```
@@ -169,7 +169,7 @@ marker.
    that does not exist while the rest of the app works.
 
 9. **The catch-all 500 handler echoes `str(exc)`** to the client
-   (`test_app.py`). Fine for a sandbox; worth revisiting before an untrusted
+   (`test_app.py`). Fine for a demo instance; worth revisiting before an untrusted
    deployment.
 
 10. **`like_literal` is unused**, and its docstring claims it escapes wildcards

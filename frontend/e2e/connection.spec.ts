@@ -14,7 +14,7 @@ import { expect, signIn, test } from "./fixtures";
 test.describe("InventDB connection", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/settings");
-    await expect(page.locator("#base-url")).toHaveValue("https://e2e.sandbox.inventdb.com");
+    await expect(page.locator("#base-url")).toHaveValue("https://e2e.cloud.inventdb.com");
   });
 
   test("Save stays disabled until the URL actually changes", async ({ page }) => {
@@ -25,7 +25,7 @@ test.describe("InventDB connection", () => {
     await expect(save).toBeEnabled();
 
     // A trailing slash is the same instance, not a change.
-    await page.locator("#base-url").fill("https://e2e.sandbox.inventdb.com/");
+    await page.locator("#base-url").fill("https://e2e.cloud.inventdb.com/");
     await expect(save).toBeDisabled();
   });
 

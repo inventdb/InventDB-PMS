@@ -15,6 +15,10 @@ dist-ssr/
 .vite/
 *.local
 
+# TypeScript's incremental build cache. Machine-local and rewritten by every
+# `tsc -b`, so committing it means a spurious diff on every typecheck.
+*.tsbuildinfo
+
 # ---- Env & secrets ----
 .env
 .env.*

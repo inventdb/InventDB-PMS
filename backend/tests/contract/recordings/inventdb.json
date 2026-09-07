@@ -40,7 +40,7 @@
       "payload": {
         "configured": true,
         "maskedKey": "2BVN...GchL",
-        "baseUrl": "http://ai-gateway.inventdb.local:4300/anthropic/v1",
+        "baseUrl": "https://ai-gateway.example.com/anthropic/v1",
         "model": "claude-sonnet-5",
         "modelFamily": "claude"
       }
