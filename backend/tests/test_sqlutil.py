@@ -270,7 +270,7 @@ def test_sql_literal_does_not_escape_backslashes():
     Blindly escaping backslashes would corrupt legitimate data (a Windows path
     would gain doubled separators) on the engines where it isn't needed, so this
     asserts today's behaviour and flags the question rather than guessing at
-    InventDB's dialect.
+    the target dialect.
     """
     assert sql_literal("C:\\Users\\pms") == "'C:\\Users\\pms'"
     assert sql_literal("trailing\\") == "'trailing\\'"

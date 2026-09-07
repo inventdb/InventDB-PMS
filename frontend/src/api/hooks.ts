@@ -157,7 +157,7 @@ export function useReportTemplate(id: string | null) {
 /**
  * A rendered report, cached per (report, parameter set).
  *
- * Rendering is the expensive step: InventDB re-executes the template's SQL on
+ * Rendering is the expensive step: the template's SQL is re-executed on
  * every call, so a heavy report can take seconds. `staleTime: Infinity` means
  * that cost is paid once — clicking between reports and back is instant rather
  * than re-running the whole pass. The consequence is that a report edited in

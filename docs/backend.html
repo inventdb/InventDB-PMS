@@ -577,7 +577,7 @@
 
         <h3>What to do</h3>
         <p>
-          Find out how InventDB's SQL engine treats a backslash inside a quoted
+          Find out how the target SQL dialect treats a backslash inside a quoted
           string. If it's an escape character, <code>sql_literal</code> needs one
           more line. If it isn't, the current behaviour is correct and this can be
           closed. The test that pins today's behaviour is already written either
@@ -643,15 +643,14 @@
           protects itself by refusing anything that doesn't start with
           <code>SELECT</code> or <code>WITH</code>. A statement like
           <code>SELECT 1; DROP TABLE …</code> starts with <code>SELECT</code>, so it
-          passes the check and is forwarded to InventDB word for word.
+          passes the check and is forwarded upstream word for word.
         </p>
 
         <h3>Why it matters</h3>
         <p>
-          Whether that's dangerous depends on whether InventDB's SQL endpoint
-          executes more than one statement per request. I couldn't verify that
-          without an instance, so this is recorded as an open question rather than a
-          confirmed hole.
+          Whether that's dangerous depends on whether the upstream endpoint
+          executes more than one statement per request. That is unverified, so this
+          is recorded as an open question rather than a confirmed hole.
         </p>
 
         <h3>What to do</h3>

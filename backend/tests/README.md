@@ -125,7 +125,7 @@ marker.
    this is correct. In MySQL-style engines it escapes, and a value ending in a
    lone backslash would break out of the literal — a live injection. Escaping
    blindly would corrupt legitimate data (Windows paths) on the engines that do
-   not need it, so this needs an answer about InventDB's dialect rather than a
+   not need it, so this needs an answer about the target dialect rather than a
    guess. **Worth resolving first.**
 
 2. **Record ids are not validated** (`test_inventdb_client.py`, xfail). They are
@@ -134,12 +134,12 @@ marker.
    exists, rejects all of it, and is applied to report-template ids but not to
    record ids. Path traversal via `%2f` is separately blocked by Werkzeug's
    router. The fix is one call per site; it is left alone only because it would
-   break every read if InventDB's real `_id` format is wider than
+   break every read if the real `_id` format is wider than
    `[A-Za-z0-9_-]{1,128}`.
 
 3. **`/api/meta/sql` only inspects the leading keyword** (`test_meta.py`,
    xfail), so `SELECT 1; DROP TABLE …` passes the guard and is forwarded
-   verbatim. Whether that is exploitable depends on whether InventDB's `/sql`
+   verbatim. Whether that is exploitable depends on whether the upstream endpoint
    executes multiple statements per request — unverified. Rejecting an interior
    semicolon would close it without needing to know.
 

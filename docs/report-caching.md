@@ -14,7 +14,7 @@ InventDB instance and asks InventDB to render them:
 POST /api/report-templates/<id>/render
 ```
 
-InventDB's report engine **re-executes the template's SQL on every call**. That
+Rendering a report **re-executes the template's SQL on every call**. That
 is the expensive step — a heavy report can take seconds regardless of anything
 the PMS does. Round trips are not the problem (~90 ms to the instance); the
 query pass is.

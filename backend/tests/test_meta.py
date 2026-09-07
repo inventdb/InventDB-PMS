@@ -176,8 +176,8 @@ def test_a_missing_body_is_treated_as_an_empty_statement(api, fake):
     reason=(
         "KNOWN GAP: the guard only inspects the leading keyword, so a stacked "
         "statement passes it. Whether that is exploitable depends entirely on "
-        "whether InventDB's /sql endpoint executes multiple statements per "
-        "request — unverified against a live instance. Rejecting an interior "
+        "whether the upstream endpoint executes multiple statements per "
+        "request — unverified. Rejecting an interior "
         "semicolon would close it without needing to know."
     ),
 )

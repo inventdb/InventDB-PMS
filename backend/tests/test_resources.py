@@ -276,7 +276,7 @@ def test_list_returns_rows_with_paging_metadata(api, fake, rows):
 def test_count_tolerates_every_shape_inventdb_might_name_the_column(
     api, fake, count_rows, expected
 ):
-    """InventDB's SQL layer ignores `AS` aliases on some aggregates, so the
+    """Aggregate columns are not guaranteed to keep an `AS` alias, so the
     column can come back as `c`, `COUNT(*)` or something else entirely."""
     fake.on_sql("COUNT(*)", rows=count_rows)
     assert api.get("/api/properties").get_json()["total"] == expected
