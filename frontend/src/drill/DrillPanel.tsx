@@ -26,7 +26,7 @@ import { useReferences } from "../components/references";
 import { useToast } from "../components/Toast";
 import { useDrill, type DrillFrame } from "./DrillContext";
 import { DrillGrid } from "./DrillGrid";
-import { childHeading, childrenOf, parentsOf, relationFor } from "./relations";
+import { childHeading, childrenOf, fieldText, parentsOf, relationFor } from "./relations";
 
 interface Access {
   can_view: boolean;
@@ -304,7 +304,7 @@ function RecordView({
                       ) : f.badge ? (
                         <Badge value={value} />
                       ) : (
-                        formatCell(value, f.type)
+                        fieldText(f, value)
                       )}
                     </dd>
                   </div>

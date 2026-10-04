@@ -36,6 +36,9 @@ test.describe("module list", () => {
     // View, not edit: no form until Edit is pressed.
     await expect(field(page, "street")).toHaveCount(0);
     await expect(panel(page).getByRole("button", { name: "Edit" })).toBeVisible();
+    // A year reads as a year.
+    await expect(section(page, "Details").locator(".drill-field", { hasText: "Year Built" })).toContainText("2011");
+    await expect(section(page, "Details")).not.toContainText("2,011");
 
     // Up: the owner it points at, named.
     await expect(section(page, "Details").getByRole("button", { name: /O-001 · Harbourline Holdings/ })).toBeVisible();

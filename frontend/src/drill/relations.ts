@@ -13,7 +13,8 @@
  * its vendor by company. Those are listed explicitly below so the vendor panel
  * can still show the work orders it was given.
  */
-import { ENTITIES, ENTITY_BY_NAME, type EntityConfig } from "../config/entities";
+import { ENTITIES, ENTITY_BY_NAME, type EntityConfig, type FieldDef } from "../config/entities";
+import { formatCell } from "../utils/format";
 
 export interface Relation {
   /** Module holding the pointer (the child). */
@@ -69,9 +70,19 @@ export function relationFor(entity: string, field: string): Relation | undefined
   return RELATIONS.find((r) => r.from === entity && r.field === field);
 }
 
-/** Section heading for a child grid: "Leases", or "Work Orders (follow-up)". */
+/** Section heading for a child grid: "Leases" — or, when one module points at
+ *  the same parent through two fields, "Work Orders · by <field>". */
 export function childHeading(rel: Relation, cfg: EntityConfig | undefined): string {
   const plural = cfg?.labelPlural ?? rel.from;
   const siblings = RELATIONS.filter((r) => r.to === rel.to && r.from === rel.from);
   return siblings.length > 1 ? `${plural} · by ${rel.label.toLowerCase()}` : plural;
+}
+
+/** A field's value as the panel shows it. A year is a label, not a quantity:
+ *  "1992", never "1,992". */
+export function fieldText(field: FieldDef, value: unknown): string {
+  if (field.type === "number" && /year/i.test(field.name) && value != null && value !== "") {
+    return String(value);
+  }
+  return formatCell(value, field.type);
 }

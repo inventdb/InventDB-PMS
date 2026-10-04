@@ -14,7 +14,7 @@ import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { api, errorMessage } from "../api/client";
 import { ENTITY_BY_NAME, type FieldDef } from "../config/entities";
 import type { Record as Rec } from "../types";
-import { formatCell } from "../utils/format";
+import { fieldText } from "./relations";
 import { Badge } from "../components/ui";
 
 export interface GridQuery {
@@ -127,7 +127,7 @@ export function DrillGrid({
                   >
                     {!cfg.hideKeyColumn && <td className="drill-key">{String(row[cfg.key] ?? "—")}</td>}
                     {fields.map((f) => (
-                      <td key={f.name}>{f.badge ? <Badge value={row[f.name]} /> : formatCell(row[f.name], f.type)}</td>
+                      <td key={f.name}>{f.badge ? <Badge value={row[f.name]} /> : fieldText(f, row[f.name])}</td>
                     ))}
                   </tr>
                 ))}
