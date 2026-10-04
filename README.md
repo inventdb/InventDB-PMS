@@ -90,6 +90,7 @@ Three things follow from this shape:
 **📈 Report Studio**
 
 - Live templates re-query on open; snapshots stay frozen
+- Lists the reports you made — not the layouts behind Store views or dashboard widgets
 - Rewrite a report by describing the change
 - Every edit saves a new version — nothing is overwritten
 - Render with parameters, print to PDF
@@ -289,7 +290,7 @@ docker run -p 8000:8000 -e INVENTDB_BASE_URL=https://<slug>.cloud.inventdb.com i
 
 | Suite | Command | Expected |
 |---|---|---|
-| Back end + contract | `cd backend && python -m pytest` | **1194 passed, 6 xfailed** |
+| Back end + contract | `cd backend && python -m pytest` | **1202 passed, 6 xfailed** |
 | Types | `cd frontend && npm run typecheck` | 0 errors |
 | End-to-end | `cd frontend && npx playwright test` | **26 spec files, all green** |
 

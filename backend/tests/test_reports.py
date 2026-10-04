@@ -13,7 +13,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from app.routers.reports import _distribution, _num, _pick_bind_field, _title
+from app.routers.reports import _distribution, _num, _pick_bind_field, _title, is_backing_template
 
 
 # ===========================================================================
@@ -134,6 +134,53 @@ def test_templates_are_sorted_by_category_then_name_case_insensitively(api, fake
         "Rent Roll",
     ]
     assert body["count"] == 3
+
+
+def test_view_and_widget_layouts_are_not_listed_as_reports(api, fake):
+    """A designed Store view and a dashboard report widget each keep their
+    layout in a report template. Those need the view's or widget's query to
+    render, so listed as reports they only errored — and nobody made them as
+    reports. Only the explicitly created reports are listed."""
+    fake.on(
+        "GET",
+        "/api/report-templates",
+        {
+            "ok": True,
+            "data": {
+                "templates": [
+                    {"_id": "v1", "name": "View layout — Properties", "parameters": []},
+                    {"_id": "v2", "name": "View layout — Vacant units by rent"},
+                    {"_id": "w1", "name": "Widget — Open work orders"},
+                    {"_id": "w2", "name": "Widget — untitled"},
+                    {"_id": "r1", "name": "Monthly Rent Collections", "category": "Financial"},
+                    {"_id": "r2", "name": "Widget usage by owner"},  # a report about widgets
+                    {"_id": "r3", "name": "Viewing schedule — May"},
+                ]
+            },
+        },
+    )
+
+    body = api.get("/api/reports/templates").get_json()
+
+    # Uncategorised first, then by name — the list's usual order.
+    assert [t["id"] for t in body["templates"]] == ["r3", "r2", "r1"]
+    assert body["count"] == 3
+
+
+@pytest.mark.parametrize(
+    "name,backing",
+    [
+        ("View layout — Leases", True),
+        ("View layout - Leases", True),
+        ("  Widget – KPI", True),
+        ("Widget usage by owner", False),
+        ("View layouts explained", False),
+        ("Owner Statement", False),
+        ("", False),
+    ],
+)
+def test_is_backing_template(name, backing):
+    assert is_backing_template({"name": name}) is backing
 
 
 def test_a_template_without_an_id_is_dropped(api, fake):

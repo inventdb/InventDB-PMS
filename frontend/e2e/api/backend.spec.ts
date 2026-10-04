@@ -276,6 +276,31 @@ test.describe("Reports", () => {
     expect(res.status()).toBe(200);
   });
 
+  test("a Store view's and a dashboard widget's layouts are not listed as reports", async ({ request }) => {
+    // Each keeps its layout in a report template upstream ("View layout — …",
+    // "Widget — …"). They render only with their own query bound, so they are
+    // not reports and must not appear in the report library.
+    const view = await request.post("/api/views/properties/design", {
+      headers: auth,
+      data: { instruction: "a card per property" },
+    });
+    expect(view.status()).toBe(200);
+    const viewTpl = (await view.json()).template_id;
+
+    const widget = await request.post("/api/reports/widgets/design", {
+      headers: auth,
+      data: { instruction: "open work orders", base_sql: "SELECT * FROM pms.work_orders", title: "Open WOs" },
+    });
+    expect(widget.status()).toBe(200);
+    const widgetTpl = (await widget.json()).template_id;
+    expect(viewTpl && widgetTpl).toBeTruthy();
+
+    const res = await request.get("/api/reports/templates", { headers: auth });
+    const ids = ((await res.json()).templates as { id: string; name: string }[]).map((t) => t.id);
+    expect(ids).not.toContain(viewTpl);
+    expect(ids).not.toContain(widgetTpl);
+  });
+
   for (const report of ["pnl", "cashflow", "rent-roll", "renewals", "occupancy", "work-orders"]) {
     test(`${report} computes`, async ({ request }) => {
       const res = await request.get(`/api/reports/${report}`, { headers: auth });

@@ -127,12 +127,27 @@ def _param_options(client: InventDBClient, param: dict[str, Any]) -> list[dict[s
     return options
 
 
+#: Report templates that are not reports. A designed Store view keeps its layout
+#: in a template named "View layout — <view>", and a dashboard report widget in
+#: one named "Widget — <title>" (both apps name them so; this app keeps the
+#: prefix when a view is renamed). They render only with the view's or widget's
+#: query bound, so opened as a report they fail — and they are not something
+#: anyone asked to see listed as one. SOAR's Report room hides the same two.
+_BACKING_TEMPLATE = re.compile(r"^\s*(View layout|Widget)\s+[—–-]\s")
+
+
+def is_backing_template(template: dict[str, Any]) -> bool:
+    """True for a Store view's or a dashboard widget's backing layout."""
+    return bool(_BACKING_TEMPLATE.match(str(template.get("name") or "")))
+
+
 @bp.get("/templates")
 def list_report_templates():
-    """The saved reports defined in InventDB SOAR."""
+    """The saved reports defined in InventDB SOAR — reports people made, not the
+    layouts behind Store views or dashboard widgets."""
     client = authed_client()
     data = client.list_report_templates() or {}
-    templates = data.get("templates") or []
+    templates = [t for t in (data.get("templates") or []) if not is_backing_template(t)]
     out = [
         {
             "id": t.get("_id"),
