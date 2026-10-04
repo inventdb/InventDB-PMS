@@ -317,9 +317,10 @@ def test_search_pulls_a_wide_page_and_filters_in_python(api, fake):
 
     body = api.get("/api/properties", query_string={"q": "marine"}).get_json()
 
-    # One statement only — no COUNT, because `total` is the filtered length.
+    # One statement only — no COUNT, because `total` is the filtered length,
+    # and a short page means there is no second page to read.
     assert fake.sql_log == [
-        "SELECT * FROM pms.properties ORDER BY street ASC LIMIT 5000"
+        "SELECT * FROM pms.properties ORDER BY street ASC LIMIT 5000 OFFSET 0"
     ]
     assert [r["_id"] for r in body["items"]] == ["1"]
     assert body["total"] == 1
@@ -331,14 +332,53 @@ def test_search_is_case_insensitive_and_matches_substrings(api, fake):
     assert len(body["items"]) == 1
 
 
-def test_search_only_looks_at_the_entity_search_fields(api, fake):
-    """`properties.search_fields` excludes `owner_id`, so a query that matches
-    only that column must not produce a hit — otherwise the UI's "search"
-    silently becomes "search everything"."""
-    fake.on_sql("SELECT *", rows=[{"_id": "1", "city": "Mumbai", "owner_id": "O-999"}])
+def test_search_looks_at_every_field_of_the_record(api, fake):
+    """Search is full-text across the record, not a hand-picked few columns:
+    a lease is found by its own id (L-7010), a property by its owner. It used to
+    check only `search_fields`, so typing a record's id found nothing."""
+    fake.on_sql(
+        "SELECT *",
+        rows=[
+            {"_id": "1", "lease_id": "L-7010", "tenant_name": "Chloe Roberts", "contract_rent": 1150, "lease_end": "2026-10-31"},
+            {"_id": "2", "lease_id": "L-7011", "tenant_name": "Ryan Clark", "contract_rent": 2400, "lease_end": "2027-01-15"},
+        ],
+    )
 
-    assert api.get("/api/properties", query_string={"q": "O-999"}).get_json()["total"] == 0
-    assert api.get("/api/properties", query_string={"q": "Mumbai"}).get_json()["total"] == 1
+    def total(q):
+        return api.get("/api/leases", query_string={"q": q}).get_json()["total"]
+
+    assert total("L-7010") == 1  # the business key
+    assert total("l-70") == 2  # partial and case-insensitive
+    assert total("1150") == 1  # a number, by its text
+    assert total("2026-10") == 1  # a date, by its text
+    assert total("chloe") == 1
+
+
+def test_search_skips_inventdb_system_fields(api, fake):
+    fake.on_sql("SELECT *", rows=[{"_id": "abc-123", "_createdBy": "u-9", "city": "Mumbai"}])
+    assert api.get("/api/properties", query_string={"q": "abc-123"}).get_json()["total"] == 0
+    assert api.get("/api/properties", query_string={"q": "u-9"}).get_json()["total"] == 0
+
+
+def test_search_reads_every_page_of_a_large_module(api, fake):
+    """A match past the first 5,000 rows is still found — the search used to
+    read one 5,000-row page and stop."""
+    first = [{"_id": f"a{i}", "memo": "rent"} for i in range(5000)]
+    second = [{"_id": "b1", "memo": "late fee for L-7010"}]
+    fake.on_sql("OFFSET 0", rows=first)
+    fake.on_sql("OFFSET 5000", rows=second)
+
+    body = api.get("/api/transactions", query_string={"q": "L-7010"}).get_json()
+
+    assert body["total"] == 1 and body["items"][0]["_id"] == "b1"
+    assert [s.rsplit("LIMIT", 1)[1] for s in fake.sql_log] == [" 5000 OFFSET 0", " 5000 OFFSET 5000"]
+
+
+def test_search_counts_a_record_once_across_pages(api, fake):
+    page = [{"_id": f"r{i}", "memo": "x"} for i in range(5000)]
+    fake.on_sql("OFFSET 0", rows=page)
+    fake.on_sql("OFFSET 5000", rows=[page[-1]])  # tied sort key, repeated
+    assert api.get("/api/transactions", query_string={"q": "x"}).get_json()["total"] == 5000
 
 
 def test_search_matches_non_string_columns_by_their_text_form(api, fake):
@@ -371,7 +411,7 @@ def test_search_combines_with_column_filters_in_sql(api, fake):
     api.get("/api/properties", query_string={"q": "mumbai", "state": "MH"})
     assert fake.sql_log[0] == (
         "SELECT * FROM pms.properties WHERE state = 'MH' "
-        "ORDER BY street ASC LIMIT 5000"
+        "ORDER BY street ASC LIMIT 5000 OFFSET 0"
     )
 
 
@@ -383,16 +423,12 @@ def test_search_over_an_empty_table_returns_an_empty_page(api, fake):
     assert body == {"items": [], "total": 0, "limit": 500, "offset": 0}
 
 
-def test_search_falls_back_to_every_column_when_an_entity_declares_none():
-    """The `list(rows[0].keys())` fallback in `list_records`.
-
-    Unreachable through the HTTP surface today — all ten registered entities
-    declare `search_fields` — so it is exercised directly rather than left
-    untested on the assumption it works.
-    """
+def test_matches_q_checks_every_field_unless_told_otherwise():
     row = {"_id": "1", "undeclared_column": "findme"}
-    assert _matches_q(row, "findme", list(row.keys())) is True
+    assert _matches_q(row, "findme") is True
+    assert _matches_q(row, "FINDME") is True
     assert _matches_q(row, "findme", ["_id"]) is False
+    assert _matches_q(row, "   ") is True  # a blank term filters nothing
 
 
 # ===========================================================================

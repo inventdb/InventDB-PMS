@@ -132,7 +132,7 @@ run *is* a workflow, mid-flight.
 |---|---|
 | 🪄 **Describe it** | Say what a record is in plain English and the form fills itself. It proposes, you commit — nothing saves until you press Save |
 | 🧭 **Drill down** | Click any record, result row or chart mark: a right-hand panel opens it **read-only** — its fields, links up to what it points at, and a paged grid of every module that points at it, each one level deeper. A grouped row, bar, slice or KPI lists the records *behind* the number. Edit appears only when you may change that record |
-| 🔎 **Search & filter** | On every module, with server-side sorting |
+| 🔎 **Search & filter** | Full-text on every module: the term is matched, case-insensitively and as a substring, against **every field** of a record — its own ID, references, dates and amounts included — with server-side sorting |
 | 📑 **Pagination** | Server-side, 50 rows per page — the table fetches a page, not the whole set |
 | 🌓 **Dark & light** | Auto-detects system preference, including native `<select>` menus |
 | 📱 **Responsive** | Phones, tablets and desktops |
@@ -289,7 +289,7 @@ docker run -p 8000:8000 -e INVENTDB_BASE_URL=https://<slug>.cloud.inventdb.com i
 
 | Suite | Command | Expected |
 |---|---|---|
-| Back end + contract | `cd backend && python -m pytest` | **1191 passed, 6 xfailed** |
+| Back end + contract | `cd backend && python -m pytest` | **1194 passed, 6 xfailed** |
 | Types | `cd frontend && npm run typecheck` | 0 errors |
 | End-to-end | `cd frontend && npx playwright test` | **26 spec files, all green** |
 
@@ -325,7 +325,7 @@ All endpoints live under `/api`. Data routes require a bearer token from the log
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/<entity>` | List (`q`, filters, `order_by`, `limit`, `offset`) |
+| `GET` | `/api/<entity>` | List (`q` searches every field, filters, `order_by`, `limit`, `offset`) |
 | `POST` | `/api/<entity>` | Create |
 | `GET/PUT/DELETE` | `/api/<entity>/<id>` | Read / update / delete |
 | `GET` | `/api/dashboard/summary` · `/charts` | Aggregated metrics |

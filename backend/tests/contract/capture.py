@@ -693,7 +693,7 @@ _SYNTHETIC_SQL: dict[str, list[dict[str, Any]]] = {
     ],
     "SELECT * FROM pms.properties LIMIT 5000": _PROPERTY_ROWS,
     "SELECT * FROM pms.properties ORDER BY street ASC LIMIT 500 OFFSET 0": _PROPERTY_ROWS,
-    "SELECT * FROM pms.properties ORDER BY street ASC LIMIT 5000": _PROPERTY_ROWS,
+    "SELECT * FROM pms.properties ORDER BY street ASC LIMIT 5000 OFFSET 0": _PROPERTY_ROWS,
     "SELECT COUNT(*) AS c FROM pms.properties": [{"c": 2}],
     "SELECT * FROM pms.tenants LIMIT 5000": [
         {"_id": "ten-001", "tenant_id": "T-001", "first": "Asha", "last": "Rao"}

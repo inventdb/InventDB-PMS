@@ -21,7 +21,9 @@ class Entity:
     label_plural: str
     #: Business key field used for cross-entity references (not the _id).
     key: str
-    #: Fields searched by the list endpoint's free-text ``q`` parameter.
+    #: The fields that best identify a record in a search (published through
+    #: /api/meta/entities). The list endpoint's ``q`` searches EVERY field of a
+    #: record — these are a description, not a limit.
     search_fields: list[str] = field(default_factory=list)
     #: Default column to sort lists by.
     order_by: str | None = None

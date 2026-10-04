@@ -128,6 +128,18 @@ test.describe("Modules", () => {
     expect(res.status()).toBe(404);
   });
 
+  test("search covers every field of a record, its own id included", async ({ request }) => {
+    // A lease is found by its business key — which isn't one of the module's
+    // display "search fields" — and partially, in any case.
+    for (const q of ["L-7001", "l-7001", "7001"]) {
+      const res = await request.get(`/api/leases?q=${encodeURIComponent(q)}`, { headers: auth });
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      expect(body.total, `q=${q}`).toBe(1);
+      expect(body.items[0].lease_id).toBe("L-7001");
+    }
+  });
+
   test("paging is honoured", async ({ request }) => {
     const res = await request.get("/api/properties?limit=1&offset=0", { headers: auth });
     expect(res.status()).toBe(200);

@@ -847,7 +847,7 @@
       ]
     },
     {
-      "key": "SELECT * FROM pms.properties ORDER BY street ASC LIMIT 5000",
+      "key": "SELECT * FROM pms.properties ORDER BY street ASC LIMIT 5000 OFFSET 0",
       "status": 200,
       "rows": [
         {

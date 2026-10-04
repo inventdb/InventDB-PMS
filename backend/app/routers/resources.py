@@ -53,9 +53,27 @@ def _table(client: InventDBClient, entity: Entity) -> str:
     return f"{ident(client.namespace, 'namespace')}.{ident(entity.name, 'type')}"
 
 
-def _matches_q(row: dict[str, Any], q: str, fields: list[str]) -> bool:
-    needle = q.lower()
-    for f in fields:
+#: The free-text search reads the module this many rows at a time and filters
+#: them here, page after page, so a match past the first page is still found.
+_SEARCH_PAGE = 5000
+#: Upper bound on rows one search reads, so a runaway module can't hold a worker
+#: for minutes. Far above any PMS module (the ledger is a few thousand rows).
+_SEARCH_MAX_ROWS = 200_000
+
+
+def _matches_q(row: dict[str, Any], q: str, fields: list[str] | None = None) -> bool:
+    """Does any field of ``row`` contain ``q`` (case-insensitive)?
+
+    Searches EVERY field the record has — its business key (L-7010, P-5001),
+    references (owner O-1006), dates, amounts — not a hand-picked few, so a
+    value you can see in a record is a value you can find it by. InventDB's own
+    ``_``-prefixed fields are skipped. ``fields`` narrows the check when given.
+    """
+    needle = q.strip().lower()
+    if not needle:
+        return True
+    keys = fields if fields is not None else [k for k in row if not k.startswith("_")]
+    for f in keys:
         val = row.get(f)
         if val is not None and needle in str(val).lower():
             return True
@@ -141,11 +159,29 @@ def list_records(entity_name: str):
         total = _count(client, table, where)
         return jsonify({"items": rows, "total": total, "limit": limit, "offset": offset})
 
-    # Free-text search path (Python-side for dialect independence).
+    # Free-text search path (Python-side for dialect independence): every field
+    # of every record, read a page at a time until the module is exhausted.
     where_sql = (" WHERE " + " AND ".join(where)) if where else ""
-    rows = client.query_rows(f"SELECT * FROM {table}{where_sql}{order_sql} LIMIT 5000")
-    fields = entity.search_fields or (list(rows[0].keys()) if rows else [])
-    filtered = [r for r in rows if _matches_q(r, q, fields)]
+    filtered: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    read = 0
+    while read < _SEARCH_MAX_ROWS:
+        rows = client.query_rows(
+            f"SELECT * FROM {table}{where_sql}{order_sql} LIMIT {_SEARCH_PAGE} OFFSET {read}"
+        )
+        for r in rows:
+            # Rows tied on the sort column can straddle a page boundary and come
+            # back twice; a record is one hit however many pages it shows up on.
+            rid = r.get("_id")
+            if rid is not None:
+                if rid in seen:
+                    continue
+                seen.add(rid)
+            if _matches_q(r, q):
+                filtered.append(r)
+        read += len(rows)
+        if len(rows) < _SEARCH_PAGE:
+            break
     page = filtered[offset : offset + limit]
     return jsonify(
         {"items": page, "total": len(filtered), "limit": limit, "offset": offset}
