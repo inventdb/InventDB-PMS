@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -333,12 +334,19 @@ def test_the_published_contract_is_up_to_date():
     )
 
 
-def test_the_published_example_responses_are_up_to_date(api, replay, recordings):
+def test_the_published_example_responses_are_up_to_date(api, replay, recordings, monkeypatch):
     """Snapshots of what the backend really returns for the recorded upstream.
 
     These are the files that replace hand-written frontend fixtures: they are
     the app's own output, not somebody's recollection of it.
+
+    The dashboard's "this month" and "expiring soon" are relative to today, so
+    the clock is pinned to the day the examples were recorded — otherwise they
+    went stale the first time the calendar turned a month.
     """
+    monkeypatch.setattr(
+        "app.routers.dashboard._now", lambda: datetime(2026, 9, 1, 10, 0, 0)
+    )
     snapshots: dict[str, Any] = {}
     for endpoint in ENDPOINTS:
         resp = api._open(

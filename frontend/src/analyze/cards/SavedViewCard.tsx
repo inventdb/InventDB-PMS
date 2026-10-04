@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { errorMessage } from "../../api/client";
 import { fetchSavedView, runSql } from "../api";
 import { DataGrid } from "../DataGrid";
-import { singleTypeFromSql, isAggregateSql, tableFromSql } from "../helpers";
+import { useDrillActions } from "../../drill/actions";
 import { Skeleton } from "../ui";
 
 export function SavedViewCard({ chart, baseSql }: { chart: any; baseSql: string }) {
@@ -41,8 +41,7 @@ export function SavedViewCard({ chart, baseSql }: { chart: any; baseSql: string 
     };
   }, [baseSql, chart?.viewId]);
 
-  const table = singleTypeFromSql(baseSql) ?? tableFromSql(baseSql);
-  const openable = !!singleTypeFromSql(baseSql) && !isAggregateSql(baseSql);
+  const drillMode = useDrillActions().mode(baseSql);
 
   return (
     <div className="an-card">
@@ -51,7 +50,11 @@ export function SavedViewCard({ chart, baseSql }: { chart: any; baseSql: string 
           <div className="an-card-title">{name || "Saved view"}</div>
           <div className="an-note">
             {rows ? `${rows.length} row${rows.length === 1 ? "" : "s"}` : "Loading…"}
-            {openable ? " · click a row to open it" : ""}
+            {drillMode === "record"
+              ? " · click a row to open it"
+              : drillMode === "behind"
+                ? " · click a row to see what is behind it"
+                : ""}
           </div>
         </div>
       </div>
@@ -62,7 +65,7 @@ export function SavedViewCard({ chart, baseSql }: { chart: any; baseSql: string 
       ) : rows.length === 0 ? (
         <p className="an-note">This view returned no rows.</p>
       ) : (
-        <DataGrid rows={rows} table={table} openable={openable} />
+        <DataGrid rows={rows} sql={baseSql} />
       )}
     </div>
   );

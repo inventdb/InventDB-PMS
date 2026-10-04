@@ -131,6 +131,7 @@ run *is* a workflow, mid-flight.
 | | |
 |---|---|
 | 🪄 **Describe it** | Say what a record is in plain English and the form fills itself. It proposes, you commit — nothing saves until you press Save |
+| 🧭 **Drill down** | Click any record, result row or chart mark: a right-hand panel opens it **read-only** — its fields, links up to what it points at, and a paged grid of every module that points at it, each one level deeper. A grouped row, bar, slice or KPI lists the records *behind* the number. Edit appears only when you may change that record |
 | 🔎 **Search & filter** | On every module, with server-side sorting |
 | 📑 **Pagination** | Server-side, 50 rows per page — the table fetches a page, not the whole set |
 | 🌓 **Dark & light** | Auto-detects system preference, including native `<select>` menus |
@@ -288,9 +289,9 @@ docker run -p 8000:8000 -e INVENTDB_BASE_URL=https://<slug>.cloud.inventdb.com i
 
 | Suite | Command | Expected |
 |---|---|---|
-| Back end + contract | `cd backend && python -m pytest` | **1144 passed, 6 xfailed** |
+| Back end + contract | `cd backend && python -m pytest` | **1191 passed, 6 xfailed** |
 | Types | `cd frontend && npm run typecheck` | 0 errors |
-| End-to-end | `cd frontend && npx playwright test` | **25 spec files, all green** |
+| End-to-end | `cd frontend && npx playwright test` | **26 spec files, all green** |
 
 - The backend suite ships a **fake InventDB**, so it needs no network, no secrets and no live instance — it cannot touch real data.
 - The E2E suite mocks `/api` in the browser and starts its own Vite server, so it needs no backend either.
@@ -371,6 +372,13 @@ All endpoints live under `/api`. Data routes require a bearer token from the log
 | `GET` | `.../text` | What OCR read out of the file |
 | `GET/POST` | `.../versions` · `POST .../versions/<n>/restore` | History; add; make current |
 
+### Drill-down
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/drill/<entity>` | One page of the records behind a figure: `{where?, alias?, filters?, order_by?, order_dir?, limit, offset}` → `{items, total}`. `where` is the WHERE of the query behind the chart, held to a single read-only condition |
+| `GET` | `/api/drill/<entity>/<id>/access` | May the caller see and **change this record**? `{can_view, can_edit, reason, row_rules}` — readable under your token, plus an admin role or a write grant on the module. Row rules are still enforced by InventDB when you save |
+
 ### Analyze, settings & meta
 
 | Method | Path | Purpose |
@@ -401,7 +409,7 @@ InventDB-PMS/
 │   │   ├── context.py         # Bearer token → client
 │   │   ├── entities.py        # The ten-entity registry
 │   │   ├── errors.py · sqlutil.py
-│   │   └── routers/           # auth · resources · dashboard · reports ·
+│   │   └── routers/           # auth · resources · dashboard · reports · drill ·
 │   │                          #   workflows · notifications · files ·
 │   │                          #   analyze · meta · settings
 │   ├── tests/                 # pytest suite + a fake InventDB
@@ -416,11 +424,12 @@ InventDB-PMS/
 │   │   ├── reports/           # Report Studio: edit stream, inline rename
 │   │   ├── workflows/         # Detail console, plan & run timelines, catalogue
 │   │   ├── notifications/     # Approval card, panel, body sanitiser
+│   │   ├── drill/             # Drill-down panel: record view, related grids, behind-the-number
 │   │   ├── files/             # Drive tree, grid, detail panel
 │   │   ├── components/        # Layout · Modal · EntityForm · DescribeRecord …
 │   │   ├── config/entities.ts # Field schema driving all tables & forms
 │   │   └── api/ auth/ theme/ utils/ styles/
-│   ├── e2e/                   # 25 Playwright spec files
+│   ├── e2e/                   # 26 Playwright spec files
 │   └── vite.config.ts · package.json
 ├── contract/                  # Generated shape of every /api response
 └── docs/                      # Architecture notes, test results, runbooks
@@ -447,6 +456,8 @@ InventDB-PMS/
 - The API stores **no credentials** and keeps **no session state** — it forwards the caller's JWT and relies on InventDB's auth and row-level security.
 - SQL identifiers are validated against a strict allow-list; all values are escaped.
 - `/api/meta/sql` and `/api/analyze/sql` accept **read-only** `SELECT`/`WITH` only.
+- A drill-down re-runs the filter of a query you already saw: its WHERE fragment is held to one condition (no `;`, comments or write/DDL keywords, balanced quotes and parentheses) over one module, under your own token.
+- The drill-down panel opens records **read-only**; Edit is offered only when you may change that record, and InventDB's row rules still decide the save.
 - Analyze **reads** on its own — anything that would change data arrives as a proposal you approve.
 - Notification bodies are sanitised before display.
 - Run over **HTTPS** in production and restrict `CORS_ORIGINS`.

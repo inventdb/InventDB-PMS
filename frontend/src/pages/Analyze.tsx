@@ -51,7 +51,6 @@ import {
   extractReport,
   findAttachStep,
   focusedReportOf,
-  isAggregateSql,
   INTERNAL_STEP,
   isJsonBlob,
   newThreadId,
@@ -63,6 +62,7 @@ import {
 import { AgentTimeline, AtlNode } from "../analyze/Timeline";
 import { ChartAdapter } from "../analyze/ChartAdapter";
 import { DataGrid } from "../analyze/DataGrid";
+import { useDrillActions } from "../drill/actions";
 import { Followups } from "../analyze/Followups";
 import { Markdown } from "../analyze/Markdown";
 import {
@@ -1291,7 +1291,24 @@ function ExchangeView({
   }, [exchange.steps.length, exchange.running, isLast]);
 
   const gridType = singleTypeFromSql(lastSql);
-  const gridOpenable = !!gridType && !isAggregateSql(lastSql);
+  // Rows and chart marks open the drill-down panel. The grid's rows came from
+  // the step that returned them; the chart's from the last query before it.
+  const drillActions = useDrillActions();
+  const gridSql = dataStep?.sql ?? lastSql;
+  const gridDrill = drillActions.enabled ? drillActions.mode(gridSql) : null;
+  const chartIdx = chartStep ? steps.lastIndexOf(chartStep) : -1;
+  const upToChart = chartIdx >= 0 ? steps.slice(0, chartIdx + 1) : [];
+  const chartSql = chartStep?.sql ?? [...upToChart].reverse().find((s) => s.sql)?.sql;
+  const chartRows = [...upToChart].reverse().find((s) => s.data && s.data.length)?.data;
+  const chartPick =
+    drillActions.enabled && drillActions.mode(chartSql)
+      ? (category: string, series?: string) =>
+          drillActions.openPoint(chartSql, category, {
+            series,
+            rows: chartRows as Record<string, unknown>[] | undefined,
+            title: exchange.question,
+          })
+      : undefined;
 
   return (
     <div className={`an-exchange ${isFirst ? "" : "is-followup"}`}>
@@ -1509,7 +1526,7 @@ function ExchangeView({
 
         {chartIsDeliverable && (
           <AtlNode type="chart" tone="accent">
-            <ChartAdapter chart={chartStep!.chart} />
+            <ChartAdapter chart={chartStep!.chart} onPick={chartPick} />
           </AtlNode>
         )}
 
@@ -1519,13 +1536,13 @@ function ExchangeView({
               {dataStep!.data!.length}
               {gridType ? ` ${titleize(gridType.type)}` : ""} row
               {dataStep!.data!.length === 1 ? "" : "s"}
-              {gridOpenable ? " · click a row to open it" : ""}
+              {gridDrill === "record"
+                ? " · click a row to open it"
+                : gridDrill === "behind"
+                  ? " · click a row to see what is behind it"
+                  : ""}
             </p>
-            <DataGrid
-              rows={dataStep!.data!}
-              table={gridType}
-              openable={gridOpenable}
-            />
+            <DataGrid rows={dataStep!.data!} sql={gridSql} title={exchange.question} />
           </AtlNode>
         )}
 

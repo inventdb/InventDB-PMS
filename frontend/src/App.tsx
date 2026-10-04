@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { useAuth } from "./auth/AuthContext";
 import { Layout } from "./components/Layout";
+import { DrillProvider } from "./drill/DrillContext";
 import Analyze from "./pages/Analyze";
 import Dashboard from "./pages/Dashboard";
 import EntityListPage from "./pages/EntityListPage";
@@ -21,7 +22,12 @@ const ImportPage = lazy(() => import("./pages/Import"));
 function ProtectedLayout() {
   const { user, token } = useAuth();
   if (!user || !token) return <Navigate to="/login" replace />;
-  return <Layout />;
+  // One drill-down panel for every signed-in page — see drill/DrillContext.
+  return (
+    <DrillProvider>
+      <Layout />
+    </DrillProvider>
+  );
 }
 
 export default function App() {

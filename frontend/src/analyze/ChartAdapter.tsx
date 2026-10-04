@@ -95,7 +95,18 @@ function tickFormat(v: unknown): string {
   return n.toLocaleString();
 }
 
-export function ChartAdapter({ chart }: { chart: any }) {
+export function ChartAdapter({
+  chart,
+  onPick,
+}: {
+  chart: any;
+  /**
+   * A bar, slice or point was clicked: its category label and, for a bar in a
+   * multi-series chart, which series. Present only when the query behind the
+   * figure can be traced to records — otherwise the chart isn't clickable.
+   */
+  onPick?: (category: string, series?: string) => void;
+}) {
   const theme = useChartTheme();
   const traces: Trace[] = Array.isArray(chart?.data || chart?.traces)
     ? chart.data || chart.traces
@@ -126,14 +137,17 @@ export function ChartAdapter({ chart }: { chart: any }) {
     const explicit = Array.isArray(t.marker?.color) ? (t.marker!.color as string[]) : null;
     const hole = Number((t as any).hole) || 0;
     return (
-      <figure className="an-figure">
+      <figure className="an-figure" data-drillable={onPick ? "true" : undefined}>
         {title && <figcaption className="an-figure-title">{title}</figcaption>}
+        {onPick && <p className="an-note">Click a slice to see the records behind it.</p>}
         <ResponsiveContainer width="100%" height={300}>
           <PieChart>
             <Pie
               data={rows}
               dataKey="value"
               nameKey="name"
+              onClick={onPick ? (d: any) => onPick(String(d?.name ?? d?.payload?.name ?? "")) : undefined}
+              cursor={onPick ? "pointer" : undefined}
               cx="50%"
               cy="50%"
               innerRadius={hole > 0 ? `${Math.round(hole * 100)}%` : 0}
@@ -257,6 +271,12 @@ export function ChartAdapter({ chart }: { chart: any }) {
           key={key}
           dataKey={key}
           fill={color}
+          onClick={
+            onPick && single === "bar"
+              ? (d: any) => onPick(String(d?.payload?.__x ?? d?.__x ?? ""), traces.length > 1 ? key : undefined)
+              : undefined
+          }
+          cursor={onPick ? "pointer" : undefined}
           stackId={stacked ? "a" : undefined}
           radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
           maxBarSize={54}
@@ -309,13 +329,24 @@ export function ChartAdapter({ chart }: { chart: any }) {
             : ComposedChart;
 
   return (
-    <figure className="an-figure">
+    <figure className="an-figure" data-drillable={onPick ? "true" : undefined}>
       {title && <figcaption className="an-figure-title">{title}</figcaption>}
+      {onPick && <p className="an-note">Click a {single === "bar" ? "bar" : "point"} to see the records behind it.</p>}
       <ResponsiveContainer width="100%" height={320}>
         <Chart
           data={rows}
           layout={horizontal ? "vertical" : "horizontal"}
           margin={{ top: 8, right: 12, bottom: 4, left: 0 }}
+          // Bars report their own clicks (with the series); lines, areas and
+          // points are picked by the category under the cursor.
+          onClick={
+            onPick && single !== "bar"
+              ? (state: any) => {
+                  if (state?.activeLabel != null) onPick(String(state.activeLabel));
+                }
+              : undefined
+          }
+          style={onPick ? { cursor: "pointer" } : undefined}
         >
           {gridAndAxes}
           {body}

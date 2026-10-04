@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 import { useCreate, useDelete, useList, useUpdate } from "../api/hooks";
-import { api, errorMessage } from "../api/client";
+import { errorMessage } from "../api/client";
 import {
   ENTITY_BY_NAME,
   recordTitle,
@@ -30,6 +30,7 @@ import { ConfirmDialog, Modal } from "../components/Modal";
 import { useReferences } from "../components/references";
 import { ScrollX } from "../components/ScrollX";
 import { useToast } from "../components/Toast";
+import { useDrill } from "../drill/DrillContext";
 import { Alert, Badge, EmptyState, Spinner } from "../components/ui";
 import { ViewSwitcher } from "../views/ViewSwitcher";
 import { ViewDesigner, type DesignedView } from "../views/ViewDesigner";
@@ -64,6 +65,7 @@ export default function EntityListPage() {
 
 function EntityModule({ config }: { config: EntityConfig }) {
   const toast = useToast();
+  const drill = useDrill();
   const [params, setParams] = useSearchParams();
   const [rawSearch, setRawSearch] = useState(() => params.get("q") ?? "");
   const [q, setQ] = useState(() => params.get("q")?.trim() ?? "");
@@ -266,44 +268,28 @@ function EntityModule({ config }: { config: EntityConfig }) {
     if (total > 0 && page > 0 && page >= pageCount) setPage(pageCount - 1);
   }, [total, page, pageCount, fetching]);
 
-  // `?focus=<id>` opens one record straight away. Analyze links here when a
-  // result row is clicked — this app has no separate record page, so the module
-  // list with that record open IS the record view. Consumed once, then dropped
-  // from the URL so a later refresh doesn't reopen the dialog.
+  // `?focus=<id>` opens one record straight away — read-only, in the drill-down
+  // panel, the same view a row click gives. Analyze and the action cards link
+  // here. Consumed once, then dropped from the URL so a refresh doesn't reopen
+  // it. The panel fetches the record by id itself, so it doesn't matter whether
+  // it is on the page of the list that happens to be showing.
   const focusId = params.get("focus");
   const focusedOnce = useRef<string | null>(null);
   useEffect(() => {
-    if (!focusId || list.isLoading) return;
-    if (focusedOnce.current === focusId) return;
+    if (!focusId || focusedOnce.current === focusId) return;
     focusedOnce.current = focusId;
-    const match = items.find((r) => String(r._id ?? "") === focusId);
-    if (match) {
-      setEditing(match);
-      setModalOpen(true);
-    } else {
-      // Not on this page is not the same as gone — and now that the table is
-      // paged, a focused record being absent from the current page is the
-      // normal case rather than the exception. Fetch the one record by id, and
-      // only call it missing if InventDB agrees it is.
-      void api
-        .get<Rec>(`/${config.name}/${focusId}`)
-        .then(({ data }) => {
-          if (data && data._id != null) {
-            setEditing(data);
-            setModalOpen(true);
-          } else {
-            toast.error("That record is no longer in this list.");
-          }
-        })
-        .catch(() => toast.error("That record is no longer in this list."));
-    }
+    drill.open({ kind: "record", entity: config.name, id: focusId });
     const next = new URLSearchParams(params);
     next.delete("focus");
     setParams(next, { replace: true });
-    // `items` is a fresh array each render; the ref guard is what makes this
-    // run once per focused id.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusId, list.isLoading, items.length]);
+  }, [focusId]);
+
+  /** A row opens its record read-only; Edit is a deliberate second step. */
+  const openRecord = (record: Rec) => {
+    if (record._id == null) return;
+    drill.open({ kind: "record", entity: config.name, id: String(record._id) });
+  };
 
   // Re-sorting reorders the whole result, not the page, so the row you were
   // looking at is not on page 4 any more. Go back to the top of the new order.
@@ -575,7 +561,16 @@ function EntityModule({ config }: { config: EntityConfig }) {
             </thead>
             <tbody>
               {items.map((record, idx) => (
-                <tr key={String(record._id ?? record[config.key] ?? idx)}>
+                <tr
+                  key={String(record._id ?? record[config.key] ?? idx)}
+                  className="is-drillable"
+                  tabIndex={0}
+                  title="Open this record"
+                  onClick={() => openRecord(record)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && e.target === e.currentTarget) openRecord(record);
+                  }}
+                >
                   {!config.hideKeyColumn && (
                     <td style={{ fontFamily: "ui-monospace, monospace", fontSize: 12.5, color: "var(--text-muted)" }}>
                       {String(record[config.key] ?? "—")}
@@ -584,7 +579,7 @@ function EntityModule({ config }: { config: EntityConfig }) {
                   {tableFields.map((f) => (
                     <td key={f.name}>{renderCell(record, f)}</td>
                   ))}
-                  <td>
+                  <td onClick={(e) => e.stopPropagation()}>
                     <div className="row-actions">
                       <button
                         className="btn-icon"

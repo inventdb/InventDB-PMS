@@ -144,6 +144,23 @@ class InventDBClient:
     def health(self) -> Any:
         return self._request("GET", "/api/auth/health", auth=False)
 
+    def permission_check(self, resource: str, level: str) -> bool:
+        """Does the caller hold ``level`` on ``resource`` ("ns" or "ns.type")?
+
+        This is the grant check InventDB's own write middleware makes, so True
+        means a write to that type is let through to the row rules. Admins and
+        superadmins are always True upstream.
+        """
+        data = self._request(
+            "GET", "/api/permissions/check", params={"resource": resource, "level": level}
+        )
+        if not isinstance(data, dict):
+            return False
+        allowed = data.get("has_permission")
+        if allowed is None and isinstance(data.get("data"), dict):
+            allowed = data["data"].get("has_permission")
+        return allowed is True
+
     # ------------------------------------------------------------- discovery
     def list_types(self) -> Any:
         ns = _safe_ident(self.namespace, "namespace")

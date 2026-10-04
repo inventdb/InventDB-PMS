@@ -39,10 +39,37 @@ export interface Point {
   value: number;
 }
 
+/** A clickable chart mark: pointer cursor, Enter/Space, an accessible name. */
+export type Pick = (label: string, series?: string) => void;
+function pickProps(onPick: Pick | undefined, label: string, name: string, series?: string) {
+  if (!onPick) return {};
+  return {
+    role: "button",
+    tabIndex: 0,
+    "aria-label": name,
+    className: "is-drill-target",
+    onClick: () => onPick(label, series),
+    onKeyDown: (e: { key: string; preventDefault: () => void }) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onPick(label, series);
+      }
+    },
+  };
+}
+
 /* ── Pie / donut ────────────────────────────────────────────────────────── */
 
 /** Flat category share. Hovering a slice or its legend row highlights the pair. */
-export function PieChart({ data, donut = false }: { data: Point[]; donut?: boolean }) {
+export function PieChart({
+  data,
+  donut = false,
+  onPick,
+}: {
+  data: Point[];
+  donut?: boolean;
+  onPick?: Pick;
+}) {
   const [hov, setHov] = useState<number | null>(null);
   const rows = data.filter((d) => Number.isFinite(d.value));
   const total = rows.reduce((s, d) => s + (d.value || 0), 0) || 1;
@@ -84,6 +111,7 @@ export function PieChart({ data, donut = false }: { data: Point[]; donut?: boole
               fill={hue(s.i)}
               onMouseEnter={() => setHov(s.i)}
               onMouseLeave={() => setHov(null)}
+              {...pickProps(onPick, s.d.label, `${axisLabel(s.d.label)}: ${s.d.value}`)}
             >
               <title>{`${s.d.label}: ${s.d.value} (100%)`}</title>
             </circle>
@@ -98,6 +126,7 @@ export function PieChart({ data, donut = false }: { data: Point[]; donut?: boole
               style={{ transition: "opacity .15s" }}
               onMouseEnter={() => setHov(s.i)}
               onMouseLeave={() => setHov(null)}
+              {...pickProps(onPick, s.d.label, `${axisLabel(s.d.label)}: ${s.d.value}`)}
             >
               <title>{`${s.d.label}: ${s.d.value} (${(s.frac * 100).toFixed(1)}%)`}</title>
             </path>
@@ -109,10 +138,11 @@ export function PieChart({ data, donut = false }: { data: Point[]; donut?: boole
         {segs.map((s) => (
           <div
             key={s.i}
-            className="wg-legend-row"
             style={{ opacity: hov === null || hov === s.i ? 1 : 0.5 }}
             onMouseEnter={() => setHov(s.i)}
             onMouseLeave={() => setHov(null)}
+            {...pickProps(onPick, s.d.label, `${axisLabel(s.d.label)}: ${s.d.value}`)}
+            className={`wg-legend-row${onPick ? " is-drill-target" : ""}`}
           >
             <span className="wg-swatch" style={{ background: hue(s.i) }} />
             <span className="wg-legend-label">{axisLabel(s.d.label)}</span>
@@ -130,9 +160,11 @@ export function PieChart({ data, donut = false }: { data: Point[]; donut?: boole
 export function GroupedBars({
   categories,
   series,
+  onPick,
 }: {
   categories: string[];
   series: { name: string; values: number[]; color?: string }[];
+  onPick?: Pick;
 }) {
   const [hov, setHov] = useState<string | null>(null);
   const max = Math.max(1, ...series.flatMap((s) => s.values.map((v) => v || 0)));
@@ -161,6 +193,7 @@ export function GroupedBars({
                     title={`${s.name} · ${axisLabel(cat)}: ${v.toLocaleString()}`}
                     onMouseEnter={() => setHov(key)}
                     onMouseLeave={() => setHov(null)}
+                    {...pickProps(onPick, cat, `${s.name} · ${axisLabel(cat)}: ${v.toLocaleString()}`, s.name)}
                     style={{
                       height: `${(v / max) * 100}%`,
                       background: colorOf(s, si),
@@ -188,7 +221,15 @@ export function GroupedBars({
 
 /* ── Area / line ────────────────────────────────────────────────────────── */
 
-export function AreaLine({ points, height = 120 }: { points: Point[]; height?: number }) {
+export function AreaLine({
+  points,
+  height = 120,
+  onPick,
+}: {
+  points: Point[];
+  height?: number;
+  onPick?: Pick;
+}) {
   const [hov, setHov] = useState<number | null>(null);
   if (!points.length) return null;
 
@@ -270,13 +311,14 @@ export function AreaLine({ points, height = 120 }: { points: Point[]; height?: n
               key={i}
               onMouseEnter={() => setHov(i)}
               onMouseLeave={() => setHov(null)}
+              {...pickProps(onPick, points[i].label, `${axisLabel(points[i].label)}: ${points[i].value.toLocaleString()}`)}
               style={{
                 position: "absolute",
                 top: 0,
                 bottom: 0,
                 left: `${Math.max(0, xPct(i) - 50 / points.length)}%`,
                 width: `${100 / points.length}%`,
-                cursor: "default",
+                cursor: onPick ? "pointer" : "default",
               }}
             />
           ))}
@@ -357,10 +399,13 @@ export function Heatmap({
   matrix,
   xLabels,
   yLabels,
+  onPick,
 }: {
   matrix: number[][];
   xLabels: string[];
   yLabels: string[];
+  /** Called with (column label, row label). */
+  onPick?: Pick;
 }) {
   const flat = matrix.flat().filter((v) => Number.isFinite(v));
   if (!flat.length) return null;
@@ -380,9 +425,12 @@ export function Heatmap({
               {row.map((v, ci) => (
                 <td
                   key={ci}
-                  className="wg-heat-cell"
                   title={String(v)}
                   style={{ background: color(v) }}
+                  {...(Number.isFinite(v)
+                    ? pickProps(onPick, xLabels[ci], `${yLabels[ri]} · ${axisLabel(xLabels[ci])}: ${v}`, yLabels[ri])
+                    : {})}
+                  className={`wg-heat-cell${onPick && Number.isFinite(v) ? " is-drill-target" : ""}`}
                 >
                   {Number.isFinite(v) ? fmt(v) : ""}
                 </td>
@@ -405,15 +453,24 @@ export function Heatmap({
 
 /* ── Horizontal bars ────────────────────────────────────────────────────── */
 
-export function HBars({ data, fmt }: { data: Point[]; fmt?: (n: number) => string }) {
+export function HBars({
+  data,
+  fmt,
+  onPick,
+}: {
+  data: Point[];
+  fmt?: (n: number) => string;
+  onPick?: Pick;
+}) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
     <div className="wg-hbars">
       {data.map((d, i) => (
         <div
           key={i}
-          className="wg-hbar"
           title={`${axisLabel(d.label)}: ${fmt ? fmt(d.value) : d.value.toLocaleString()}`}
+          {...pickProps(onPick, d.label, `${axisLabel(d.label)}: ${fmt ? fmt(d.value) : d.value.toLocaleString()}`)}
+          className={`wg-hbar${onPick ? " is-drill-target" : ""}`}
         >
           <span className="wg-hbar-label">{axisLabel(d.label)}</span>
           <div className="wg-hbar-track">

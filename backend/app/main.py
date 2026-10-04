@@ -26,6 +26,7 @@ from .routers import (
     analyze,
     auth,
     dashboard,
+    drill,
     files,
     imports,
     meta,
@@ -102,6 +103,7 @@ def create_app() -> Flask:
     app.register_blueprint(analyze.bp)
     app.register_blueprint(imports.bp)
     app.register_blueprint(views.bp)
+    app.register_blueprint(drill.bp)
     # Registered last: its routes are `/api/<entity>`, which would otherwise
     # shadow the specific prefixes above.
     app.register_blueprint(resources.bp)

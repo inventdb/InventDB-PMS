@@ -19,6 +19,7 @@ import { Modal } from "../components/Modal";
 import { Receipt, Skeleton, Sql } from "../analyze/ui";
 import { formatCurrency, formatDate, formatNumber, titleCase } from "../utils/format";
 import { useSql } from "./api";
+import { useDrillActions } from "../drill/actions";
 import { AreaLine, GroupedBars, HBars, Heatmap, PieChart, ScatterPlot } from "./charts";
 import { renderWidget } from "./reportWidget";
 import { ShadowHtml } from "./ShadowHtml";
@@ -232,6 +233,20 @@ function SimpleBody({
         ? formatNumber(n)
         : String(n ?? "—");
   const tgt = targetFor(w);
+  // Clicking a figure opens the drill-down panel: a KPI lists every record
+  // behind it, a bar / slice / row the records behind that group (or, for a
+  // plain top-N query, that one record). Off while the layout is being edited.
+  const drill = useDrillActions();
+  const drillable = !editing && drill.enabled && !!drill.mode(w.sql);
+  const openRow = drillable ? (r: Row) => void drill.openRow(w.sql, r, w.title) : undefined;
+  const pickLabel = (labelKey: string) =>
+    drillable
+      ? (label: string) => {
+          const hit = rows.find((r) => String(r[labelKey] ?? "—") === label);
+          if (hit) openRow!(hit);
+          else drill.openPoint(w.sql, label, { rows, title: w.title });
+        }
+      : undefined;
 
   const kpiTarget = w.kind === "kpi" && rows.length ? firstNumber(rows[0]) : null;
   const kpiAnim = useCountUp(kpiTarget);
@@ -244,11 +259,25 @@ function SimpleBody({
     <p className="wg-empty">This widget's query returned nothing yet.</p>
   ) : w.kind === "kpi" ? (
     <div className="wg-kpi">
-      <span className="wg-kpi-value">
-        {kpiTarget == null
-          ? fmtNum(firstNumber(rows[0]))
-          : fmtNum(Math.round(kpiAnim ?? kpiTarget))}
-      </span>
+      {drillable ? (
+        <button
+          className="wg-kpi-drill"
+          title="See the records behind this number"
+          onClick={() => drill.openBehind(w.sql, w.title)}
+        >
+          <span className="wg-kpi-value">
+            {kpiTarget == null
+              ? fmtNum(firstNumber(rows[0]))
+              : fmtNum(Math.round(kpiAnim ?? kpiTarget))}
+          </span>
+        </button>
+      ) : (
+        <span className="wg-kpi-value">
+          {kpiTarget == null
+            ? fmtNum(firstNumber(rows[0]))
+            : fmtNum(Math.round(kpiAnim ?? kpiTarget))}
+        </span>
+      )}
       {!editing && tgt && (
         <button className="wg-link" onClick={() => navigate(tgt.to)}>
           {tgt.label}
@@ -262,11 +291,12 @@ function SimpleBody({
       to={!editing && tgt ? tgt.to : null}
       label={tgt?.label ?? ""}
       navigate={navigate}
+      onOpen={openRow}
     />
   ) : w.kind === "table" ? (
-    <TableView rows={rows} money={w.money} />
+    <TableView rows={rows} money={w.money} onOpen={openRow} />
   ) : (
-    <ChartView rows={rows} kind={w.kind} fmtNum={fmtNum} />
+    <ChartView rows={rows} kind={w.kind} fmtNum={fmtNum} pick={drillable ? pickLabel : undefined} onOpen={openRow} />
   );
 
   return (
@@ -338,12 +368,14 @@ function Listing({
   to,
   label,
   navigate,
+  onOpen,
 }: {
   rows: Row[];
   fmtNum: (n: unknown) => string;
   to: string | null;
   label: string;
   navigate: (p: string) => void;
+  onOpen?: (r: Row) => void;
 }) {
   const keys = Object.keys(rows[0]).filter((k) => !k.startsWith("_") || k === "_id");
   const labelKey = keys.find((k) => typeof rows[0][k] !== "number") ?? keys[0];
@@ -351,7 +383,20 @@ function Listing({
   return (
     <div>
       {rows.slice(0, 8).map((r, i) => (
-        <div className="metric-row" key={i}>
+        <div
+          className={`metric-row${onOpen ? " is-drill-target" : ""}`}
+          key={i}
+          role={onOpen ? "button" : undefined}
+          tabIndex={onOpen ? 0 : undefined}
+          onClick={onOpen ? () => onOpen(r) : undefined}
+          onKeyDown={
+            onOpen
+              ? (e) => {
+                  if (e.key === "Enter") onOpen(r);
+                }
+              : undefined
+          }
+        >
           <span className="m-label">{String(r[labelKey] ?? "—")}</span>
           <span className="m-value">{valKey === labelKey ? "" : fmtNum(r[valKey])}</span>
         </div>
@@ -369,10 +414,15 @@ function ChartView({
   rows,
   kind,
   fmtNum,
+  pick,
+  onOpen,
 }: {
   rows: Row[];
   kind: Widget["kind"];
   fmtNum: (n: unknown) => string;
+  /** Given the label column, a handler for a clicked mark — when drillable. */
+  pick?: (labelKey: string) => ((label: string) => void) | undefined;
+  onOpen?: (r: Row) => void;
 }) {
   const keys = Object.keys(rows[0]);
   const labelKey = keys.find((k) => typeof rows[0][k] !== "number") ?? keys[0];
@@ -384,10 +434,11 @@ function ChartView({
     label: String(r[labelKey] ?? "—"),
     value: Number(r[valKey]) || 0,
   }));
+  const onPick = pick?.(labelKey);
 
   if (kind === "pie" || kind === "donut")
-    return <PieChart data={points} donut={kind === "donut"} />;
-  if (kind === "line" || kind === "area") return <AreaLine points={points} />;
+    return <PieChart data={points} donut={kind === "donut"} onPick={onPick} />;
+  if (kind === "line" || kind === "area") return <AreaLine points={points} onPick={onPick} />;
 
   if (kind === "scatter") {
     // Take x and y from ALL numeric columns, not `numKeys` — with no text column
@@ -403,7 +454,7 @@ function ChartView({
       }));
       return <ScatterPlot points={sp} />;
     }
-    return <HBars data={points} fmt={(n) => fmtNum(n)} />;
+    return <HBars data={points} fmt={(n) => fmtNum(n)} onPick={onPick} />;
   }
 
   if (kind === "heatmap") {
@@ -415,9 +466,15 @@ function ChartView({
       const idx = new Map<string, number>();
       rows.forEach((r) => idx.set(`${r[rowK]} ${r[colK]}`, Number(r[valKey]) || 0));
       const matrix = yLabels.map((y) => xLabels.map((x) => idx.get(`${y} ${x}`) ?? NaN));
-      return <Heatmap matrix={matrix} xLabels={xLabels} yLabels={yLabels} />;
+      const pickCell = onOpen
+        ? (x: string, y?: string) => {
+            const hit = rows.find((r) => String(r[colK] ?? "—") === x && String(r[rowK] ?? "—") === y);
+            if (hit) onOpen(hit);
+          }
+        : undefined;
+      return <Heatmap matrix={matrix} xLabels={xLabels} yLabels={yLabels} onPick={pickCell} />;
     }
-    return <HBars data={points} fmt={(n) => fmtNum(n)} />;
+    return <HBars data={points} fmt={(n) => fmtNum(n)} onPick={onPick} />;
   }
 
   // A bar or histogram whose query returns 2+ numeric columns is a grouped
@@ -428,10 +485,10 @@ function ChartView({
       name: titleCase(k),
       values: rows.map((r) => Number(r[k]) || 0),
     }));
-    return <GroupedBars categories={categories} series={series} />;
+    return <GroupedBars categories={categories} series={series} onPick={onPick} />;
   }
 
-  return <HBars data={points} fmt={(n) => fmtNum(n)} />;
+  return <HBars data={points} fmt={(n) => fmtNum(n)} onPick={onPick} />;
 }
 
 /**
@@ -446,7 +503,15 @@ function cell(v: unknown, moneyish: boolean): string {
   return String(v);
 }
 
-function TableView({ rows, money }: { rows: Row[]; money?: boolean }) {
+function TableView({
+  rows,
+  money,
+  onOpen,
+}: {
+  rows: Row[];
+  money?: boolean;
+  onOpen?: (r: Row) => void;
+}) {
   const cols = Object.keys(rows[0])
     .filter((k) => !k.startsWith("_") || k === "_id")
     .slice(0, 6);
@@ -463,7 +528,19 @@ function TableView({ rows, money }: { rows: Row[]; money?: boolean }) {
         </thead>
         <tbody>
           {rows.slice(0, 8).map((r, i) => (
-            <tr key={i}>
+            <tr
+              key={i}
+              className={onOpen ? "is-drillable" : undefined}
+              tabIndex={onOpen ? 0 : undefined}
+              onClick={onOpen ? () => onOpen(r) : undefined}
+              onKeyDown={
+                onOpen
+                  ? (e) => {
+                      if (e.key === "Enter") onOpen(r);
+                    }
+                  : undefined
+              }
+            >
               {cols.map((c) => (
                 <td key={c} className={typeof r[c] === "number" ? "num" : undefined}>
                   {cell(r[c], moneyish(c))}

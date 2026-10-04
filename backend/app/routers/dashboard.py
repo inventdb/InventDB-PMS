@@ -55,6 +55,12 @@ def _all(client: InventDBClient, type_name: str) -> list[dict[str, Any]]:
     return client.query_rows(f"SELECT * FROM {client.namespace}.{type_name} LIMIT 5000")
 
 
+def _now() -> datetime:
+    """The current UTC time, naive. One seam, so the snapshot tests can pin it:
+    "this month" and "expiring soon" are relative to it, and an unpinned clock
+    made the published dashboard examples go stale every month."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 @bp.get("/summary")
 def summary():
     client = authed_client()
@@ -64,7 +70,7 @@ def summary():
     maint = _all(client, "work_orders")
     txns = _all(client, "transactions")
 
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = _now()
     this_month = _month_key(now)
 
     total_props = len(props)
@@ -137,7 +143,7 @@ def charts():
     maint = _all(client, "work_orders")
     txns = _all(client, "transactions")
 
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = _now()
 
     months: list[str] = []
     cy, cm = now.year, now.month
