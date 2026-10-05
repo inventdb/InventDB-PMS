@@ -947,7 +947,8 @@ export async function installMockApi(
         const pg = Number(body.page) >= 0 ? Number(body.page) : 0;
         const total = 120;
         const rows = Math.max(0, Math.min(size, total - pg * size));
-        return json(route, { html: designedLayout(entity, rows, pg), total });
+        const ids = (store[entity] ?? []).slice(pg * size, pg * size + rows).map((r) => String(r._id));
+        return json(route, { html: designedLayout(entity, rows, pg, ids), total });
       }
 
       if (method === "POST") {

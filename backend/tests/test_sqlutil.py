@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from app.errors import ApiError
-from app.sqlutil import ident, like_literal, sql_literal
+from app.sqlutil import ident, like_literal, sql_literal, count_statement
 
 
 # ===========================================================================
@@ -299,3 +299,46 @@ def test_like_literal_does_not_escape_like_wildcards(value):
     rendered = like_literal(value)
     assert rendered == f"'%{value}%'"
     assert "\\" not in rendered
+
+
+# ===========================================================================
+# count_statement: counting what a designed view's query returns
+# ===========================================================================
+
+
+@pytest.mark.parametrize(
+    "sql,expected",
+    [
+        # A designed view joins (a property card with its owner): count the join.
+        (
+            "SELECT p.*, o.name AS owner_name FROM pms.properties p "
+            "JOIN pms.owners o ON p.owner_id = o.owner_id ORDER BY p.market_value DESC",
+            "SELECT COUNT(*) AS c FROM pms.properties p JOIN pms.owners o ON p.owner_id = o.owner_id",
+        ),
+        (
+            "select * from pms.leases where status = 'Active' limit 10 offset 20",
+            "SELECT COUNT(*) AS c from pms.leases where status = 'Active'",
+        ),
+        # Keywords inside strings, quoted names and subqueries are not clauses.
+        (
+            "SELECT * FROM pms.work_orders WHERE issue = 'order by me' ORDER BY date_opened",
+            "SELECT COUNT(*) AS c FROM pms.work_orders WHERE issue = 'order by me'",
+        ),
+        (
+            "SELECT (SELECT COUNT(*) FROM pms.leases) AS n, street FROM pms.properties",
+            "SELECT COUNT(*) AS c FROM pms.properties",
+        ),
+        ('SELECT "from" FROM pms.t WHERE "order by" = 1', 'SELECT COUNT(*) AS c FROM pms.t WHERE "order by" = 1'),
+        ("SELECT fromage, selection FROM pms.cheese;", "SELECT COUNT(*) AS c FROM pms.cheese"),
+        # Where a row count is not the result's count: unknown, not wrong.
+        ("SELECT DISTINCT city FROM pms.properties", None),
+        ("SELECT city, COUNT(*) FROM pms.properties GROUP BY city", None),
+        ("WITH x AS (SELECT 1) SELECT * FROM x", None),
+        ("SELECT * FROM pms.a UNION SELECT * FROM pms.b", None),
+        ("DELETE FROM pms.leases", None),
+        ("", None),
+    ],
+)
+def test_count_statement(sql, expected):
+    assert count_statement(sql) == expected
+

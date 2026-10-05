@@ -1,4 +1,4 @@
-import { MODULES, expect, rows, test } from "./fixtures";
+import { MODULES, designedLayout, expect, rows, test } from "./fixtures";
 
 /**
  * Saved views — the named browse states at the head of every module.
@@ -275,6 +275,54 @@ test.describe("New view — the designer", () => {
 
     // Both instructions stay on the record so either can be reused.
     await expect(page.locator(".vd-history-row")).toHaveCount(2);
+  });
+
+  test("a card in a custom view opens its record, read-only, in the panel", async ({ page }) => {
+    await page.goto("/properties");
+    await page.locator(trigger).click();
+    await page.getByRole("button", { name: "New view" }).click();
+    await page.getByLabel("Describe the view").fill("a card per property");
+    await page.getByRole("button", { name: "Design view" }).click();
+    await page.locator("#designed-view-name").fill("Property cards");
+    await page.getByRole("button", { name: "Save view" }).click();
+
+    // The cards are drawn by the engine inside a frame that runs no scripts;
+    // clicking one used to do nothing at all.
+    const card = page.frameLocator(".custom-view iframe").locator(".vk-card").first();
+    await expect(card).toHaveAttribute("data-record-id", "prop-1");
+    await expect(card).toHaveAttribute("role", "button");
+    await card.click();
+    await expect(page.getByRole("dialog", { name: "Property details" })).toBeVisible();
+    await expect(page.locator("aside.drill-panel").getByRole("heading", { level: 2 })).toHaveText(
+      "12 Marine Drive Mumbai"
+    );
+    await expect(page.locator("#f-street")).toHaveCount(0); // viewed, not edited
+
+    // And from the keyboard.
+    await page.keyboard.press("Escape");
+    await page.frameLocator(".custom-view iframe").locator(".vk-card").nth(1).focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("aside.drill-panel").getByRole("heading", { level: 2 })).toHaveText(
+      "9 Park Street Kolkata"
+    );
+  });
+
+  test("a custom view whose total is unknown says so rather than '0 records'", async ({ page }) => {
+    // The server sends no total for a query it cannot count (a GROUP BY view).
+    await page.route(/\/api\/views\/properties\/render$/, (route) =>
+      route.fulfill({
+        json: { html: designedLayout("properties", 3, 0, ["prop-1", "prop-2", "prop-3"]), total: null },
+      })
+    );
+    await page.goto("/properties");
+    await page.locator(trigger).click();
+    await page.getByRole("button", { name: "New view" }).click();
+    await page.getByLabel("Describe the view").fill("a card per property");
+    await page.getByRole("button", { name: "Design view" }).click();
+    await page.locator("#designed-view-name").fill("Property cards");
+    await page.getByRole("button", { name: "Save view" }).click();
+    await expect(page.locator(".custom-view iframe")).toBeVisible();
+    await expect(page.locator(".count-pill")).toHaveText("— records");
   });
 
   test("saving turns the design into a view that renders in the list", async ({ page }) => {

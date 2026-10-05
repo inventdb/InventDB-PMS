@@ -39,7 +39,7 @@ from ..entities import Entity, get_entity
 from ..errors import ApiError
 from ..viewkit import VIEW_KIT_CSS, VIEW_KIT_GUIDE
 from ..inventdb import InventDBClient
-from ..sqlutil import ident
+from ..sqlutil import count_statement, ident
 
 bp = Blueprint("views", __name__, url_prefix="/api/views")
 
@@ -484,18 +484,41 @@ def render_view(entity_name: str):
 
     page = body.get("page")
     page_size = body.get("page_size")
+    base_sql = _designed_sql(client, entity, body.get("base_sql"), None)
     result = client.render_view_layout(
         {
             "templateId": template_id.strip(),
-            "baseSql": _designed_sql(client, entity, body.get("base_sql"), None),
+            "baseSql": base_sql,
             "page": page if isinstance(page, int) and page >= 0 else 0,
             "pageSize": page_size if isinstance(page_size, int) and 0 < page_size <= 200 else 25,
         }
     )
     data = result if isinstance(result, dict) else {}
-    return jsonify(
-        {"html": _with_kit(data.get("html") or ""), "total": data.get("total")}
-    )
+    total = data.get("total")
+    if total is None:
+        # The server counts only single-table queries; a designed view usually
+        # joins (a property card with its owner's name). Without a total the
+        # list read "0 records" over a page of cards and offered no pager.
+        total = _count_rows(client, base_sql)
+    return jsonify({"html": _with_kit(data.get("html") or ""), "total": total})
+
+
+def _count_rows(client: InventDBClient, base_sql: str) -> int | None:
+    """Rows the view's query returns, or None when it can't be counted."""
+    statement = count_statement(base_sql)
+    if not statement:
+        return None
+    try:
+        rows = client.sql(statement).get("rows") or []
+    except ApiError:
+        return None
+    if not rows:
+        return 0
+    value = rows[0].get("c", next(iter(rows[0].values()), None))
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 @bp.put("/<entity_name>/<view_id>")

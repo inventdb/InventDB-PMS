@@ -252,6 +252,9 @@ function EntityModule({ config }: { config: EntityConfig }) {
   const items = list.data?.items ?? [];
   // Both surfaces page the same way; only the source of the count differs.
   const total = customView ? rendered.data?.total ?? 0 : list.data?.total ?? 0;
+  // A designed view whose query the server could not count reports no total;
+  // say "—" rather than claim "0 records" over a page full of cards.
+  const totalKnown = !customView || rendered.data?.total != null;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const firstRow = total === 0 ? 0 : page * pageSize + 1;
   const lastRow = customView
@@ -419,7 +422,7 @@ function EntityModule({ config }: { config: EntityConfig }) {
           />
         </div>
         <span className="count-pill">
-          {loading ? "…" : `${total} records`}
+          {loading ? "…" : totalKnown ? `${total} records` : "— records"}
         </span>
       </div>
 
@@ -511,7 +514,12 @@ function EntityModule({ config }: { config: EntityConfig }) {
           // frame a report does — its stylesheet would otherwise fight the
           // app's, and it is not this app's markup to trust.
           <div className="custom-view">
-            <ReportFrame html={rendered.data?.html ?? ""} title={customView.name} />
+            <ReportFrame
+              html={rendered.data?.html ?? ""}
+              title={customView.name}
+              // Each card is a record: open it read-only, like a table row.
+              onRecordClick={(id) => drill.open({ kind: "record", entity: config.name, id })}
+            />
           </div>
         )
       ) : list.isLoading ? (

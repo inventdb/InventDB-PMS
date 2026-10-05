@@ -93,3 +93,74 @@ def like_literal(value: str) -> str:
     text = str(value).replace("\x00", "")
     text = text.replace("'", "''")
     return "'%" + text + "%'"
+
+
+_KEYWORDS = ("select", "from", "where", "group by", "having", "order by", "limit", "offset",
+             "union", "intersect", "except", "with", "distinct")
+#: Each keyword as a whole word, multi-word ones with any whitespace between.
+_KEYWORD_RE = {
+    kw: re.compile(r"\s+".join(kw.split(" ")) + r"\b", re.IGNORECASE) for kw in _KEYWORDS
+}
+
+
+def _top_level_keywords(sql: str) -> list[tuple[int, str]]:
+    """(position, keyword) of each top-level clause keyword in ``sql`` —
+    outside string literals, quoted identifiers and parentheses."""
+    marks: list[tuple[int, str]] = []
+    depth = 0
+    quote: str | None = None
+    i = 0
+    n = len(sql)
+    while i < n:
+        ch = sql[i]
+        if quote:
+            if ch == quote and i + 1 < n and sql[i + 1] == quote:
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif depth == 0 and (i == 0 or not (sql[i - 1].isalnum() or sql[i - 1] in "_.")):
+            for kw in _KEYWORDS:
+                m = _KEYWORD_RE[kw].match(sql, i)
+                if m:
+                    marks.append((i, kw))
+                    i = m.end() - 1
+                    break
+        i += 1
+    return marks
+
+
+def count_statement(sql: str) -> str | None:
+    """``SELECT COUNT(*) AS c`` over the same rows as a plain ``SELECT``.
+
+    Keeps the FROM (joins included) and WHERE; drops the select list, ORDER BY,
+    LIMIT and OFFSET. Returns None when a row count would not be the result's
+    count — a GROUP BY, a DISTINCT, a set operation or a CTE — so the caller
+    can say "unknown" instead of a wrong number.
+    """
+    if not isinstance(sql, str):
+        return None
+    text = sql.strip().rstrip(";").strip()
+    marks = _top_level_keywords(text)
+    if not marks or marks[0] != (0, "select"):
+        return None
+    kinds = [k for _, k in marks]
+    if any(k in kinds for k in ("group by", "having", "union", "intersect", "except", "with")):
+        return None
+    # DISTINCT straight after SELECT changes the count.
+    if len(marks) > 1 and marks[1][1] == "distinct" and not text[6:marks[1][0]].strip():
+        return None
+    froms = [p for p, k in marks if k == "from"]
+    if not froms:
+        return None
+    end = next((p for p, k in marks if k in ("order by", "limit", "offset") and p > froms[0]), len(text))
+    return f"SELECT COUNT(*) AS c {text[froms[0]:end].strip()}"
+

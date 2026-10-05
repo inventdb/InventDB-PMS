@@ -1404,9 +1404,16 @@ export interface SavedViewFixture {
  * record, long values that would overflow a careless layout. Built to a count so
  * a spec can render a tall page and check nothing is clipped.
  */
-export function designedLayout(entity: string, count = 12, page = 0): string {
+export function designedLayout(
+  entity: string,
+  count = 12,
+  page = 0,
+  /** The `_id` of the record each card draws — the engine marks every card
+   *  with `data-record-id`, which is what makes a card open its record. */
+  recordIds: string[] = []
+): string {
   const card = (i: number) => `
-    <div class="vk-card">
+    <div class="vk-card"${recordIds[i - 1] ? ` data-record-id="${recordIds[i - 1]}"` : ""}>
       <div class="vk-card-head">
         <div><div class="vk-title">${entity} record ${page * 100 + i}</div>
         <div class="vk-sub">Richmond, VA</div></div>

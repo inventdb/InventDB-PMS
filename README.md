@@ -132,7 +132,7 @@ run *is* a workflow, mid-flight.
 | | |
 |---|---|
 | 🪄 **Describe it** | Say what a record is in plain English and the form fills itself. It proposes, you commit — nothing saves until you press Save |
-| 🧭 **Drill down** | Click any record, result row or chart mark: a right-hand panel opens it **read-only** — its fields, links up to what it points at, and a paged grid of every module that points at it, each one level deeper. A grouped row, bar, slice or KPI lists the records *behind* the number. Edit appears only when you may change that record |
+| 🧭 **Drill down** | Click any record — a table row or a card in a designed view — an Analyze result row or a chart mark: a right-hand panel opens it **read-only** — its fields, links up to what it points at, and a paged grid of every module that points at it, each one level deeper. A grouped row, bar, slice or KPI lists the records *behind* the number. Edit appears only when you may change that record |
 | 🔎 **Search & filter** | Full-text on every module: the term is matched, case-insensitively and as a substring, against **every field** of a record — its own ID, references, dates and amounts included — with server-side sorting |
 | 📑 **Pagination** | Server-side, 50 rows per page — the table fetches a page, not the whole set |
 | 🌓 **Dark & light** | Auto-detects system preference, including native `<select>` menus |
@@ -290,7 +290,7 @@ docker run -p 8000:8000 -e INVENTDB_BASE_URL=https://<slug>.cloud.inventdb.com i
 
 | Suite | Command | Expected |
 |---|---|---|
-| Back end + contract | `cd backend && python -m pytest` | **1202 passed, 6 xfailed** |
+| Back end + contract | `cd backend && python -m pytest` | **1217 passed, 6 xfailed** |
 | Types | `cd frontend && npm run typecheck` | 0 errors |
 | End-to-end | `cd frontend && npx playwright test` | **26 spec files, all green** |
 
