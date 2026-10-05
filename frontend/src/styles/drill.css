@@ -22,6 +22,8 @@
   animation: drill-slide 0.22s var(--ease-out);
 }
 
+.drill-panel:focus { outline: none; }
+
 @keyframes drill-fade {
   from { opacity: 0; }
 }
@@ -144,9 +146,7 @@
 .drill-field dd { margin: 0; min-width: 0; word-break: break-word; }
 
 .drill-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
+  display: inline;
   padding: 0;
   border: 0;
   background: none;
@@ -156,6 +156,9 @@
   cursor: pointer;
 }
 .drill-link:hover { text-decoration: underline; }
+/* An id never breaks across lines ("O-" / "1005"); the name after it may wrap. */
+.drill-link-key { white-space: nowrap; }
+.drill-link svg { vertical-align: -2px; }
 .drill-link-sub { color: var(--text-muted); }
 
 .drill-grid-wrap {

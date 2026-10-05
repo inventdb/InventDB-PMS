@@ -10,7 +10,7 @@
  * (`GET /api/drill/<module>/<id>/access`). Saving still goes through InventDB's
  * row rules; if one refuses, the panel says why and the record stays view-only.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
@@ -46,6 +46,14 @@ export function DrillPanel() {
   const frame = drill.stack[drill.stack.length - 1];
   const [titles, setTitles] = useState<Record<number, string>>({});
   const depth = drill.stack.length;
+  const panelRef = useRef<HTMLElement>(null);
+
+  // Take focus whenever a level opens. A card in a designed view is clicked
+  // inside its frame, and focus stays in that frame: Esc then went to the
+  // frame's document, never reached this panel, and the page looked stuck.
+  useEffect(() => {
+    panelRef.current?.focus({ preventScroll: true });
+  }, [depth]);
 
   // One Esc handler for the whole stack: step back a level, close at the top.
   // A Modal opened from inside the panel registers its own and is left alone.
@@ -71,6 +79,8 @@ export function DrillPanel() {
   return createPortal(
     <div className="drill-scrim" onMouseDown={drill.close}>
       <aside
+        ref={panelRef}
+        tabIndex={-1}
         className="drill-panel"
         role="dialog"
         aria-modal="true"
@@ -295,7 +305,7 @@ function RecordView({
                         <span className="drill-muted">—</span>
                       ) : rel ? (
                         <button className="drill-link" onClick={() => openParent(f, value)}>
-                          {String(value)}
+                          <span className="drill-link-key">{String(value)}</span>
                           {labels[rel.to]?.[String(value)] && labels[rel.to][String(value)] !== String(value) && (
                             <span className="drill-link-sub"> · {labels[rel.to][String(value)]}</span>
                           )}

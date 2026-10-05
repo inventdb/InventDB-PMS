@@ -71,6 +71,50 @@ function withFlowReset(html: string): string {
     : html + FLOW_RESET;
 }
 
+/**
+ * Stop native drag-and-drop inside the frame.
+ *
+ * Pressing on an image (a property's photo in a card view) and moving the mouse
+ * a few pixels starts the browser's own image drag. Inside a sandboxed srcdoc
+ * frame that drag session never ends: the page stops responding until it is
+ * reloaded, and a reload of a card view lands straight back on it. Nothing in a
+ * report or a layout is meant to be dragged, so images and links are made
+ * undraggable and any drag that still starts is cancelled. With no drag, the
+ * press stays an ordinary click — the card opens.
+ */
+const NO_DRAG_CSS = `
+img, a, svg { -webkit-user-drag: none; user-drag: none; }`;
+
+function disableDrag(doc: Document): () => void {
+  const style = doc.createElement("style");
+  style.textContent = NO_DRAG_CSS;
+  doc.head?.appendChild(style);
+  doc.querySelectorAll("img, a").forEach((el) => el.setAttribute("draggable", "false"));
+  const cancel = (e: DragEvent) => e.preventDefault();
+  doc.addEventListener("dragstart", cancel, true);
+  return () => {
+    doc.removeEventListener("dragstart", cancel, true);
+    style.remove();
+  };
+}
+
+/**
+ * Hand Escape to the page.
+ *
+ * A key pressed while focus is inside the frame goes to the frame's own
+ * document, so the page's Esc handlers (closing the drill panel, a dialog)
+ * never hear it. Re-dispatch it on the page so Esc behaves the same wherever
+ * focus happens to be.
+ */
+function forwardEscape(doc: Document, page: Document): () => void {
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key !== "Escape") return;
+    page.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  };
+  doc.addEventListener("keydown", onKey);
+  return () => doc.removeEventListener("keydown", onKey);
+}
+
 /** Styling for records that open on click, injected only when they do. */
 const CLICKABLE_CSS = `
 [data-record-id] { cursor: pointer; }
@@ -176,7 +220,15 @@ export const ReportFrame = forwardRef<
     unwire.current?.();
     unwire.current = null;
     const doc = ref.current?.contentDocument;
-    if (doc && clickable) unwire.current = wireRecordClicks(doc, (id) => openRef.current?.(id));
+    if (!doc) return;
+    const undrag = disableDrag(doc);
+    const unesc = ref.current?.ownerDocument ? forwardEscape(doc, ref.current.ownerDocument) : null;
+    const unclick = clickable ? wireRecordClicks(doc, (id) => openRef.current?.(id)) : null;
+    unwire.current = () => {
+      undrag();
+      unesc?.();
+      unclick?.();
+    };
   }, [measure, clickable]);
   useEffect(() => () => unwire.current?.(), []);
 
